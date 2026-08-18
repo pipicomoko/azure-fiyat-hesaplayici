@@ -24,6 +24,9 @@ function tahminToplamiGuncelle() {
   if (yillikToplamElemani) {
     yillikToplamElemani.textContent = (toplam * 12).toFixed(2) + ' ' + paraBirimi;
   }
+  if (typeof syncSummaryTotals === 'function') {
+    syncSummaryTotals();
+  }
   const bosMesaji = document.getElementById('tahmin-bos-mesaji');
   if (bosMesaji) {
     bosMesaji.style.display = kalemler.length > 0 ? 'none' : '';

@@ -23,6 +23,9 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "nav_yonetim": {"tr": "Yonetim", "en": "Administration"},
     "nav_cikis": {"tr": "Cikis Yap", "en": "Log out"},
     "nav_giris": {"tr": "Giris Yap", "en": "Log in"},
+    "tema_degistir": {"tr": "Tema", "en": "Theme"},
+    "tema_acik": {"tr": "Acik mod", "en": "Light mode"},
+    "tema_koyu": {"tr": "Koyu mod", "en": "Dark mode"},
     # Giris ekrani
     "giris_baslik": {"tr": "Giris Yap", "en": "Sign in"},
     "giris_kullanici_adi": {"tr": "Kullanici adi", "en": "Username"},
@@ -44,6 +47,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "ana_sayfa_giris": {
         "tr": "Bir urun secip tahmininize ekleyin.",
         "en": "Choose a product and add it to your estimate.",
+    },
+    "ana_sayfa_alt_metin": {
+        "tr": "Aylik ve yillik Azure maliyetlerini daha hizli toparlamak icin urun ekleyin, duzenleyin ve saklayin.",
+        "en": "Add, edit, and save products to prepare monthly and annual Azure cost estimates faster.",
     },
     "urun_vm_ad": {"tr": "Sanal Makineler", "en": "Virtual Machines"},
     "urun_vm_aciklama": {
@@ -95,6 +102,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     },
     "gecmis_baslik": {"tr": "Gecmis Tahminler", "en": "Estimate History"},
     "gecmis_bos": {"tr": "Henuz kaydedilmis bir tahmin yok.", "en": "No saved estimates yet."},
+    "gecmis_aciklama": {
+        "tr": "Kaydedilen tahminleri inceleyin, iki farkli senaryoyu karsilastirin ve artik gerekmeyenleri kaldirin.",
+        "en": "Review saved estimates, compare two scenarios, and remove entries you no longer need.",
+    },
     "gecmis_karsilastir": {
         "tr": "Secilen 2 tahmini karsilastir",
         "en": "Compare the selected 2 estimates",
@@ -109,6 +120,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     },
     "karsilastirma_baslik": {"tr": "Tahmin Karsilastirmasi", "en": "Estimate Comparison"},
     "karsilastirma_fark": {"tr": "Fark", "en": "Difference"},
+    "karsilastirma_aciklama": {
+        "tr": "Iki kayitli tahminin kalem ve toplam maliyet farklarini yan yana inceleyin.",
+        "en": "Review itemized and total cost differences between two saved estimates side by side.",
+    },
     "geri": {"tr": "Geri", "en": "Back"},
     "kalem_sayisi": {"tr": "Kalem sayisi", "en": "Item count"},
     "tarih": {"tr": "Tarih", "en": "Date"},
@@ -127,12 +142,20 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "silindi": {"tr": "Tahmin silindi.", "en": "Estimate deleted."},
     "detay": {"tr": "Detay", "en": "Detail"},
     "gecmis_detay_baslik": {"tr": "Tahmin Detayi", "en": "Estimate Detail"},
+    "gecmis_detay_aciklama": {
+        "tr": "Kayitli tahminin kalemlerini ve fiyat bilesenlerini ayrintili olarak inceleyin.",
+        "en": "Review the saved estimate items and pricing components in detail.",
+    },
     "gecmis_yalnizca_sahibi_erisebilir": {
         "tr": "Bu tahmine sadece olusturan kisi veya yoneticiler erisebilir.",
         "en": "Only the creator or administrators can access this estimate.",
     },
     # Yonetim
     "yonetim_baslik": {"tr": "Yonetim Paneli", "en": "Administration"},
+    "yonetim_ozet": {
+        "tr": "Erisim modeli gorunumu",
+        "en": "Access model overview",
+    },
     "yonetim_aciklama": {
         "tr": "Bu sayfa, Active Directory gruplarinin uygulama izinlerine "
         "nasil eslendigini gosterir. Esleme {dosya} dosyasindan yuklenir.",

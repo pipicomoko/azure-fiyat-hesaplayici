@@ -3,55 +3,70 @@
 {% block baslik %}{{ t('gecmis_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<h1 class="h3 mb-4">{{ t('gecmis_baslik', dil) }}</h1>
+<section class="hero-panel mb-4">
+  <div class="hero-panel-body">
+    <div>
+      <span class="hero-eyebrow">History</span>
+      <h1 class="hero-title mb-2">{{ t('gecmis_baslik', dil) }}</h1>
+      <p class="hero-text mb-0">{{ t('gecmis_aciklama', dil) }}</p>
+    </div>
+    <a href="/tahmin" class="btn btn-primary">{{ t('yeni_tahmin', dil) }}</a>
+  </div>
+</section>
 
 {% if hesaplamalar %}
-<form action="/gecmis/karsilastir" method="get">
-  <table class="table table-sm bg-white align-middle">
-    <thead>
-      <tr>
-        <th></th>
-        <th>{{ t('ad', dil) }}</th>
-        <th>{{ t('tarih', dil) }}</th>
-        {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
-        <th>{{ t('olusturan', dil) }}</th>
-        {% endif %}
-        <th>{{ t('kalem_sayisi', dil) }}</th>
-        <th>{{ t('toplam_aylik', dil) }}</th>
-        <th>{{ t('toplam_yillik', dil) }}</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for hesaplama in hesaplamalar %}
-      <tr>
-        <td><input type="checkbox" name="id" value="{{ hesaplama.id }}"></td>
-        <td><a href="/gecmis/{{ hesaplama.id }}">{{ hesaplama.ad }}</a></td>
-        <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-        {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
-        <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
-        {% endif %}
-        <td>{{ hesaplama.kalemler|length }}</td>
-        <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
-        <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
-        <td>
-          <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
-                onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
-            <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <button class="btn btn-outline-primary" type="submit">
-    {{ t('gecmis_karsilastir', dil) }}
-  </button>
-</form>
+<section class="section-card">
+  <div class="section-card-header">
+    <div>
+      <h2 class="section-title mb-1">{{ t('gecmis_baslik', dil) }}</h2>
+      <p class="section-subtitle mb-0">{{ t('gecmis_aciklama', dil) }}</p>
+    </div>
+  </div>
+  <div class="section-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0">
+        <thead>
+          <tr>
+            <th>{{ t('ad', dil) }}</th>
+            <th>{{ t('tarih', dil) }}</th>
+            {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
+            <th>{{ t('olusturan', dil) }}</th>
+            {% endif %}
+            <th>{{ t('kalem_sayisi', dil) }}</th>
+            <th>{{ t('toplam_aylik', dil) }}</th>
+            <th>{{ t('toplam_yillik', dil) }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for hesaplama in hesaplamalar %}
+          <tr>
+            <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+            <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+            {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
+            <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
+            {% endif %}
+            <td>{{ hesaplama.kalemler|length }}</td>
+            <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
+            <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
+            <td>
+              <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
+                    onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
 {% else %}
-<p class="text-muted">{{ t('gecmis_bos', dil) }}</p>
+<div class="section-card">
+  <div class="section-card-body">
+    <p class="empty-state mb-0">{{ t('gecmis_bos', dil) }}</p>
+  </div>
+</div>
 {% endif %}
-
-<a href="/tahmin" class="btn btn-primary mt-3">{{ t('yeni_tahmin', dil) }}</a>
 {% endblock %}

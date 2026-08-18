@@ -1,36 +1,54 @@
-<nav class="navbar navbar-dark bg-dark mb-4" id="app-nav"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <div class="container-fluid px-4">
-    <a class="navbar-brand" href="{{ '/tahmin' if kullanici else '/giris' }}">{{ t('uygulama_adi', dil) }}</a>
-    <div class="d-flex align-items-center gap-2">
+<nav class="navbar app-navbar mb-4" id="app-nav"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="container-fluid px-3 px-lg-4">
+    <div class="d-flex align-items-center gap-3">
+      <a class="navbar-brand app-brand" href="{{ '/tahmin' if kullanici else '/giris' }}">
+        <span class="app-brand-mark">AZ</span>
+        <span>{{ t('uygulama_adi', dil) }}</span>
+      </a>
       {% if kullanici %}
-        <a class="btn btn-outline-light btn-sm" href="/tahmin">{{ t('nav_tahmin', dil) }}</a>
-        <a class="btn btn-outline-light btn-sm" href="/gecmis">{{ t('nav_gecmis', dil) }}</a>
+      <span class="app-nav-caption d-none d-xl-inline">{{ kullanici.ad_soyad }}</span>
+      {% endif %}
+    </div>
+    <div class="d-flex align-items-center flex-wrap justify-content-end gap-2">
+      {% if kullanici %}
+        <a class="btn btn-sm app-nav-link" href="/tahmin">{{ t('nav_tahmin', dil) }}</a>
+        <a class="btn btn-sm app-nav-link" href="/gecmis">{{ t('nav_gecmis', dil) }}</a>
         {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
-        <a class="btn btn-outline-warning btn-sm" href="/yonetim">{{ t('nav_yonetim', dil) }}</a>
+        <a class="btn btn-sm app-nav-link app-nav-link-accent" href="/yonetim">{{ t('nav_yonetim', dil) }}</a>
         {% endif %}
       {% endif %}
+
+      <button type="button"
+              class="btn btn-sm app-theme-toggle"
+              data-theme-toggle
+              data-theme-label-light="{{ t('tema_acik', dil) }}"
+              data-theme-label-dark="{{ t('tema_koyu', dil) }}"
+              title="{{ t('tema_degistir', dil) }}"
+              aria-label="{{ t('tema_degistir', dil) }}">
+        <span class="theme-toggle-icon" aria-hidden="true">◑</span>
+        <span class="theme-toggle-label">{{ t('tema_koyu', dil) }}</span>
+      </button>
 
       {% if tahmin_modu %}
       <button type="button"
               hx-post="/tahmin/dil-degistir" hx-include="#tahmin-formu" hx-target="#tahmin-icerik" hx-swap="outerHTML"
               name="dil" value="{{ 'en' if dil == 'tr' else 'tr' }}"
-              class="btn btn-outline-light btn-sm" title="{{ t('dil_degistir', dil) }}">
+              class="btn btn-sm app-nav-link" title="{{ t('dil_degistir', dil) }}">
         {{ 'EN' if dil == 'tr' else 'TR' }}
       </button>
       {% else %}
       <form method="post" action="/dil" class="d-flex">
         <input type="hidden" name="dil" value="{{ 'en' if dil == 'tr' else 'tr' }}">
-        <button type="submit" class="btn btn-outline-light btn-sm" title="{{ t('dil_degistir', dil) }}">
+        <button type="submit" class="btn btn-sm app-nav-link" title="{{ t('dil_degistir', dil) }}">
           {{ 'EN' if dil == 'tr' else 'TR' }}
         </button>
       </form>
       {% endif %}
 
       {% if kullanici %}
-        <span class="text-light small mx-1">{{ kullanici.ad_soyad }}</span>
-        <a class="btn btn-outline-light btn-sm" href="/cikis">{{ t('nav_cikis', dil) }}</a>
+        <a class="btn btn-sm app-nav-link" href="/cikis">{{ t('nav_cikis', dil) }}</a>
       {% else %}
-        <a class="btn btn-outline-light btn-sm" href="/giris">{{ t('nav_giris', dil) }}</a>
+        <a class="btn btn-sm app-nav-link" href="/giris">{{ t('nav_giris', dil) }}</a>
       {% endif %}
     </div>
   </div>

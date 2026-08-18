@@ -3,26 +3,54 @@
 {% block baslik %}{{ t('giris_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<div class="row justify-content-center">
-  <div class="col-md-5">
-    <h1 class="h3 mb-4">{{ t('giris_baslik', dil) }}</h1>
-
-    {% if hata %}
-    <div class="alert alert-danger">{{ hata }}</div>
-    {% endif %}
-
-    <form method="post" action="/giris">
-      <div class="mb-3">
-        <label for="kullanici_adi" class="form-label">{{ t('giris_kullanici_adi', dil) }}</label>
-        <input type="text" class="form-control" id="kullanici_adi" name="kullanici_adi"
-               placeholder="orn. can.aydin" required autofocus>
+<div class="row justify-content-center align-items-center min-vh-75">
+  <div class="col-lg-10">
+    <div class="row g-4 align-items-stretch">
+      <div class="col-lg-6">
+        <section class="hero-panel h-100">
+          <div class="hero-panel-body h-100 align-items-start">
+            <div>
+              <span class="hero-eyebrow">Azure</span>
+              <h1 class="hero-title mb-3">{{ t('uygulama_adi', dil) }}</h1>
+              <p class="hero-text mb-0">{{ t('ana_sayfa_alt_metin', dil) }}</p>
+            </div>
+            <div class="hero-feature-list">
+              <div class="hero-feature-item">Gercek zamanli maliyet on izlemesi</div>
+              <div class="hero-feature-item">Kaydedilebilir ve karsilastirilabilir senaryolar</div>
+              <div class="hero-feature-item">Kurumsal ekipler icin sade ve hizli akis</div>
+            </div>
+          </div>
+        </section>
       </div>
-      <div class="mb-3">
-        <label for="sifre" class="form-label">{{ t('giris_sifre', dil) }}</label>
-        <input type="password" class="form-control" id="sifre" name="sifre" required>
+      <div class="col-lg-5">
+        <section class="section-card h-100">
+          <div class="section-card-header">
+            <div>
+              <h2 class="section-title mb-1">{{ t('giris_baslik', dil) }}</h2>
+              <p class="section-subtitle mb-0">{{ t('nav_giris', dil) }}</p>
+            </div>
+          </div>
+          <div class="section-card-body">
+            {% if hata %}
+            <div class="alert alert-danger">{{ hata }}</div>
+            {% endif %}
+
+            <form method="post" action="/giris" class="vstack gap-3">
+              <div>
+                <label for="kullanici_adi" class="form-label">{{ t('giris_kullanici_adi', dil) }}</label>
+                <input type="text" class="form-control" id="kullanici_adi" name="kullanici_adi"
+                       placeholder="orn. can.aydin" required autofocus>
+              </div>
+              <div>
+                <label for="sifre" class="form-label">{{ t('giris_sifre', dil) }}</label>
+                <input type="password" class="form-control" id="sifre" name="sifre" required>
+              </div>
+              <button type="submit" class="btn btn-primary">{{ t('giris_buton', dil) }}</button>
+            </form>
+          </div>
+        </section>
       </div>
-      <button type="submit" class="btn btn-primary">{{ t('giris_buton', dil) }}</button>
-    </form>
+    </div>
   </div>
 </div>
 {% endblock %}

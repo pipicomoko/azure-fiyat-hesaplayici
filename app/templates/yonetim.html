@@ -3,27 +3,46 @@
 {% block baslik %}{{ t('yonetim_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<h1 class="h3 mb-3">{{ t('yonetim_baslik', dil) }}</h1>
-<p class="text-muted">{{ t('yonetim_aciklama', dil, dosya=yetki_dosyasi) }}</p>
+<section class="hero-panel mb-4">
+  <div class="hero-panel-body">
+    <div>
+      <span class="hero-eyebrow">{{ t('yonetim_ozet', dil) }}</span>
+      <h1 class="hero-title mb-2">{{ t('yonetim_baslik', dil) }}</h1>
+      <p class="hero-text mb-0">{{ t('yonetim_aciklama', dil, dosya=yetki_dosyasi) }}</p>
+    </div>
+  </div>
+</section>
 
-<table class="table table-sm bg-white">
-  <thead>
-    <tr>
-      <th>{{ t('yonetim_grup', dil) }}</th>
-      <th>{{ t('yonetim_izinler', dil) }}</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for grup, izinler in harita.items() %}
-    <tr>
-      <td><code>{{ grup }}</code></td>
-      <td>
-        {% for izin in izinler %}
-        <span class="badge bg-secondary me-1">{{ izin }}</span>
-        {% endfor %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<section class="section-card">
+  <div class="section-card-header">
+    <div>
+      <h2 class="section-title mb-1">{{ t('yonetim_baslik', dil) }}</h2>
+      <p class="section-subtitle mb-0">{{ yetki_dosyasi }}</p>
+    </div>
+  </div>
+  <div class="section-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm app-table mb-0">
+        <thead>
+          <tr>
+            <th>{{ t('yonetim_grup', dil) }}</th>
+            <th>{{ t('yonetim_izinler', dil) }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for grup, izinler in harita.items() %}
+          <tr>
+            <td><code class="admin-group-code">{{ grup }}</code></td>
+            <td>
+              {% for izin in izinler %}
+              <span class="badge admin-permission-badge me-1 mb-1">{{ izin }}</span>
+              {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
 {% endblock %}

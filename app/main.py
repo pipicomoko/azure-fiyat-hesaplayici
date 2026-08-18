@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import veritabanini_olustur
@@ -20,6 +21,7 @@ app = FastAPI(title="Azure Fiyat Hesaplayici", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "gelistirme-anahtari")
 )
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(giris.router)
 app.include_router(tahmin.router)
 app.include_router(tahmin.gecmis_router)

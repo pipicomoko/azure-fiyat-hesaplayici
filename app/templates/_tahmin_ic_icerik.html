@@ -1,79 +1,143 @@
 {% set kalem_sonuclari = kalem_sonuclari | default([]) %}
 <div id="tahmin-icerik">
-  <div class="row mb-4">
-    <div class="col-12">
-      <p class="text-muted">{{ t('ana_sayfa_giris', dil) }}</p>
+  <section class="hero-panel mb-4">
+    <div class="hero-panel-body">
+      <div>
+        <span class="hero-eyebrow">Azure</span>
+        <h1 class="hero-title mb-2">{{ t('tahmin_baslik', dil) }}</h1>
+        <p class="hero-text mb-0">{{ t('ana_sayfa_alt_metin', dil) }}</p>
+      </div>
+      <div class="hero-metric-card">
+        <div class="text-muted small">{{ t('tahmin_aylik_toplam', dil) }}</div>
+        <div class="hero-metric-value" id="tahmin-toplam">0.00 {{ para_birimi }}</div>
+        <div class="text-muted small">{{ t('tahmin_yillik_maliyet', dil) }}: <span id="tahmin-yillik-toplam">0.00 {{ para_birimi }}</span></div>
+      </div>
     </div>
-    {% for urun in urunler %}
-    <div class="col-md-4 mb-3">
-      <div class="card h-100">
-        <div class="card-body d-flex flex-column">
-          <h2 class="h6">{{ urun.ad(dil) }}</h2>
-          <p class="text-muted small flex-grow-1">{{ urun.aciklama(dil) }}</p>
-          <button type="button" class="btn btn-primary btn-sm align-self-start"
-                  hx-post="/tahmin/kalem-ekle" hx-vals='{"urun_tipi": "{{ urun.anahtar }}"}'
-                  hx-include="#tahmin-globaller" hx-target="#tahmin-govdesi" hx-swap="beforeend">
-            {{ t('tahmine_ekle', dil) }}
-          </button>
+  </section>
+
+  <div class="row g-4 app-dashboard-grid">
+    <div class="col-12 col-xl-8">
+      <div class="section-card mb-4">
+        <div class="section-card-header">
+          <div>
+            <h2 class="section-title mb-1">{{ t('ana_sayfa_giris', dil) }}</h2>
+            <p class="section-subtitle mb-0">{{ t('ana_sayfa_alt_metin', dil) }}</p>
+          </div>
+        </div>
+        <div class="section-card-body">
+          <div class="row g-3">
+      {% for urun in urunler %}
+      <div class="col-md-6">
+        <div class="card h-100 app-card product-card">
+          <div class="card-body d-flex flex-column">
+            <div class="product-card-icon">{{ 'VM' if urun.anahtar == 'virtual_machines' else 'DS' }}</div>
+            <h3 class="h5 mb-2">{{ urun.ad(dil) }}</h3>
+            <p class="text-muted small flex-grow-1 mb-3">{{ urun.aciklama(dil) }}</p>
+            <button type="button" class="btn btn-primary btn-sm align-self-start"
+                    hx-post="/tahmin/kalem-ekle" hx-vals='{"urun_tipi": "{{ urun.anahtar }}"}'
+                    hx-include="#tahmin-globaller" hx-target="#tahmin-govdesi" hx-swap="beforeend">
+              {{ t('tahmine_ekle', dil) }}
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-header">
+          <div>
+            <h2 class="section-title mb-1">{{ t('tahmin_baslik', dil) }}</h2>
+            <p class="section-subtitle mb-0">{{ t('tahmin_bos', dil) }}</p>
+          </div>
+        </div>
+        <div class="section-card-body">
+          <div id="tahmin-govdesi">
+      {% for kalem_id, sonuc in kalem_sonuclari %}
+        {% set urun = sonuc.urun %}
+        {% set urun_tipi = sonuc.urun_tipi %}
+        {% set yapilandirma = sonuc.yapilandirma %}
+        {% set secenekler = sonuc.secenekler %}
+        {% set gorunur_alanlar = sonuc.gorunur_alanlar %}
+        {% set fiyat = sonuc.fiyat %}
+        {% set hata = sonuc.hata %}
+        {% include sonuc.urun.sablon_adi %}
+      {% endfor %}
+          </div>
+          <p class="empty-state mb-0" id="tahmin-bos-mesaji" {% if kalem_sonuclari %}style="display:none"{% endif %}>
+            {{ t('tahmin_bos', dil) }}
+          </p>
         </div>
       </div>
     </div>
-    {% endfor %}
-  </div>
 
-  <div id="tahmin-globaller" class="d-flex flex-wrap align-items-end gap-3 mb-3 p-3 bg-white border rounded">
-    <div>
-      <label class="form-label small mb-0">{{ t('para_birimi', dil) }}</label>
-      <select class="form-select form-select-sm" name="para_birimi" id="para-birimi-secici">
-        {% for pb in para_birimleri %}
-        <option value="{{ pb.kod }}" {{ 'selected' if pb.kod == para_birimi }}>{{ pb.kod }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="ms-auto text-end">
-      <div class="text-muted small">{{ t('tahmin_aylik_toplam', dil) }}</div>
-      <div class="h4 mb-0" id="tahmin-toplam">0.00 {{ para_birimi }}</div>
-      <div class="text-muted small">{{ t('tahmin_yillik_maliyet', dil) }}: <span id="tahmin-yillik-toplam">0.00 {{ para_birimi }}</span></div>
-    </div>
-  </div>
-
-  <h2 class="h5 mb-2">{{ t('tahmin_baslik', dil) }}</h2>
-  <div id="tahmin-govdesi">
-    {% for kalem_id, sonuc in kalem_sonuclari %}
-      {% set urun = sonuc.urun %}
-      {% set urun_tipi = sonuc.urun_tipi %}
-      {% set yapilandirma = sonuc.yapilandirma %}
-      {% set secenekler = sonuc.secenekler %}
-      {% set gorunur_alanlar = sonuc.gorunur_alanlar %}
-      {% set fiyat = sonuc.fiyat %}
-      {% set hata = sonuc.hata %}
-      {% include sonuc.urun.sablon_adi %}
-    {% endfor %}
-  </div>
-  <p class="text-muted" id="tahmin-bos-mesaji" {% if kalem_sonuclari %}style="display:none"{% endif %}>
-    {{ t('tahmin_bos', dil) }}
-  </p>
-
-  <div class="card mt-3">
-    <div class="card-body">
-      <div class="row g-2 align-items-end">
-        <div class="col-md-4">
-          <label class="form-label small mb-0">{{ t('hesaplama_adi', dil) }}</label>
-          <input type="text" class="form-control form-control-sm" name="hesaplama_adi">
+    <div class="col-12 col-xl-4">
+      <div class="app-sidebar-stack">
+        <div id="tahmin-globaller" class="section-card">
+          <div class="section-card-header">
+            <div>
+              <h2 class="section-title mb-1">{{ t('para_birimi', dil) }}</h2>
+              <p class="section-subtitle mb-0">{{ t('tahmin_aylik_toplam', dil) }}</p>
+            </div>
+          </div>
+          <div class="section-card-body">
+            <div class="vstack gap-3">
+              <div class="field-inline">
+                <label class="form-label small mb-1">{{ t('para_birimi', dil) }}</label>
+                <select class="form-select form-select-sm" name="para_birimi" id="para-birimi-secici">
+                  {% for pb in para_birimleri %}
+                  <option value="{{ pb.kod }}" {{ 'selected' if pb.kod == para_birimi }}>{{ pb.kod }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="summary-surface">
+                <div>
+                  <div class="summary-chip">{{ kalem_sonuclari|length }} kalem</div>
+                </div>
+                <div class="summary-totals">
+                  <span>{{ t('tahmin_aylik_toplam', dil) }}</span>
+                  <strong id="sidebar-aylik-toplam">0.00 {{ para_birimi }}</strong>
+                </div>
+                <div class="summary-totals">
+                  <span>{{ t('tahmin_yillik_maliyet', dil) }}</span>
+                  <strong id="sidebar-yillik-toplam">0.00 {{ para_birimi }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="col-md-4 d-flex gap-2">
-          <button type="button" class="btn btn-success btn-sm"
-                  hx-post="/tahmin/kaydet" hx-include="#tahmin-formu" hx-target="#kaydet-sonuc" hx-swap="innerHTML">
-            {{ t('kaydet', dil) }}
-          </button>
-          <button type="submit" formaction="/tahmin/disa-aktar" formmethod="post"
-                  id="disa-aktar-butonu" class="btn btn-outline-primary btn-sm"
-                  {% if not kalem_sonuclari %}disabled{% endif %}>
-            {{ t('disa_aktar', dil) }}
-          </button>
+
+        <div class="section-card">
+          <div class="section-card-header">
+            <div>
+              <h2 class="section-title mb-1">{{ t('kaydet', dil) }}</h2>
+              <p class="section-subtitle mb-0">{{ t('hesaplama_adi', dil) }}</p>
+            </div>
+          </div>
+          <div class="section-card-body">
+            <div class="vstack gap-3">
+              <div>
+                <label class="form-label small mb-1">{{ t('hesaplama_adi', dil) }}</label>
+                <input type="text" class="form-control form-control-sm" name="hesaplama_adi">
+              </div>
+              <div class="d-grid gap-2">
+                <button type="button" class="btn btn-success btn-sm"
+                        hx-post="/tahmin/kaydet" hx-include="#tahmin-formu" hx-target="#kaydet-sonuc" hx-swap="innerHTML">
+                  {{ t('kaydet', dil) }}
+                </button>
+                <button type="submit" formaction="/tahmin/disa-aktar" formmethod="post"
+                        id="disa-aktar-butonu" class="btn btn-outline-primary btn-sm"
+                        {% if not kalem_sonuclari %}disabled{% endif %}>
+                  {{ t('disa_aktar', dil) }}
+                </button>
+              </div>
+              <div id="kaydet-sonuc"></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div id="kaydet-sonuc" class="mt-2"></div>
     </div>
   </div>
 </div>

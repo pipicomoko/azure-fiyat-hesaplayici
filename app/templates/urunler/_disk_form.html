@@ -1,4 +1,4 @@
-<div class="card mb-3 tahmin-kalemi" id="kalem-{{ kalem_id }}"
+<div class="card app-card app-estimate-item mb-3 tahmin-kalemi" id="kalem-{{ kalem_id }}"
      hx-post="/tahmin/kalem/hesapla?kalem_id={{ kalem_id }}"
      hx-trigger="change, change from:#para-birimi-secici"
      hx-target="this" hx-swap="outerHTML"
@@ -6,10 +6,11 @@
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-start mb-2">
       <div>
-        <h3 class="h6 mb-0">{{ urun.ad(dil) }}</h3>
+        <span class="section-kicker">Managed Disk</span>
+        <h3 class="h6 mb-1">{{ urun.ad(dil) }}</h3>
         <small class="text-muted">{{ urun.ozet(yapilandirma, dil) }}</small>
       </div>
-      <div class="text-end">
+      <div class="text-end estimate-price-block">
         <button type="button" class="btn btn-sm btn-outline-danger mb-1"
                 onclick="this.closest('.tahmin-kalemi').remove(); tahminToplamiGuncelle();">
           {{ t('tahmin_kaldir', dil) }}
@@ -30,7 +31,7 @@
 
     <input type="hidden" name="{{ kalem_id }}.urun_tipi" value="{{ urun_tipi }}">
 
-    <div class="row g-2 align-items-end">
+    <div class="row g-3 align-items-end">
       <div class="col-md-3">
         <label class="form-label small mb-0">{{ t('alan_bolge', dil) }}</label>
         <select class="form-select form-select-sm" name="{{ kalem_id }}.bolge">
@@ -142,7 +143,7 @@
       {% endif %}
     </div>
 
-    <div class="d-flex flex-wrap gap-3 mt-2">
+    <div class="d-flex flex-wrap gap-3 mt-3">
       {% if 'anlik_goruntu' in gorunur_alanlar %}
       <div class="form-check form-check-sm">
         <input type="hidden" name="{{ kalem_id }}.anlik_goruntu" value="false">
@@ -170,7 +171,7 @@
     </div>
 
     {% if fiyat and fiyat.kalemler %}
-    <table class="table table-sm table-borderless mb-0 mt-2 small">
+    <table class="table table-sm table-borderless mb-0 mt-3 small">
       {% for kalem in fiyat.kalemler %}
       <tr>
         <td class="text-muted">{{ t(kalem.anahtar, dil) }}</td>
