@@ -1,0 +1,40 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('tahmin_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<form id="tahmin-formu" method="post">
+  {% include "_tahmin_ic_icerik.html" %}
+</form>
+
+<script>
+function tahminToplamiGuncelle() {
+  const kalemler = document.querySelectorAll('#tahmin-govdesi .tahmin-kalemi');
+  let toplam = 0;
+  kalemler.forEach(function (kalem) {
+    toplam += parseFloat(kalem.dataset.tutar || '0');
+  });
+  const toplamElemani = document.getElementById('tahmin-toplam');
+  const yillikToplamElemani = document.getElementById('tahmin-yillik-toplam');
+  const paraBirimiSecici = document.getElementById('para-birimi-secici');
+  const paraBirimi = paraBirimiSecici ? paraBirimiSecici.value : 'USD';
+  if (toplamElemani) {
+    toplamElemani.textContent = toplam.toFixed(2) + ' ' + paraBirimi;
+  }
+  if (yillikToplamElemani) {
+    yillikToplamElemani.textContent = (toplam * 12).toFixed(2) + ' ' + paraBirimi;
+  }
+  const bosMesaji = document.getElementById('tahmin-bos-mesaji');
+  if (bosMesaji) {
+    bosMesaji.style.display = kalemler.length > 0 ? 'none' : '';
+  }
+  const disaAktarButonu = document.getElementById('disa-aktar-butonu');
+  if (disaAktarButonu) {
+    disaAktarButonu.disabled = kalemler.length === 0;
+  }
+}
+document.body.addEventListener('htmx:afterSwap', tahminToplamiGuncelle);
+document.body.addEventListener('htmx:afterSettle', tahminToplamiGuncelle);
+tahminToplamiGuncelle();
+</script>
+{% endblock %}

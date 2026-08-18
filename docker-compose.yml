@@ -1,0 +1,40 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-gelistirme-anahtari}
+      LDAP_SUNUCU: ${LDAP_SUNUCU:-192.168.56.10}
+      LDAP_PORT: ${LDAP_PORT:-}
+      LDAP_DOMAIN: ${LDAP_DOMAIN:-sirket.local}
+      LDAP_ARAMA_TABANI: ${LDAP_ARAMA_TABANI:-DC=sirket,DC=local}
+      LDAP_TLS_MODU: ${LDAP_TLS_MODU:-starttls}
+      LDAP_CA_SERTIFIKA_DOSYASI: ${LDAP_CA_SERTIFIKA_DOSYASI:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./config:/app/config
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: apc
+      POSTGRES_PASSWORD: apc
+      POSTGRES_DB: apc
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apc"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:

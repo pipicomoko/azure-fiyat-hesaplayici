@@ -1,0 +1,51 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('karsilastirma_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<h1 class="h3 mb-4">{{ t('karsilastirma_baslik', dil) }}</h1>
+
+<div class="row">
+  {% for hesaplama in hesaplamalar %}
+  <div class="col-md-6">
+    <h2 class="h5"><a href="/gecmis/{{ hesaplama.id }}">{{ hesaplama.ad }}</a></h2>
+    <p class="text-muted">{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</p>
+    <table class="table table-sm bg-white">
+      <thead>
+        <tr>
+          <th>{{ t('xlsx_urun', dil) }}</th>
+          <th>{{ t('xlsx_ozet', dil) }}</th>
+          <th>{{ t('tahmin_aylik_maliyet', dil) }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for kalem in hesaplama.kalemler %}
+        <tr>
+          <td>{{ kalem.urun_tipi }}</td>
+          <td>{{ kalem.ozet }}</td>
+          <td>{{ kalem.aylik_maliyet | para(hesaplama.para_birimi) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2" class="text-end">{{ t('toplam_aylik', dil) }}</th>
+          <th>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</th>
+        </tr>
+        <tr>
+          <th colspan="2" class="text-end">{{ t('toplam_yillik', dil) }}</th>
+          <th>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="alert {{ 'alert-danger' if fark > 0 else 'alert-success' if fark < 0 else 'alert-secondary' }} mt-3">
+  {{ t('karsilastirma_fark', dil) }} ("{{ hesaplamalar[1].ad }}" - "{{ hesaplamalar[0].ad }}"):
+  {{ "+" if fark > 0 else "" }}{{ fark | para(hesaplamalar[0].para_birimi) }}
+</div>
+
+<a href="/gecmis" class="btn btn-secondary mt-3">{{ t('geri', dil) }}</a>
+{% endblock %}

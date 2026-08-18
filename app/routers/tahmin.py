@@ -1,0 +1,367 @@
+"""Tahmin calisma alani: urun ekleme, alan degisiminde aninda yeniden
+hesaplama, kaldirma, kaydetme, Excel'e aktarma ve dil degistirme.
+
+Tum kalemler TEK bir <form id="tahmin-formu"> icinde yasar (bkz.
+templates/tahmin.html); her kalemin alanlari `{kalem_id}.{alan}` seklinde
+adlandirilir (bkz. app/form_yardimcilari.py). htmx, bir forma ait elemanlarda
+varsayilan olarak en yakin formun TUM degerlerini istekle birlikte gonderir;
+bu sayede tek bir kalem degisince o kalemi (URL'deki ?kalem_id ile) izole
+edip yeniden hesaplayabiliriz, ayni zamanda dil degisimi/kaydetme/disa
+aktarim gibi TOPLU islemler de ayni formdan TUM kalemleri toplu okuyabilir.
+
+Fiyat, HER ZAMAN bu istekte yeniden hesaplanir (asla istemciden gelen bir
+fiyat degerine guvenilmez) -- boylece "no fabricated price" kurali ve
+"Excel'deki rakamlar ekranla birebir tutarli olmali" kurali ayni anda,
+tek bir gercek kaynaktan saglanir.
+"""
+
+from __future__ import annotations
+
+import io
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from sqlmodel import Session, select
+
+from app.database import oturum_al
+from app.disa_aktar import TahminBosHatasi, calisma_kitabi_olustur
+from app.fiyat_api import FiyatApiHatasi
+from app.form_yardimcilari import (
+    bos_degerleri_temizle,
+    boolean_alanlarini_normallestir,
+    coklu_kalem_formunu_ayir,
+)
+from app.i18n import DESTEKLENEN_DILLER, DIL_COOKIE_ADI, Dil, form_alanindan_dil_al, istekten_dil_al, t
+from app.models import Hesaplama, HesaplamaKalemi
+from app.para_birimleri import PARA_BIRIMLERI, VARSAYILAN_PARA_BIRIMI, guvenli_para_birimi
+from app.products import KAYITLI_URUNLER, urun_al
+from app.products.base import DisaAktarimSatiri, FiyatBulunamadiHatasi, FiyatSonucu, UrunModulu
+from app.sablonlar import render, templates
+from app.yetkilendirme import IZIN_HESAPLAMA_KULLAN, IZIN_YONETIM_ERISIM, kullanici_izinli_mi, yetki_gerekli
+
+router = APIRouter(prefix="/tahmin")
+
+
+@dataclass
+class _KalemSonucu:
+    kalem_id: str
+    urun_tipi: str
+    urun: UrunModulu
+    yapilandirma: dict
+    secenekler: dict
+    gorunur_alanlar: set
+    fiyat: FiyatSonucu | None
+    hata: str | None
+
+
+async def _fiyatla_guvenli(urun: UrunModulu, yapilandirma: dict, para_birimi: str, dil: Dil):
+    try:
+        return await urun.fiyatla(yapilandirma, para_birimi), None
+    except FiyatBulunamadiHatasi:
+        return None, t("fiyat_bulunamadi", dil)
+    except FiyatApiHatasi:
+        return None, t("fiyat_servisi_erisilemez", dil)
+
+
+async def _kalemi_coz(kalem_id: str, ham_yapilandirma: dict, para_birimi: str, dil: Dil) -> _KalemSonucu | None:
+    ham = dict(ham_yapilandirma)
+    bos_degerleri_temizle(ham)
+    boolean_alanlarini_normallestir(ham)
+    urun_tipi = ham.pop("urun_tipi", "")
+    urun = urun_al(urun_tipi)
+    if urun is None:
+        return None
+
+    secenek_sonucu = await urun.secenekleri_getir(ham, dil)
+    yapilandirma = secenek_sonucu.yapilandirma
+    fiyat, hata = await _fiyatla_guvenli(urun, yapilandirma, para_birimi, dil)
+    return _KalemSonucu(
+        kalem_id, urun_tipi, urun, yapilandirma, secenek_sonucu.secenekler,
+        secenek_sonucu.gorunur_alanlar, fiyat, hata,
+    )
+
+
+async def _tum_kalemleri_coz(kalemler_ham: dict[str, dict], para_birimi: str, dil: Dil) -> list[_KalemSonucu]:
+    sonuclar = []
+    for kalem_id, ham in kalemler_ham.items():
+        sonuc = await _kalemi_coz(kalem_id, ham, para_birimi, dil)
+        if sonuc is not None:
+            sonuclar.append(sonuc)
+    return sonuclar
+
+
+def _kalem_baglami(kalem_id: str, sonuc: _KalemSonucu, para_birimi: str, dil: Dil) -> dict:
+    return {
+        "dil": dil,
+        "urun": sonuc.urun,
+        "urun_tipi": sonuc.urun_tipi,
+        "kalem_id": kalem_id,
+        "yapilandirma": sonuc.yapilandirma,
+        "secenekler": sonuc.secenekler,
+        "gorunur_alanlar": sonuc.gorunur_alanlar,
+        "para_birimi": para_birimi,
+        "fiyat": sonuc.fiyat,
+        "hata": sonuc.hata,
+    }
+
+
+@router.get("")
+async def tahmin_sayfasi(request: Request, kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN))):
+    return render(
+        request,
+        "tahmin.html",
+        {
+            "urunler": list(KAYITLI_URUNLER.values()),
+            "para_birimleri": PARA_BIRIMLERI,
+            "para_birimi": VARSAYILAN_PARA_BIRIMI,
+            "tahmin_modu": True,
+        },
+    )
+
+
+@router.post("/kalem-ekle")
+async def kalem_ekle(request: Request, kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN))):
+    form = await request.form()
+    urun_tipi = form.get("urun_tipi", "")
+    para_birimi = guvenli_para_birimi(form.get("para_birimi"))
+    dil = istekten_dil_al(request)
+
+    urun = urun_al(urun_tipi)
+    if urun is None:
+        return HTMLResponse("", status_code=400)
+
+    kalem_id = uuid.uuid4().hex
+    sonuc = await _kalemi_coz(kalem_id, {**urun.bos_yapilandirma(), "urun_tipi": urun_tipi}, para_birimi, dil)
+    if sonuc is None:
+        return HTMLResponse("", status_code=400)
+
+    return templates.TemplateResponse(request, urun.sablon_adi, _kalem_baglami(kalem_id, sonuc, para_birimi, dil))
+
+
+@router.post("/kalem/hesapla")
+async def kalem_hesapla(request: Request, kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN))):
+    kalem_id = request.query_params.get("kalem_id", "")
+    form = await request.form()
+    genel, kalemler = coklu_kalem_formunu_ayir(form)
+
+    ham = kalemler.get(kalem_id)
+    if ham is None:
+        return HTMLResponse("", status_code=400)
+
+    para_birimi = guvenli_para_birimi(genel.get("para_birimi"))
+    dil = form_alanindan_dil_al(genel.get("dil")) if genel.get("dil") in DESTEKLENEN_DILLER else istekten_dil_al(request)
+
+    sonuc = await _kalemi_coz(kalem_id, ham, para_birimi, dil)
+    if sonuc is None:
+        return HTMLResponse("", status_code=400)
+
+    return templates.TemplateResponse(request, sonuc.urun.sablon_adi, _kalem_baglami(kalem_id, sonuc, para_birimi, dil))
+
+
+@router.post("/dil-degistir")
+async def dil_degistir_tahmin(request: Request, kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN))):
+    form = await request.form()
+    genel, kalemler_ham = coklu_kalem_formunu_ayir(form)
+
+    yeni_dil = form_alanindan_dil_al(genel.get("dil"))
+    para_birimi = guvenli_para_birimi(genel.get("para_birimi"))
+
+    kalem_sonuclari = await _tum_kalemleri_coz(kalemler_ham, para_birimi, yeni_dil)
+
+    baglam = {
+        "dil": yeni_dil,
+        "kullanici": request.session.get("kullanici"),
+        "urunler": list(KAYITLI_URUNLER.values()),
+        "para_birimleri": PARA_BIRIMLERI,
+        "para_birimi": para_birimi,
+        "kalem_sonuclari": [(k.kalem_id, k) for k in kalem_sonuclari],
+        "tahmin_modu": True,
+    }
+    # Ana icerigi VE nav'i (dil etiketleri icin out-of-band swap olarak) ayni
+    # yanitta doner -- boylece tek istekte hem tahmin hem de sayfa govdesindeki
+    # sabit metinler yeni dile gecer, tahmin ASLA kaybolmaz.
+    icerik_html = templates.env.get_template("_tahmin_ic_icerik.html").render(request=request, **baglam)
+    nav_html = templates.env.get_template("_nav.html").render(request=request, oob=True, **baglam)
+
+    yanit = HTMLResponse(icerik_html + nav_html)
+    yanit.set_cookie(DIL_COOKIE_ADI, yeni_dil, max_age=60 * 60 * 24 * 365, samesite="lax")
+    return yanit
+
+
+@router.post("/kaydet")
+async def tahmin_kaydet(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    dil = istekten_dil_al(request)
+    form = await request.form()
+    genel, kalemler_ham = coklu_kalem_formunu_ayir(form)
+    para_birimi = guvenli_para_birimi(genel.get("para_birimi"))
+    hesaplama_adi = (genel.get("hesaplama_adi") or "").strip()
+
+    if not hesaplama_adi:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("kaydet_ad_gerekli", dil)}</div>', status_code=400)
+    if not kalemler_ham:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("kaydet_bos_sepet", dil)}</div>', status_code=400)
+
+    kalem_sonuclari = await _tum_kalemleri_coz(kalemler_ham, para_birimi, dil)
+    if not kalem_sonuclari or any(k.hata for k in kalem_sonuclari):
+        return HTMLResponse(f'<div class="alert alert-danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
+
+    hesaplama = Hesaplama(
+        ad=hesaplama_adi,
+        para_birimi=para_birimi,
+        toplam_aylik_maliyet=0.0,
+        olusturan_kullanici_adi=kullanici["kullanici_adi"],
+    )
+    oturum.add(hesaplama)
+    oturum.flush()
+
+    toplam = 0.0
+    for k in kalem_sonuclari:
+        toplam += k.fiyat.aylik_toplam
+        kalem = HesaplamaKalemi(
+            hesaplama_id=hesaplama.id,
+            urun_tipi=k.urun_tipi,
+            ozet=k.urun.ozet(k.yapilandirma, dil),
+            aylik_maliyet=k.fiyat.aylik_toplam,
+            yapilandirma=k.yapilandirma,
+            fiyat_kalemleri=[vars(kalem_kaydi) for kalem_kaydi in k.fiyat.kalemler],
+        )
+        oturum.add(kalem)
+
+    hesaplama.toplam_aylik_maliyet = toplam
+    oturum.add(hesaplama)
+    oturum.commit()
+
+    return HTMLResponse(
+        f'<div class="alert alert-success">"{hesaplama_adi}" {t("kaydet_basarili", dil)} '
+        f'<a href="/gecmis">{t("nav_gecmis", dil)}</a></div>'
+    )
+
+
+@router.post("/disa-aktar")
+async def tahmin_disa_aktar(request: Request, kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN))):
+    dil = istekten_dil_al(request)
+    form = await request.form()
+    genel, kalemler_ham = coklu_kalem_formunu_ayir(form)
+    para_birimi = guvenli_para_birimi(genel.get("para_birimi"))
+
+    if not kalemler_ham:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("disa_aktar_bos_hata", dil)}</div>', status_code=400)
+
+    kalem_sonuclari = await _tum_kalemleri_coz(kalemler_ham, para_birimi, dil)
+    if not kalem_sonuclari or any(k.hata for k in kalem_sonuclari):
+        return HTMLResponse(f'<div class="alert alert-danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
+
+    satirlar: list[DisaAktarimSatiri] = []
+    genel_toplam = 0.0
+    for k in kalem_sonuclari:
+        satirlar.extend(k.urun.disa_aktarim_satirlari(k.yapilandirma, k.fiyat, dil))
+        genel_toplam += k.fiyat.aylik_toplam
+
+    try:
+        icerik = calisma_kitabi_olustur(satirlar, genel_toplam, para_birimi, dil)
+    except TahminBosHatasi:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("disa_aktar_bos_hata", dil)}</div>', status_code=400)
+
+    dosya_adi = f"azure-tahmin-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(icerik),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{dosya_adi}"'},
+    )
+
+
+gecmis_router = APIRouter()
+
+
+def _hesaplamaya_erisebilir_mi(kullanici: dict, hesaplama: Hesaplama) -> bool:
+    """Kaydin sahibi (olusturan_kullanici_adi) veya yonetim.eris izni olan
+    (Adminler) erisebilir. Sahipsiz (eski) kayitlara sadece Adminler erisir."""
+    if kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
+        return True
+    return hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"]
+
+
+@gecmis_router.get("/gecmis")
+async def gecmis_listesi(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
+    if not kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
+        sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
+    hesaplamalar = oturum.exec(sorgu).all()
+    return render(request, "gecmis.html", {"hesaplamalar": hesaplamalar})
+
+
+@gecmis_router.get("/gecmis/karsilastir")
+async def gecmis_karsilastir(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    dil = istekten_dil_al(request)
+    id_degerleri = request.query_params.getlist("id")
+
+    if len(id_degerleri) != 2:
+        return HTMLResponse(
+            f'<div class="alert alert-danger">{t("gecmis_iki_secim_gerekli", dil)}</div>', status_code=400
+        )
+
+    hesaplamalar = [oturum.get(Hesaplama, int(deger)) for deger in id_degerleri]
+    if any(h is None for h in hesaplamalar):
+        return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
+    if any(not _hesaplamaya_erisebilir_mi(kullanici, h) for h in hesaplamalar):
+        return HTMLResponse(
+            f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
+        )
+
+    fark = hesaplamalar[1].toplam_aylik_maliyet - hesaplamalar[0].toplam_aylik_maliyet
+    return render(request, "karsilastir.html", {"hesaplamalar": hesaplamalar, "fark": fark})
+
+
+@gecmis_router.get("/gecmis/{hesaplama_id}")
+async def gecmis_detay(
+    hesaplama_id: int,
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    dil = istekten_dil_al(request)
+    hesaplama = oturum.get(Hesaplama, hesaplama_id)
+    if hesaplama is None:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
+    if not _hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+        return HTMLResponse(
+            f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
+        )
+
+    return render(request, "gecmis_detay.html", {"hesaplama": hesaplama})
+
+
+@gecmis_router.post("/gecmis/{hesaplama_id}/sil")
+async def gecmis_sil(
+    hesaplama_id: int,
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    dil = istekten_dil_al(request)
+    hesaplama = oturum.get(Hesaplama, hesaplama_id)
+    if hesaplama is None:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
+    if not _hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+        return HTMLResponse(
+            f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
+        )
+
+    oturum.delete(hesaplama)
+    oturum.commit()
+    return RedirectResponse("/gecmis", status_code=303)

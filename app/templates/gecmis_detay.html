@@ -1,0 +1,66 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ hesaplama.ad }} - {{ t('gecmis_detay_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ hesaplama.ad }}</h1>
+    <p class="text-muted mb-0">
+      {{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}
+      {% if hesaplama.olusturan_kullanici_adi and kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
+      &middot; {{ t('olusturan', dil) }}: {{ hesaplama.olusturan_kullanici_adi }}
+      {% endif %}
+    </p>
+  </div>
+  <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
+        onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+    <button type="submit" class="btn btn-outline-danger btn-sm">{{ t('sil', dil) }}</button>
+  </form>
+</div>
+
+{% for kalem in hesaplama.kalemler %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h2 class="h6 mb-0">{{ t('urun_vm_ad', dil) if kalem.urun_tipi == 'virtual_machines' else t('urun_disk_ad', dil) }}</h2>
+        <small class="text-muted">{{ kalem.ozet }}</small>
+      </div>
+      <div class="text-end">
+        <div class="fw-bold">{{ kalem.aylik_maliyet | para(hesaplama.para_birimi) }}</div>
+        <small class="text-muted">{{ t('tahmin_aylik_maliyet', dil) | lower }}</small>
+        <div class="text-muted small">{{ kalem.aylik_maliyet | yillik | para(hesaplama.para_birimi) }} / {{ t('yillik_maliyet', dil) | lower }}</div>
+      </div>
+    </div>
+
+    {% if kalem.fiyat_kalemleri %}
+    <table class="table table-sm table-borderless mb-0 mt-2 small">
+      {% for bilesen in kalem.fiyat_kalemleri %}
+      <tr>
+        <td class="text-muted">{{ t(bilesen.anahtar, dil) }}</td>
+        <td class="text-muted">{{ bilesen.miktar | round(2) }} {{ bilesen.birim }} &times; {{ bilesen.birim_fiyat | birim_fiyat(hesaplama.para_birimi) }}</td>
+        <td class="text-end">{{ bilesen.aylik_tutar | para(hesaplama.para_birimi) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+<div class="card">
+  <div class="card-body d-flex justify-content-around text-center">
+    <div>
+      <div class="text-muted small">{{ t('toplam_aylik', dil) }}</div>
+      <div class="h4 mb-0">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</div>
+    </div>
+    <div>
+      <div class="text-muted small">{{ t('toplam_yillik', dil) }}</div>
+      <div class="h4 mb-0">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</div>
+    </div>
+  </div>
+</div>
+
+<a href="/gecmis" class="btn btn-secondary mt-3">{{ t('geri', dil) }}</a>
+{% endblock %}

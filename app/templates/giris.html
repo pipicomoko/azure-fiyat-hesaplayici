@@ -1,0 +1,28 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('giris_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<div class="row justify-content-center">
+  <div class="col-md-5">
+    <h1 class="h3 mb-4">{{ t('giris_baslik', dil) }}</h1>
+
+    {% if hata %}
+    <div class="alert alert-danger">{{ hata }}</div>
+    {% endif %}
+
+    <form method="post" action="/giris">
+      <div class="mb-3">
+        <label for="kullanici_adi" class="form-label">{{ t('giris_kullanici_adi', dil) }}</label>
+        <input type="text" class="form-control" id="kullanici_adi" name="kullanici_adi"
+               placeholder="orn. can.aydin" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label for="sifre" class="form-label">{{ t('giris_sifre', dil) }}</label>
+        <input type="password" class="form-control" id="sifre" name="sifre" required>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ t('giris_buton', dil) }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

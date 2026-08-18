@@ -1,0 +1,29 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('yonetim_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<h1 class="h3 mb-3">{{ t('yonetim_baslik', dil) }}</h1>
+<p class="text-muted">{{ t('yonetim_aciklama', dil, dosya=yetki_dosyasi) }}</p>
+
+<table class="table table-sm bg-white">
+  <thead>
+    <tr>
+      <th>{{ t('yonetim_grup', dil) }}</th>
+      <th>{{ t('yonetim_izinler', dil) }}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for grup, izinler in harita.items() %}
+    <tr>
+      <td><code>{{ grup }}</code></td>
+      <td>
+        {% for izin in izinler %}
+        <span class="badge bg-secondary me-1">{{ izin }}</span>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
