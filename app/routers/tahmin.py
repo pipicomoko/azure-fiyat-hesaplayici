@@ -301,32 +301,6 @@ async def gecmis_listesi(
     return render(request, "gecmis.html", {"hesaplamalar": hesaplamalar})
 
 
-@gecmis_router.get("/gecmis/karsilastir")
-async def gecmis_karsilastir(
-    request: Request,
-    oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
-):
-    dil = istekten_dil_al(request)
-    id_degerleri = request.query_params.getlist("id")
-
-    if len(id_degerleri) != 2:
-        return HTMLResponse(
-            f'<div class="alert alert-danger">{t("gecmis_iki_secim_gerekli", dil)}</div>', status_code=400
-        )
-
-    hesaplamalar = [oturum.get(Hesaplama, int(deger)) for deger in id_degerleri]
-    if any(h is None for h in hesaplamalar):
-        return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
-    if any(not _hesaplamaya_erisebilir_mi(kullanici, h) for h in hesaplamalar):
-        return HTMLResponse(
-            f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
-        )
-
-    fark = hesaplamalar[1].toplam_aylik_maliyet - hesaplamalar[0].toplam_aylik_maliyet
-    return render(request, "karsilastir.html", {"hesaplamalar": hesaplamalar, "fark": fark})
-
-
 @gecmis_router.get("/gecmis/{hesaplama_id}")
 async def gecmis_detay(
     hesaplama_id: int,

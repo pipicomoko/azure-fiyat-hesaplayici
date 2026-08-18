@@ -103,8 +103,8 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "gecmis_baslik": {"tr": "Gecmis Tahminler", "en": "Estimate History"},
     "gecmis_bos": {"tr": "Henuz kaydedilmis bir tahmin yok.", "en": "No saved estimates yet."},
     "gecmis_aciklama": {
-        "tr": "Kaydedilen tahminleri inceleyin, iki farkli senaryoyu karsilastirin ve artik gerekmeyenleri kaldirin.",
-        "en": "Review saved estimates, compare two scenarios, and remove entries you no longer need.",
+        "tr": "Kaydedilen tahminleri inceleyin, detaylarini acin ve artik gerekmeyenleri kaldirin.",
+        "en": "Review saved estimates, open their details, and remove entries you no longer need.",
     },
     "gecmis_karsilastir": {
         "tr": "Secilen 2 tahmini karsilastir",
