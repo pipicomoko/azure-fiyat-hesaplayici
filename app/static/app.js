@@ -97,3 +97,29 @@ document.body.addEventListener("htmx:afterSwap", () => {
 });
 
 document.body.addEventListener("htmx:afterSettle", syncSummaryTotals);
+
+// ── VM Searchable Select ──────────────────────────────────────────────────────
+function vmSelectFiltrele(input) {
+  const selectId = input.dataset.target;
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const aranan = input.value.toLowerCase().trim();
+  Array.from(select.options).forEach((opt) => {
+    const eslesir = !aranan || opt.text.toLowerCase().includes(aranan) || opt.value.toLowerCase().includes(aranan);
+    opt.hidden = !eslesir;
+  });
+  // Seçili öğe gizlendiyse ilk görüneni seç
+  const secili = select.options[select.selectedIndex];
+  if (secili && secili.hidden) {
+    const ilk = Array.from(select.options).find((o) => !o.hidden);
+    if (ilk) {
+      select.value = ilk.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+}
+
+function vmSelectSecimGuncelle(select) {
+  // Listbox (size>1) seçimi HTMX change trigger'ı için form change olayı üretir
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}

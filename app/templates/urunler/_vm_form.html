@@ -75,19 +75,35 @@
 
       <div class="col-md-3">
         <label class="form-label small mb-0">{{ t('vm_alan_seri', dil) }}</label>
-        <select class="form-select form-select-sm" name="{{ kalem_id }}.seri">
-          {% for deger, etiket in secenekler.seri %}
-          <option value="{{ deger }}" {{ 'selected' if deger == yapilandirma.seri }}>{{ etiket }}</option>
-          {% endfor %}
-        </select>
+        <div class="vm-searchable-select">
+          <input type="text" class="form-control form-control-sm vm-select-search mb-1"
+                 placeholder="{{ t('ara', dil) }}…"
+                 autocomplete="off"
+                 data-target="{{ kalem_id }}-seri-select"
+                 oninput="vmSelectFiltrele(this)">
+          <select class="form-select form-select-sm" name="{{ kalem_id }}.seri"
+                  id="{{ kalem_id }}-seri-select" size="5">
+            {% for deger, etiket in secenekler.seri %}
+            <option value="{{ deger }}" {{ 'selected' if deger == yapilandirma.seri }}>{{ etiket }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
       <div class="col-md-5">
         <label class="form-label small mb-0">{{ t('vm_alan_instance', dil) }}</label>
-        <select class="form-select form-select-sm" name="{{ kalem_id }}.sku">
-          {% for deger, etiket in secenekler.sku %}
-          <option value="{{ deger }}" {{ 'selected' if deger == yapilandirma.sku }}>{{ etiket }}</option>
-          {% endfor %}
-        </select>
+        <div class="vm-searchable-select">
+          <input type="text" class="form-control form-control-sm vm-select-search mb-1"
+                 placeholder="{{ t('ara', dil) }}…"
+                 autocomplete="off"
+                 data-target="{{ kalem_id }}-sku-select"
+                 oninput="vmSelectFiltrele(this)">
+          <select class="form-select form-select-sm" name="{{ kalem_id }}.sku"
+                  id="{{ kalem_id }}-sku-select" size="8">
+            {% for deger, etiket in secenekler.sku %}
+            <option value="{{ deger }}" {{ 'selected' if deger == yapilandirma.sku }}>{{ etiket }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
       <div class="col-md-2">
         <label class="form-label small mb-0">{{ t('vm_alan_adet', dil) }}</label>

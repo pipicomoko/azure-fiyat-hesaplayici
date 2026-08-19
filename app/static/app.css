@@ -736,3 +736,46 @@ a {
     gap: 0.3rem;
   }
 }
+
+/* ── VM Searchable Select ───────────────────────────────────────────────────── */
+.vm-searchable-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.vm-searchable-select select[size] {
+  border-radius: 0 0 var(--app-radius) var(--app-radius);
+  border-top: none;
+  overflow-y: auto;
+  background-color: var(--app-surface);
+  color: var(--app-text);
+  border-color: var(--app-border);
+}
+
+.vm-searchable-select .vm-select-search {
+  border-radius: var(--app-radius) var(--app-radius) 0 0;
+  border-color: var(--app-border);
+  background-color: var(--app-surface);
+  color: var(--app-text);
+}
+
+.vm-searchable-select .vm-select-search:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 20%, transparent);
+  outline: none;
+  z-index: 1;
+  position: relative;
+}
+
+.vm-searchable-select select[size] option:checked,
+.vm-searchable-select select[size] option:focus {
+  background: color-mix(in srgb, var(--app-primary) 18%, var(--app-surface));
+  color: var(--app-primary-strong);
+}
+
+.vm-searchable-select select[size]:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 20%, transparent);
+  outline: none;
+}

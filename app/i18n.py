@@ -162,6 +162,7 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "gecmis_arama": {"tr": "Arama", "en": "Search"},
     "gecmis_departman_sec": {"tr": "Departman seçin", "en": "Select department"},
     "gecmis_isim_ara": {"tr": "İsim ara...", "en": "Search by name..."},
+    "ara": {"tr": "Ara", "en": "Search"},
     "gecmis_unvan": {"tr": "Ünvan", "en": "Title"},
     "gecmis_tum_departmanlar": {"tr": "Tüm departmanlar", "en": "All departments"},
     # Yonetim
@@ -229,6 +230,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "vm_bilesen_bant_genisligi": {"tr": "Bant genisligi", "en": "Bandwidth"},
     # Excel disa aktarim basliklari
     "xlsx_sayfa_adi": {"tr": "Tahmin", "en": "Estimate"},
+    "xlsx_baslik_satiri": {"tr": "Azure Fiyat Tahmini", "en": "Azure Pricing Estimate"},
+    "xlsx_servis_tipi": {"tr": "Servis Tipi", "en": "Service type"},
+    "xlsx_aciklama": {"tr": "Aciklama", "en": "Description"},
+    "xlsx_tahmini_aylik_maliyet": {"tr": "Tahmini Aylik Maliyet", "en": "Estimated monthly cost"},
     "xlsx_urun": {"tr": "Urun", "en": "Product"},
     "xlsx_ozet": {"tr": "Yapilandirma", "en": "Configuration"},
     "xlsx_bolge": {"tr": "Bolge", "en": "Region"},
