@@ -24,7 +24,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from sqlalchemy import func, or_
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.database import oturum_al
@@ -308,20 +308,20 @@ async def gecmis_listesi(
     sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
     kapsam = gecmis_erisim_kapsami(kullanici)
     if kapsam == "kendi":
-        sorgu = sorgu.where(func.lower(Hesaplama.olusturan_kullanici_adi) == (kullanici["kullanici_adi"] or "").lower())
+        sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
         hesaplamalar = oturum.exec(sorgu).all()
     elif kapsam == "departman":
         departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
         if departmanlar:
             sorgu = sorgu.where(
                 or_(
-                    func.lower(Hesaplama.olusturan_kullanici_adi) == (kullanici["kullanici_adi"] or "").lower(),
+                    Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
                     Hesaplama.olusturan_departman.in_(departmanlar),
                 )
             )
         else:
             # Departman belirlenemedi — sadece kendi kayıtları
-            sorgu = sorgu.where(func.lower(Hesaplama.olusturan_kullanici_adi) == (kullanici["kullanici_adi"] or "").lower())
+            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
         hesaplamalar = [
             hesaplama
             for hesaplama in oturum.exec(sorgu).all()
@@ -336,7 +336,7 @@ async def gecmis_listesi(
     PERSONAL_KEY = "personal"
 
     for hesaplama in hesaplamalar:
-        sahip = hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi")
+        sahip = (hesaplama.olusturan_kullanici_adi or "").lower() == (kullanici.get("kullanici_adi") or "").lower()
         if sahip:
             anahtar = PERSONAL_KEY
             etiket = "Personal"
@@ -443,17 +443,17 @@ async def gecmis_tumu_excel(
     kapsam = gecmis_erisim_kapsami(kullanici)
     sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
     if kapsam == "kendi":
-        sorgu = sorgu.where(func.lower(Hesaplama.olusturan_kullanici_adi) == (kullanici["kullanici_adi"] or "").lower())
+        sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
         hesaplamalar = oturum.exec(sorgu).all()
     elif kapsam == "departman":
         departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
         if departmanlar:
             sorgu = sorgu.where(or_(
-                func.lower(Hesaplama.olusturan_kullanici_adi) == (kullanici["kullanici_adi"] or "").lower(),
+                Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
                 Hesaplama.olusturan_departman.in_(departmanlar),
             ))
         else:
-            sorgu = sorgu.where(func.lower(Hesaplama.olusturan_kullanici_adi) == (kullanici["kullanici_adi"] or "").lower())
+            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
         hesaplamalar = [h for h in oturum.exec(sorgu).all() if hesaplamaya_erisebilir_mi(kullanici, h)]
     else:
         hesaplamalar = oturum.exec(sorgu).all()
