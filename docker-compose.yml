@@ -4,21 +4,31 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://apc:apc@postgres:5432/apc}
       APP_ENV: ${APP_ENV:-development}
       SECRET_KEY: ${SECRET_KEY:-gelistirme-anahtari}
-      LDAP_SUNUCU: ${LDAP_SUNUCU:-192.168.56.10}
+      LDAP_SUNUCU: ${LDAP_SUNUCU:-dc01.sirket.local}
       LDAP_PORT: ${LDAP_PORT:-}
       LDAP_DOMAIN: ${LDAP_DOMAIN:-sirket.local}
       LDAP_ARAMA_TABANI: ${LDAP_ARAMA_TABANI:-DC=sirket,DC=local}
-      LDAP_TLS_MODU: ${LDAP_TLS_MODU:-starttls}
-      LDAP_CA_SERTIFIKA_DOSYASI: ${LDAP_CA_SERTIFIKA_DOSYASI:-}
+      LDAP_TLS_MODU: ${LDAP_TLS_MODU:-ldaps}
+      LDAP_CA_SERTIFIKA_DOSYASI: ${LDAP_CA_SERTIFIKA_DOSYASI:-config/ad-ca.pem}
     depends_on:
       postgres:
         condition: service_healthy
+    extra_hosts:
+      - "dc01.sirket.local:192.168.56.10"
+      - "DC01:192.168.56.10"
+      - "sirket.local:192.168.56.10"
     volumes:
       - ./app:/app/app
       - ./config:/app/config
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/saglik')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   postgres:
     image: postgres:16-alpine
@@ -34,7 +44,19 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
+
+  # Istege bagli internet tuneli. Cloudflare hesabi + domain + tunnel token gerekir.
+  # Calistirma: docker compose --profile tunnel up -d
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+    restart: unless-stopped
 
 volumes:
   postgres_data:

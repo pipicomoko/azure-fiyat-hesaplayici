@@ -24,6 +24,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.database import oturum_al
@@ -40,7 +41,18 @@ from app.para_birimleri import PARA_BIRIMLERI, VARSAYILAN_PARA_BIRIMI, guvenli_p
 from app.products import KAYITLI_URUNLER, urun_al
 from app.products.base import DisaAktarimSatiri, FiyatBulunamadiHatasi, FiyatSonucu, UrunModulu
 from app.sablonlar import render, templates
-from app.yetkilendirme import IZIN_HESAPLAMA_KULLAN, IZIN_YONETIM_ERISIM, kullanici_izinli_mi, yetki_gerekli
+from app.yetkilendirme import (
+    IZIN_HESAPLAMA_KULLAN,
+    departman_etiketi,
+    gecmis_erisim_kapsami,
+    gruplardan_departman_belirle,
+    hesaplama_departmani,
+    hesaplamaya_erisebilir_mi,
+    hesaplamayi_silebilir_mi,
+    kullanicinin_departmanlari,
+    kullanicinin_yonettigi_departmanlar,
+    yetki_gerekli,
+)
 
 router = APIRouter(prefix="/tahmin")
 
@@ -212,11 +224,16 @@ async def tahmin_kaydet(
     if not kalem_sonuclari or any(k.hata for k in kalem_sonuclari):
         return HTMLResponse(f'<div class="alert alert-danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
 
+    departman_anahtari = kullanici.get("departman")
+    if not departman_anahtari:
+        departman_anahtari, _ = gruplardan_departman_belirle(kullanici.get("gruplar"))
     hesaplama = Hesaplama(
         ad=hesaplama_adi,
         para_birimi=para_birimi,
         toplam_aylik_maliyet=0.0,
         olusturan_kullanici_adi=kullanici["kullanici_adi"],
+        olusturan_gruplar=list(kullanici.get("gruplar", [])),
+        olusturan_departman=departman_anahtari,
     )
     oturum.add(hesaplama)
     oturum.flush()
@@ -239,8 +256,10 @@ async def tahmin_kaydet(
     oturum.commit()
 
     return HTMLResponse(
-        f'<div class="alert alert-success">"{hesaplama_adi}" {t("kaydet_basarili", dil)} '
-        f'<a href="/gecmis">{t("nav_gecmis", dil)}</a></div>'
+        f'<a href="/gecmis" class="kaydet-basari-banner">'
+        f'<span class="kaydet-basari-icon">✓</span>'
+        f'<span>"{hesaplama_adi}" {t("kaydet_basarili", dil)}</span>'
+        f'</a>'
     )
 
 
@@ -280,14 +299,6 @@ async def tahmin_disa_aktar(request: Request, kullanici: dict = Depends(yetki_ge
 gecmis_router = APIRouter()
 
 
-def _hesaplamaya_erisebilir_mi(kullanici: dict, hesaplama: Hesaplama) -> bool:
-    """Kaydin sahibi (olusturan_kullanici_adi) veya yonetim.eris izni olan
-    (Adminler) erisebilir. Sahipsiz (eski) kayitlara sadece Adminler erisir."""
-    if kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
-        return True
-    return hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"]
-
-
 @gecmis_router.get("/gecmis")
 async def gecmis_listesi(
     request: Request,
@@ -295,36 +306,62 @@ async def gecmis_listesi(
     kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
 ):
     sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
-    if not kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
+    kapsam = gecmis_erisim_kapsami(kullanici)
+    if kapsam == "kendi":
         sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
-    hesaplamalar = oturum.exec(sorgu).all()
-    return render(request, "gecmis.html", {"hesaplamalar": hesaplamalar})
+        hesaplamalar = oturum.exec(sorgu).all()
+    elif kapsam == "departman":
+        departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
+        if departmanlar:
+            sorgu = sorgu.where(
+                or_(
+                    Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
+                    Hesaplama.olusturan_departman.in_(departmanlar),
+                )
+            )
+        else:
+            # Departman belirlenemedi — sadece kendi kayıtları
+            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
+        hesaplamalar = [
+            hesaplama
+            for hesaplama in oturum.exec(sorgu).all()
+            if hesaplamaya_erisebilir_mi(kullanici, hesaplama)
+        ]
+    else:
+        hesaplamalar = oturum.exec(sorgu).all()
 
+    # Tüm kapsam seviyeleri için gruplu görünüm oluştur.
+    # Kullanıcının kendi kayıtları her zaman "personal" grubunda; diğerleri departmana göre.
+    kovalar: dict[str, dict] = {}
+    PERSONAL_KEY = "personal"
 
-@gecmis_router.get("/gecmis/karsilastir")
-async def gecmis_karsilastir(
-    request: Request,
-    oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
-):
-    dil = istekten_dil_al(request)
-    id_degerleri = request.query_params.getlist("id")
+    for hesaplama in hesaplamalar:
+        sahip = (hesaplama.olusturan_kullanici_adi or "").lower() == (kullanici.get("kullanici_adi") or "").lower()
+        if sahip:
+            anahtar = PERSONAL_KEY
+            etiket = "Personal"
+        else:
+            anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or "diger"
+            etiket = departman_etiketi(anahtar)
+        if anahtar not in kovalar:
+            kovalar[anahtar] = {"anahtar": anahtar, "etiket": etiket, "hesaplamalar": []}
+        kovalar[anahtar]["hesaplamalar"].append(hesaplama)
 
-    if len(id_degerleri) != 2:
-        return HTMLResponse(
-            f'<div class="alert alert-danger">{t("gecmis_iki_secim_gerekli", dil)}</div>', status_code=400
-        )
+    # Personal en üste, sonra departmanlar alfabetik
+    gecmis_gruplari = []
+    if PERSONAL_KEY in kovalar:
+        gecmis_gruplari.append(kovalar.pop(PERSONAL_KEY))
+    gecmis_gruplari.extend(sorted(kovalar.values(), key=lambda g: g["etiket"]))
 
-    hesaplamalar = [oturum.get(Hesaplama, int(deger)) for deger in id_degerleri]
-    if any(h is None for h in hesaplamalar):
-        return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
-    if any(not _hesaplamaya_erisebilir_mi(kullanici, h) for h in hesaplamalar):
-        return HTMLResponse(
-            f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
-        )
-
-    fark = hesaplamalar[1].toplam_aylik_maliyet - hesaplamalar[0].toplam_aylik_maliyet
-    return render(request, "karsilastir.html", {"hesaplamalar": hesaplamalar, "fark": fark})
+    return render(
+        request,
+        "gecmis.html",
+        {
+            "hesaplamalar": hesaplamalar,
+            "gecmis_gruplari": gecmis_gruplari,
+            "gecmis_gorunumu": kapsam,
+        },
+    )
 
 
 @gecmis_router.get("/gecmis/{hesaplama_id}")
@@ -338,12 +375,135 @@ async def gecmis_detay(
     hesaplama = oturum.get(Hesaplama, hesaplama_id)
     if hesaplama is None:
         return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
-    if not _hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+    if not hesaplamaya_erisebilir_mi(kullanici, hesaplama):
         return HTMLResponse(
             f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
         )
 
-    return render(request, "gecmis_detay.html", {"hesaplama": hesaplama})
+    return render(
+        request,
+        "gecmis_detay.html",
+        {"hesaplama": hesaplama, "gecmis_gorunumu": gecmis_erisim_kapsami(kullanici)},
+    )
+
+
+def _hesaplamadan_satirlar(hesaplama) -> tuple[list[DisaAktarimSatiri], float]:
+    """Kaydedilmis bir Hesaplama nesnesinden DisaAktarimSatiri listesi uretir."""
+    satirlar: list[DisaAktarimSatiri] = []
+    for kalem in hesaplama.kalemler:
+        for b in (kalem.fiyat_kalemleri or []):
+            if isinstance(b, dict):
+                satirlar.append(DisaAktarimSatiri(
+                    urun=kalem.urun_tipi or "",
+                    yapilandirma_ozeti=kalem.ozet or "",
+                    bolge=b.get("bolge", ""),
+                    miktar=float(b.get("miktar", 0)),
+                    birim=b.get("birim", ""),
+                    birim_fiyat=float(b.get("birim_fiyat", 0)),
+                    ara_toplam=float(b.get("aylik_tutar", 0)),
+                ))
+    return satirlar, hesaplama.toplam_aylik_maliyet
+
+
+@gecmis_router.get("/gecmis/{hesaplama_id}/excel")
+async def gecmis_detay_excel(
+    hesaplama_id: int,
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    dil = istekten_dil_al(request)
+    hesaplama = oturum.get(Hesaplama, hesaplama_id)
+    if hesaplama is None or not hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+        return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
+    satirlar, toplam = _hesaplamadan_satirlar(hesaplama)
+    try:
+        icerik = calisma_kitabi_olustur(satirlar, toplam, hesaplama.para_birimi, dil)
+    except TahminBosHatasi:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("disa_aktar_bos_hata", dil)}</div>', status_code=400)
+    dosya_adi = f"azure-tahmin-{hesaplama.ad}-{hesaplama.olusturulma_tarihi.strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(icerik),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{dosya_adi}"'},
+    )
+
+
+@gecmis_router.get("/gecmis-excel")
+async def gecmis_tumu_excel(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    """Kullanicinin gorebilecegi tum hesaplamalari tek bir Excel dosyasina aktarir."""
+    dil = istekten_dil_al(request)
+    from sqlalchemy import or_
+    from app.yetkilendirme import gecmis_erisim_kapsami, kullanicinin_yonettigi_departmanlar
+
+    kapsam = gecmis_erisim_kapsami(kullanici)
+    sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
+    if kapsam == "kendi":
+        sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
+        hesaplamalar = oturum.exec(sorgu).all()
+    elif kapsam == "departman":
+        departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
+        if departmanlar:
+            sorgu = sorgu.where(or_(
+                Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
+                Hesaplama.olusturan_departman.in_(departmanlar),
+            ))
+        else:
+            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
+        hesaplamalar = [h for h in oturum.exec(sorgu).all() if hesaplamaya_erisebilir_mi(kullanici, h)]
+    else:
+        hesaplamalar = oturum.exec(sorgu).all()
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    kitap = Workbook()
+    kitap.remove(kitap.active)
+
+    for hesaplama in hesaplamalar:
+        sayfa_adi = hesaplama.ad[:31] if hesaplama.ad else str(hesaplama.id)
+        sayfa = kitap.create_sheet(title=sayfa_adi)
+        basliklar = [t("xlsx_urun", dil), t("xlsx_ozet", dil), t("xlsx_bolge", dil),
+                     t("xlsx_miktar", dil), t("xlsx_birim", dil), t("xlsx_birim_fiyat", dil), t("xlsx_ara_toplam", dil)]
+        sayfa.append(basliklar)
+        for hucre in sayfa[1]:
+            hucre.font = Font(bold=True)
+        satirlar, toplam = _hesaplamadan_satirlar(hesaplama)
+        for s in satirlar:
+            sayfa.append([s.urun, s.yapilandirma_ozeti, s.bolge, round(s.miktar, 4),
+                          s.birim, round(s.birim_fiyat, 6), round(s.ara_toplam, 2)])
+        sayfa.append([])
+        sayfa.append([t("xlsx_genel_toplam", dil), "", "", "", "", "", round(toplam, 2)])
+        for hucre in sayfa[sayfa.max_row]:
+            hucre.font = Font(bold=True)
+        sayfa.append([t("xlsx_genel_toplam_yillik", dil), "", "", "", "", "", round(toplam * 12, 2)])
+        for hucre in sayfa[sayfa.max_row]:
+            hucre.font = Font(bold=True)
+        sayfa.append([t("xlsx_para_birimi", dil), hesaplama.para_birimi])
+        olusturan = hesaplama.olusturan_kullanici_adi or ""
+        if olusturan:
+            sayfa.append([t("olusturan", dil), olusturan])
+        for sutun_index in range(1, len(basliklar) + 1):
+            harf = get_column_letter(sutun_index)
+            genislik = max(14, min(48, max(len(str(h.value or "")) for h in sayfa[harf]) + 2))
+            sayfa.column_dimensions[harf].width = genislik
+
+    if not kitap.sheetnames:
+        kitap.create_sheet("Bos")
+
+    arabellek = io.BytesIO()
+    kitap.save(arabellek)
+    dosya_adi = f"azure-tahminler-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(arabellek.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{dosya_adi}"'},
+    )
 
 
 @gecmis_router.post("/gecmis/{hesaplama_id}/sil")
@@ -357,7 +517,7 @@ async def gecmis_sil(
     hesaplama = oturum.get(Hesaplama, hesaplama_id)
     if hesaplama is None:
         return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
-    if not _hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+    if not hesaplamayi_silebilir_mi(kullanici, hesaplama):
         return HTMLResponse(
             f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
         )

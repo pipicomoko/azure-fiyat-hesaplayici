@@ -8,3 +8,7 @@ venv/
 postgres_data/
 .pytest_cache/
 .ruff_cache/
+*.db
+*.db-shm
+*.db-wal
+config/ad-ca.pem

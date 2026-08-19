@@ -19,7 +19,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Azure Fiyat Hesaplayici", lifespan=lifespan)
 app.add_middleware(
-    SessionMiddleware, secret_key=os.getenv("SECRET_KEY", "gelistirme-anahtari")
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "gelistirme-anahtari"),
+    session_cookie="apc_session",
+    max_age=60 * 60 * 8,
+    same_site="lax",
+    https_only=False,
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(giris.router)

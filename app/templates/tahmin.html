@@ -16,6 +16,8 @@ function tahminToplamiGuncelle() {
   });
   const toplamElemani = document.getElementById('tahmin-toplam');
   const yillikToplamElemani = document.getElementById('tahmin-yillik-toplam');
+  const sidebarTotal = document.getElementById('sidebar-aylik-toplam');
+  const sidebarYearly = document.getElementById('sidebar-yillik-toplam');
   const paraBirimiSecici = document.getElementById('para-birimi-secici');
   const paraBirimi = paraBirimiSecici ? paraBirimiSecici.value : 'USD';
   if (toplamElemani) {
@@ -23,6 +25,12 @@ function tahminToplamiGuncelle() {
   }
   if (yillikToplamElemani) {
     yillikToplamElemani.textContent = (toplam * 12).toFixed(2) + ' ' + paraBirimi;
+  }
+  if (sidebarTotal) {
+    sidebarTotal.textContent = toplam.toFixed(2) + ' ' + paraBirimi;
+  }
+  if (sidebarYearly) {
+    sidebarYearly.textContent = (toplam * 12).toFixed(2) + ' ' + paraBirimi;
   }
   if (typeof syncSummaryTotals === 'function') {
     syncSummaryTotals();

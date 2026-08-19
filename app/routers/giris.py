@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
 from app.i18n import DIL_COOKIE_ADI, form_alanindan_dil_al, istekten_dil_al, t
 from app.sablonlar import render
-from app.yetkilendirme import giris_dogrula
+from app.yetkilendirme import LdapTlsHatasi, giris_dogrula
 
 router = APIRouter()
 
@@ -19,7 +20,15 @@ async def giris_yap(
     kullanici_adi: str = Form(...),
     sifre: str = Form(...),
 ):
-    sonuc = giris_dogrula(kullanici_adi, sifre)
+    try:
+        sonuc = await run_in_threadpool(giris_dogrula, kullanici_adi, sifre)
+    except LdapTlsHatasi:
+        return render(
+            request,
+            "giris.html",
+            {"hata": t("giris_tls_hata", istekten_dil_al(request))},
+            durum_kodu=503,
+        )
     if sonuc is None:
         return render(
             request,

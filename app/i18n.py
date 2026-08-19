@@ -16,7 +16,7 @@ DESTEKLENEN_DILLER: tuple[Dil, ...] = ("tr", "en")
 
 _METINLER: dict[str, dict[Dil, str]] = {
     # Genel / navigasyon
-    "uygulama_adi": {"tr": "Azure Fiyat Hesaplayici", "en": "Azure Pricing Calculator"},
+    "uygulama_adi": {"tr": "Pricing Calculator", "en": "Pricing Calculator"},
     "nav_ana_sayfa": {"tr": "Ana Sayfa", "en": "Home"},
     "nav_tahmin": {"tr": "Tahminim", "en": "Your Estimate"},
     "nav_gecmis": {"tr": "Gecmis", "en": "History"},
@@ -26,6 +26,7 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "tema_degistir": {"tr": "Tema", "en": "Theme"},
     "tema_acik": {"tr": "Acik mod", "en": "Light mode"},
     "tema_koyu": {"tr": "Koyu mod", "en": "Dark mode"},
+    "tema_pembe": {"tr": "Pembe mod", "en": "Pink mode"},
     # Giris ekrani
     "giris_baslik": {"tr": "Giris Yap", "en": "Sign in"},
     "giris_kullanici_adi": {"tr": "Kullanici adi", "en": "Username"},
@@ -34,6 +35,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "giris_hata": {
         "tr": "Kullanici adi veya sifre hatali.",
         "en": "Incorrect username or password.",
+    },
+    "giris_tls_hata": {
+        "tr": "LDAP TLS baglantisi kurulamadi. Windows Server AD DC uzerinde LDAPS (636) veya StartTLS acik olmali.",
+        "en": "LDAP TLS connection failed. Enable LDAPS (port 636) or StartTLS on the Windows Server AD DC.",
     },
     "giris_gerekli": {
         "tr": "Bu sayfayi goruntulemek icin giris yapmalisiniz.",
@@ -75,6 +80,8 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "para_birimi": {"tr": "Para birimi", "en": "Currency"},
     "dil_degistir": {"tr": "Dil", "en": "Language"},
     "disa_aktar": {"tr": "Excel'e aktar", "en": "Export to Excel"},
+    "excel_aktar": {"tr": "Excel'e aktar", "en": "Export to Excel"},
+    "excel_aktar_tumu": {"tr": "Tümünü Excel'e aktar", "en": "Export all to Excel"},
     "disa_aktar_bos_hata": {
         "tr": "Tahmininiz bos, disa aktarilacak bir sey yok.",
         "en": "Your estimate is empty, there is nothing to export.",
@@ -103,8 +110,8 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "gecmis_baslik": {"tr": "Gecmis Tahminler", "en": "Estimate History"},
     "gecmis_bos": {"tr": "Henuz kaydedilmis bir tahmin yok.", "en": "No saved estimates yet."},
     "gecmis_aciklama": {
-        "tr": "Kaydedilen tahminleri inceleyin, iki farkli senaryoyu karsilastirin ve artik gerekmeyenleri kaldirin.",
-        "en": "Review saved estimates, compare two scenarios, and remove entries you no longer need.",
+        "tr": "Kaydedilen tahminleri inceleyin, detaylarini acin ve artik gerekmeyenleri kaldirin.",
+        "en": "Review saved estimates, open their details, and remove entries you no longer need.",
     },
     "gecmis_karsilastir": {
         "tr": "Secilen 2 tahmini karsilastir",
@@ -125,6 +132,7 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "en": "Review itemized and total cost differences between two saved estimates side by side.",
     },
     "geri": {"tr": "Geri", "en": "Back"},
+    "kayit": {"tr": "kayıt", "en": "records"},
     "kalem_sayisi": {"tr": "Kalem sayisi", "en": "Item count"},
     "tarih": {"tr": "Tarih", "en": "Date"},
     "ad": {"tr": "Ad", "en": "Name"},
