@@ -98,28 +98,59 @@ document.body.addEventListener("htmx:afterSwap", () => {
 
 document.body.addEventListener("htmx:afterSettle", syncSummaryTotals);
 
-// ── VM Searchable Select ──────────────────────────────────────────────────────
-function vmSelectFiltrele(input) {
-  const selectId = input.dataset.target;
-  const select = document.getElementById(selectId);
-  if (!select) return;
-  const aranan = input.value.toLowerCase().trim();
-  Array.from(select.options).forEach((opt) => {
-    const eslesir = !aranan || opt.text.toLowerCase().includes(aranan) || opt.value.toLowerCase().includes(aranan);
-    opt.hidden = !eslesir;
+// ── VM Combo (tıklayınca açılan arama dropdown) ───────────────────────────────
+function vmComboToggle(comboId) {
+  const combo = document.getElementById(comboId);
+  if (!combo) return;
+  const dropdown = combo.querySelector(".vm-combo-dropdown");
+  const isOpen = dropdown.style.display !== "none";
+  // Diğer açık combo'ları kapat
+  document.querySelectorAll(".vm-combo-dropdown").forEach((d) => {
+    d.style.display = "none";
   });
-  // Seçili öğe gizlendiyse ilk görüneni seç
-  const secili = select.options[select.selectedIndex];
-  if (secili && secili.hidden) {
-    const ilk = Array.from(select.options).find((o) => !o.hidden);
-    if (ilk) {
-      select.value = ilk.value;
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    }
+  if (!isOpen) {
+    dropdown.style.display = "block";
+    const search = dropdown.querySelector(".vm-combo-search");
+    if (search) { search.value = ""; vmComboFiltrele(search); search.focus(); }
+    // Seçili öğeye scroll
+    const secili = dropdown.querySelector("li.selected");
+    if (secili) secili.scrollIntoView({ block: "nearest" });
   }
 }
 
-function vmSelectSecimGuncelle(select) {
-  // Listbox (size>1) seçimi HTMX change trigger'ı için form change olayı üretir
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+function vmComboFiltrele(input) {
+  const dropdown = input.closest(".vm-combo-dropdown");
+  if (!dropdown) return;
+  const aranan = input.value.toLowerCase().trim();
+  dropdown.querySelectorAll("li").forEach((li) => {
+    const metni = li.textContent.toLowerCase();
+    li.style.display = (!aranan || metni.includes(aranan)) ? "" : "none";
+  });
 }
+
+function vmComboSec(comboId, li) {
+  const combo = document.getElementById(comboId);
+  if (!combo) return;
+  const deger = li.dataset.value;
+  const etiket = li.textContent;
+  // Label güncelle
+  combo.querySelector(".vm-combo-label").textContent = etiket;
+  // Seçili class
+  combo.querySelectorAll("li").forEach((el) => el.classList.remove("selected"));
+  li.classList.add("selected");
+  // Hidden select güncelle ve HTMX change tetikle
+  const hiddenSelect = combo.querySelector(".vm-combo-hidden");
+  hiddenSelect.value = deger;
+  hiddenSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  // Dropdown kapat
+  combo.querySelector(".vm-combo-dropdown").style.display = "none";
+}
+
+// Dışarı tıklayınca combo'ları kapat
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".vm-combo")) {
+    document.querySelectorAll(".vm-combo-dropdown").forEach((d) => {
+      d.style.display = "none";
+    });
+  }
+});

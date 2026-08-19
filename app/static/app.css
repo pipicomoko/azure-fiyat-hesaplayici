@@ -737,45 +737,96 @@ a {
   }
 }
 
-/* ── VM Searchable Select ───────────────────────────────────────────────────── */
-.vm-searchable-select {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.vm-searchable-select select[size] {
-  border-radius: 0 0 var(--app-radius) var(--app-radius);
-  border-top: none;
-  overflow-y: auto;
-  background-color: var(--app-surface);
-  color: var(--app-text);
-  border-color: var(--app-border);
-}
-
-.vm-searchable-select .vm-select-search {
-  border-radius: var(--app-radius) var(--app-radius) 0 0;
-  border-color: var(--app-border);
-  background-color: var(--app-surface);
-  color: var(--app-text);
-}
-
-.vm-searchable-select .vm-select-search:focus {
-  border-color: var(--app-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 20%, transparent);
-  outline: none;
-  z-index: 1;
+/* ── VM Combo (tıklayınca açılan arama dropdown) ────────────────────────────── */
+.vm-combo {
   position: relative;
 }
 
-.vm-searchable-select select[size] option:checked,
-.vm-searchable-select select[size] option:focus {
-  background: color-mix(in srgb, var(--app-primary) 18%, var(--app-surface));
-  color: var(--app-primary-strong);
+.vm-combo-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 0.875rem;
+  min-height: 2rem;
+  user-select: none;
+  transition: border-color 0.15s;
 }
 
-.vm-searchable-select select[size]:focus {
+.vm-combo-trigger:hover {
   border-color: var(--app-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 20%, transparent);
+}
+
+.vm-combo-arrow {
+  color: var(--app-text-muted);
+  font-size: 0.7rem;
+  margin-left: 0.4rem;
+  flex-shrink: 0;
+}
+
+.vm-combo-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  z-index: 200;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--app-primary) 10%, rgba(0,0,0,0.15));
+  overflow: hidden;
+}
+
+.vm-combo-search {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.7rem;
+  border: none;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface-strong);
+  color: var(--app-text);
+  font-size: 0.85rem;
   outline: none;
+}
+
+.vm-combo-search:focus {
+  background: var(--app-surface);
+  border-bottom-color: var(--app-primary);
+}
+
+.vm-combo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.vm-combo-list li {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--app-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vm-combo-list li:hover {
+  background: color-mix(in srgb, var(--app-primary) 10%, var(--app-surface));
+}
+
+.vm-combo-list li.selected {
+  background: color-mix(in srgb, var(--app-primary) 16%, var(--app-surface));
+  color: var(--app-primary-strong);
+  font-weight: 600;
+}
+
+.vm-combo-hidden {
+  display: none;
 }

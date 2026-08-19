@@ -75,14 +75,30 @@
 
       <div class="col-md-3">
         <label class="form-label small mb-0">{{ t('vm_alan_seri', dil) }}</label>
-        <div class="vm-searchable-select">
-          <input type="text" class="form-control form-control-sm vm-select-search mb-1"
-                 placeholder="{{ t('ara', dil) }}…"
-                 autocomplete="off"
-                 data-target="{{ kalem_id }}-seri-select"
-                 oninput="vmSelectFiltrele(this)">
-          <select class="form-select form-select-sm" name="{{ kalem_id }}.seri"
-                  id="{{ kalem_id }}-seri-select" size="5">
+        <div class="vm-combo" id="combo-{{ kalem_id }}-seri">
+          <div class="vm-combo-trigger" tabindex="0"
+               onclick="vmComboToggle('combo-{{ kalem_id }}-seri')"
+               onkeydown="if(event.key==='Enter'||event.key===' ')vmComboToggle('combo-{{ kalem_id }}-seri')">
+            <span class="vm-combo-label">
+              {% set sec_seri = secenekler.seri | selectattr('0', 'equalto', yapilandirma.seri) | first %}
+              {{ sec_seri[1] if sec_seri else yapilandirma.seri }}
+            </span>
+            <span class="vm-combo-arrow">▾</span>
+          </div>
+          <div class="vm-combo-dropdown" style="display:none">
+            <input type="text" class="vm-combo-search"
+                   placeholder="{{ t('ara', dil) }}…"
+                   autocomplete="off"
+                   oninput="vmComboFiltrele(this)">
+            <ul class="vm-combo-list">
+              {% for deger, etiket in secenekler.seri %}
+              <li data-value="{{ deger }}"
+                  class="{{ 'selected' if deger == yapilandirma.seri }}"
+                  onclick="vmComboSec('combo-{{ kalem_id }}-seri', this)">{{ etiket }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <select class="vm-combo-hidden" name="{{ kalem_id }}.seri" tabindex="-1">
             {% for deger, etiket in secenekler.seri %}
             <option value="{{ deger }}" {{ 'selected' if deger == yapilandirma.seri }}>{{ etiket }}</option>
             {% endfor %}
@@ -91,14 +107,30 @@
       </div>
       <div class="col-md-5">
         <label class="form-label small mb-0">{{ t('vm_alan_instance', dil) }}</label>
-        <div class="vm-searchable-select">
-          <input type="text" class="form-control form-control-sm vm-select-search mb-1"
-                 placeholder="{{ t('ara', dil) }}…"
-                 autocomplete="off"
-                 data-target="{{ kalem_id }}-sku-select"
-                 oninput="vmSelectFiltrele(this)">
-          <select class="form-select form-select-sm" name="{{ kalem_id }}.sku"
-                  id="{{ kalem_id }}-sku-select" size="8">
+        <div class="vm-combo" id="combo-{{ kalem_id }}-sku">
+          <div class="vm-combo-trigger" tabindex="0"
+               onclick="vmComboToggle('combo-{{ kalem_id }}-sku')"
+               onkeydown="if(event.key==='Enter'||event.key===' ')vmComboToggle('combo-{{ kalem_id }}-sku')">
+            <span class="vm-combo-label">
+              {% set sec_sku = secenekler.sku | selectattr('0', 'equalto', yapilandirma.sku) | first %}
+              {{ sec_sku[1] if sec_sku else (yapilandirma.sku or t('ara', dil)) }}
+            </span>
+            <span class="vm-combo-arrow">▾</span>
+          </div>
+          <div class="vm-combo-dropdown" style="display:none">
+            <input type="text" class="vm-combo-search"
+                   placeholder="{{ t('ara', dil) }}…"
+                   autocomplete="off"
+                   oninput="vmComboFiltrele(this)">
+            <ul class="vm-combo-list">
+              {% for deger, etiket in secenekler.sku %}
+              <li data-value="{{ deger }}"
+                  class="{{ 'selected' if deger == yapilandirma.sku }}"
+                  onclick="vmComboSec('combo-{{ kalem_id }}-sku', this)">{{ etiket }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <select class="vm-combo-hidden" name="{{ kalem_id }}.sku" tabindex="-1">
             {% for deger, etiket in secenekler.sku %}
             <option value="{{ deger }}" {{ 'selected' if deger == yapilandirma.sku }}>{{ etiket }}</option>
             {% endfor %}
