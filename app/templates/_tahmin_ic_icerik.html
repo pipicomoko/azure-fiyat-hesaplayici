@@ -1,20 +1,5 @@
 {% set kalem_sonuclari = kalem_sonuclari | default([]) %}
 <div id="tahmin-icerik">
-  <section class="hero-panel mb-4">
-    <div class="hero-panel-body">
-      <div>
-        <span class="hero-eyebrow">Azure</span>
-        <h1 class="hero-title mb-2">{{ t('tahmin_baslik', dil) }}</h1>
-        <p class="hero-text mb-0">{{ t('ana_sayfa_alt_metin', dil) }}</p>
-      </div>
-      <div class="hero-metric-card">
-        <div class="text-muted small">{{ t('tahmin_aylik_toplam', dil) }}</div>
-        <div class="hero-metric-value" id="tahmin-toplam">0.00 {{ para_birimi }}</div>
-        <div class="text-muted small">{{ t('tahmin_yillik_maliyet', dil) }}: <span id="tahmin-yillik-toplam">0.00 {{ para_birimi }}</span></div>
-      </div>
-    </div>
-  </section>
-
   <div class="row g-4 app-dashboard-grid">
     <div class="col-12 col-xl-8">
       <div class="section-card mb-4">

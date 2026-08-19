@@ -1,21 +1,30 @@
 function applyTheme(theme) {
-  const resolvedTheme = theme === "dark" ? "dark" : "light";
+  const resolvedTheme = theme === "dark" ? "dark" : theme === "pink" ? "pink" : "light";
   document.documentElement.setAttribute("data-theme", resolvedTheme);
   document.documentElement.setAttribute("data-bs-theme", resolvedTheme);
   localStorage.setItem("theme-preference", resolvedTheme);
+
+  const nextTheme =
+    resolvedTheme === "light" ? "dark" : resolvedTheme === "dark" ? "pink" : "light";
 
   document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
     const label = button.querySelector(".theme-toggle-label");
     const icon = button.querySelector(".theme-toggle-icon");
     const darkLabel = button.dataset.themeLabelDark || "Dark";
     const lightLabel = button.dataset.themeLabelLight || "Light";
+    const pinkLabel = button.dataset.themeLabelPink || "Pink";
 
-    button.setAttribute("aria-pressed", String(resolvedTheme === "dark"));
+    button.setAttribute("aria-pressed", String(resolvedTheme !== "light"));
     if (label) {
-      label.textContent = resolvedTheme === "dark" ? lightLabel : darkLabel;
+      label.textContent =
+        nextTheme === "dark"
+          ? darkLabel
+          : nextTheme === "pink"
+            ? pinkLabel
+            : lightLabel;
     }
     if (icon) {
-      icon.textContent = resolvedTheme === "dark" ? "☀" : "◑";
+      icon.textContent = nextTheme === "pink" ? "●" : nextTheme === "light" ? "☀" : "◑";
     }
   });
 }
@@ -31,7 +40,9 @@ function initializeThemeToggle() {
 
     button.addEventListener("click", () => {
       const activeTheme = document.documentElement.getAttribute("data-theme") || "light";
-      applyTheme(activeTheme === "dark" ? "light" : "dark");
+      const nextTheme =
+        activeTheme === "light" ? "dark" : activeTheme === "dark" ? "pink" : "light";
+      applyTheme(nextTheme);
     });
     button.dataset.themeReady = "true";
   });

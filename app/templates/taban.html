@@ -7,7 +7,7 @@
   <script>
     (function () {
       const storedTheme = localStorage.getItem('theme-preference');
-      const theme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'light';
+      const theme = storedTheme === 'dark' || storedTheme === 'light' || storedTheme === 'pink' ? storedTheme : 'light';
       document.documentElement.setAttribute('data-theme', theme);
       document.documentElement.setAttribute('data-bs-theme', theme);
     })();
