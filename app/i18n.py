@@ -26,6 +26,7 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "tema_degistir": {"tr": "Tema", "en": "Theme"},
     "tema_acik": {"tr": "Acik mod", "en": "Light mode"},
     "tema_koyu": {"tr": "Koyu mod", "en": "Dark mode"},
+    "tema_pembe": {"tr": "Pembe mod", "en": "Pink mode"},
     # Giris ekrani
     "giris_baslik": {"tr": "Giris Yap", "en": "Sign in"},
     "giris_kullanici_adi": {"tr": "Kullanici adi", "en": "Username"},
@@ -129,6 +130,7 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "en": "Review itemized and total cost differences between two saved estimates side by side.",
     },
     "geri": {"tr": "Geri", "en": "Back"},
+    "kayit": {"tr": "kayıt", "en": "records"},
     "kalem_sayisi": {"tr": "Kalem sayisi", "en": "Item count"},
     "tarih": {"tr": "Tarih", "en": "Date"},
     "ad": {"tr": "Ad", "en": "Name"},

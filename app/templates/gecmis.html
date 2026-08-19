@@ -14,15 +14,19 @@
   </div>
 </section>
 
-{% if hesaplamalar %}
-{% if gecmis_gorunumu == 'admin' %}
+{% if gecmis_gruplari %}
 <div class="vstack gap-4">
   {% for grup in gecmis_gruplari %}
+  {% set is_personal = grup.anahtar == 'personal' %}
   <section class="section-card">
     <div class="section-card-header">
-      <div>
-        <h2 class="section-title mb-1">{{ grup.etiket }}</h2>
-        <p class="section-subtitle mb-0">{{ grup.hesaplamalar|length }} kayit</p>
+      <div class="d-flex align-items-center gap-2">
+        {% if is_personal %}
+        <span class="gecmis-grup-badge gecmis-grup-badge-personal">Personal</span>
+        {% else %}
+        <span class="gecmis-grup-badge">{{ grup.etiket }}</span>
+        {% endif %}
+        <span class="section-subtitle mb-0">{{ grup.hesaplamalar|length }} {{ t('kayit', dil) }}</span>
       </div>
     </div>
     <div class="section-card-body p-0">
@@ -32,7 +36,9 @@
             <tr>
               <th>{{ t('ad', dil) }}</th>
               <th>{{ t('tarih', dil) }}</th>
+              {% if not is_personal and gecmis_gorunumu in ('admin', 'departman') %}
               <th>{{ t('olusturan', dil) }}</th>
+              {% endif %}
               <th>{{ t('kalem_sayisi', dil) }}</th>
               <th>{{ t('toplam_aylik', dil) }}</th>
               <th>{{ t('toplam_yillik', dil) }}</th>
@@ -44,12 +50,14 @@
             <tr>
               <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
               <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+              {% if not is_personal and gecmis_gorunumu in ('admin', 'departman') %}
               <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
+              {% endif %}
               <td>{{ hesaplama.kalemler|length }}</td>
               <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
               <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
               <td>
-                {% if gecmis_gorunumu == 'admin' or hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi %}
+                {% if hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi or gecmis_gorunumu == 'admin' %}
                 <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
                       onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
                   <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
@@ -65,57 +73,6 @@
   </section>
   {% endfor %}
 </div>
-{% else %}
-<section class="section-card">
-  <div class="section-card-header">
-    <div>
-      <h2 class="section-title mb-1">{{ t('gecmis_baslik', dil) }}</h2>
-      <p class="section-subtitle mb-0">{{ t('gecmis_aciklama', dil) }}</p>
-    </div>
-  </div>
-  <div class="section-card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-sm align-middle app-table mb-0">
-        <thead>
-          <tr>
-            <th>{{ t('ad', dil) }}</th>
-            <th>{{ t('tarih', dil) }}</th>
-            {% if gecmis_gorunumu == 'departman' %}
-            <th>{{ t('olusturan', dil) }}</th>
-            {% endif %}
-            <th>{{ t('kalem_sayisi', dil) }}</th>
-            <th>{{ t('toplam_aylik', dil) }}</th>
-            <th>{{ t('toplam_yillik', dil) }}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for hesaplama in hesaplamalar %}
-          <tr>
-            <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
-            <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-            {% if gecmis_gorunumu == 'departman' %}
-            <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
-            {% endif %}
-            <td>{{ hesaplama.kalemler|length }}</td>
-            <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
-            <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
-            <td>
-              {% if gecmis_gorunumu == 'admin' or hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi %}
-              <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
-                    onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
-                <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
-              </form>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-{% endif %}
 {% else %}
 <div class="section-card">
   <div class="section-card-body">

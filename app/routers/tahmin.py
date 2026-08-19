@@ -326,16 +326,28 @@ async def gecmis_listesi(
     else:
         hesaplamalar = oturum.exec(sorgu).all()
 
-    gecmis_gruplari = []
-    if kapsam == "admin":
-        kovalar: dict[str, dict] = {}
-        for hesaplama in hesaplamalar:
+    # Tüm kapsam seviyeleri için gruplu görünüm oluştur.
+    # Kullanıcının kendi kayıtları her zaman "personal" grubunda; diğerleri departmana göre.
+    kovalar: dict[str, dict] = {}
+    PERSONAL_KEY = "personal"
+
+    for hesaplama in hesaplamalar:
+        sahip = hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi")
+        if sahip:
+            anahtar = PERSONAL_KEY
+            etiket = "Personal"
+        else:
             anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or "diger"
             etiket = departman_etiketi(anahtar)
-            if anahtar not in kovalar:
-                kovalar[anahtar] = {"anahtar": anahtar, "etiket": etiket, "hesaplamalar": []}
-            kovalar[anahtar]["hesaplamalar"].append(hesaplama)
-        gecmis_gruplari = [kova for kova in kovalar.values() if kova["hesaplamalar"]]
+        if anahtar not in kovalar:
+            kovalar[anahtar] = {"anahtar": anahtar, "etiket": etiket, "hesaplamalar": []}
+        kovalar[anahtar]["hesaplamalar"].append(hesaplama)
+
+    # Personal en üste, sonra departmanlar alfabetik
+    gecmis_gruplari = []
+    if PERSONAL_KEY in kovalar:
+        gecmis_gruplari.append(kovalar.pop(PERSONAL_KEY))
+    gecmis_gruplari.extend(sorted(kovalar.values(), key=lambda g: g["etiket"]))
 
     return render(
         request,

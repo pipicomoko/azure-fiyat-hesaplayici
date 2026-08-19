@@ -415,6 +415,25 @@ a {
   font-size: 1rem;
 }
 
+.gecmis-grup-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: color-mix(in srgb, var(--app-primary) 12%, var(--app-surface-strong));
+  color: var(--app-primary-strong);
+  border: 1px solid color-mix(in srgb, var(--app-primary) 20%, var(--app-border));
+}
+
+.gecmis-grup-badge-personal {
+  background: color-mix(in srgb, var(--app-success) 12%, var(--app-surface-strong));
+  color: color-mix(in srgb, var(--app-success) 80%, var(--app-text));
+  border-color: color-mix(in srgb, var(--app-success) 22%, var(--app-border));
+}
+
 .kaydet-basari-banner {
   display: flex;
   align-items: center;
