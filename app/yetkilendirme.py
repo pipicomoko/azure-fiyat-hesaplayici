@@ -162,44 +162,55 @@ def _grup_adini_cikar(distinguished_name: str) -> str:
 
 
 def _departman_anahtari_etiketten_turetilir(deger: str | None) -> str | None:
-    """OU, unvan veya grup adi gibi degerlerden departman anahtari uretir."""
+    """OU, unvan veya grup adi gibi degerlerden departman anahtari uretir.
+
+    Bilinen eslemeler onceliklidir; bilinmeyen bir OU/unvan gelirse deger
+    dogrudan normalize edilip anahtar olarak kullanilir — bu sayede AD'ye
+    yeni bir OU eklendiginde kod degistirmeden otomatik calisir.
+    """
     if not deger:
         return None
     norm = deger.strip().lower()
     norm_sikistir = re.sub(r"\s+", "", norm)
 
-    bilinen: dict[str, str] = {
-        "finans": "finans",
-        "finansanalisti": "finans",
-        "finansmuduru": "finans",
+    # Sadece yonetici/genel roller ve bilinen kisaltmalar/esanlamlilar icin
+    # sabit esleme; bunlar disindaki her deger kendi normalize halini anahtar yapar.
+    bilinen_eslemeler: dict[str, str] = {
+        # Finans
         "financial": "finans",
-        "ik": "ik",
-        "ikmuduru": "ik",
-        "ikuzmani": "ik",
+        # IK es anlamlilari
         "insankaynaklari": "ik",
         "humanresources": "ik",
         "hr": "ik",
-        "it": "it",
-        "itmuduru": "it",
-        "sistemyoneticisi": "it",
+        # IT es anlamlilari
         "bilgiislem": "it",
         "informationtechnology": "it",
-        "muhasebe": "muhasebe",
-        "muhasebemuduru": "muhasebe",
-        "muhasebeuzmani": "muhasebe",
+        # Muhasebe es anlamlilari
         "accounting": "muhasebe",
-        # departman disi genel roller
+        # Genel yonetici rolleri — departman kodu olarak islenmemeli
         "yonetici": "diger",
         "genelmudur": "diger",
         "generalmanager": "diger",
+        "genel mudur": "diger",
     }
-    if norm_sikistir in bilinen:
-        return bilinen[norm_sikistir]
-    # Unvan içinde departman kelimesi geçiyorsa (örn. "IK Muduru", "IT Muduru")
-    for anahtar, deger_dep in [("finans", "finans"), ("ik", "ik"), ("it", "it"), ("muhasebe", "muhasebe")]:
-        if re.search(r"\b" + anahtar + r"\b", norm):
-            return deger_dep
-    return None
+    if norm_sikistir in bilinen_eslemeler:
+        return bilinen_eslemeler[norm_sikistir]
+
+    # Unvan "X Muduru" / "X Uzmani" seklindeyse kok departmani cikar
+    # Ornek: "Finans Muduru" -> "finans", "Lojistik Uzmani" -> "lojistik"
+    for sonek in (" muduru", " uzmani", " analisti", " yoneticisi", " direktoru", " sorumlusu"):
+        if norm.endswith(sonek):
+            kok = norm[: -len(sonek)].strip()
+            if kok:
+                return re.sub(r"\s+", "", kok)
+
+    # Bilinmeyen deger: dogrudan normalize et (bosluklari kaldir)
+    # Ornek: "Lojistik" -> "lojistik", "Satis ve Pazarlama" -> "satisvepaizarlama"
+    anahtar = norm_sikistir
+    # "diger" ve bos degerler departman sayilmaz
+    if not anahtar or anahtar == "diger":
+        return None
+    return anahtar
 
 
 def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
@@ -398,7 +409,9 @@ def departman_etiketi(anahtar: str) -> str:
         return str(bilgi["etiket"])
     if anahtar == str(harita.get("varsayilan_departman") or "diger"):
         return str(harita.get("varsayilan_etiket") or "Diger")
-    return anahtar.upper()
+    # Anahtar birden fazla kelimeyse (örn. "satisvepaizarlama") olduğu gibi,
+    # tek kelimeyse ilk harfi büyük yap.
+    return anahtar.capitalize()
 
 
 def gruplardan_departman_belirle(gruplar: list[str] | None) -> tuple[str, str]:
