@@ -397,21 +397,44 @@ async def gecmis_detay(
     )
 
 
+_URUN_TIPI_KATEGORI = {
+    "virtual_machines": "Compute",
+    "managed_disks": "Storage",
+}
+_URUN_TIPI_ADI = {
+    "virtual_machines": "Virtual Machines",
+    "managed_disks": "Managed Disks",
+}
+
+
 def _hesaplamadan_satirlar(hesaplama) -> tuple[list[DisaAktarimSatiri], float]:
-    """Kaydedilmis bir Hesaplama nesnesinden DisaAktarimSatiri listesi uretir."""
+    """Kaydedilmis Hesaplama'dan Azure formatinda DisaAktarimSatiri listesi uretir.
+    Her fiziksel kalem (VM, Disk) icin tek satir — alt bilesenler toplanir."""
     satirlar: list[DisaAktarimSatiri] = []
     for kalem in hesaplama.kalemler:
+        urun_tipi = kalem.urun_tipi or ""
+        kategori = _URUN_TIPI_KATEGORI.get(urun_tipi, "Other")
+        urun_adi = _URUN_TIPI_ADI.get(urun_tipi, urun_tipi)
+        # fiyat_kalemleri listesindeki tüm alt bileşenlerin toplamı
+        toplam_kalem = float(kalem.aylik_maliyet or 0)
+        # bolgeyi fiyat_kalemleri'nden al
+        bolge = ""
         for b in (kalem.fiyat_kalemleri or []):
-            if isinstance(b, dict):
-                satirlar.append(DisaAktarimSatiri(
-                    urun=kalem.urun_tipi or "",
-                    yapilandirma_ozeti=kalem.ozet or "",
-                    bolge=b.get("bolge", ""),
-                    miktar=float(b.get("miktar", 0)),
-                    birim=b.get("birim", ""),
-                    birim_fiyat=float(b.get("birim_fiyat", 0)),
-                    ara_toplam=float(b.get("aylik_tutar", 0)),
-                ))
+            if isinstance(b, dict) and b.get("bolge"):
+                bolge = b["bolge"]
+                break
+        satirlar.append(DisaAktarimSatiri(
+            servis_kategori=kategori,
+            urun=urun_adi,
+            ozel_ad="",
+            bolge=bolge,
+            yapilandirma_ozeti=kalem.ozet or "",
+            miktar=toplam_kalem,
+            birim="month",
+            birim_fiyat=toplam_kalem,
+            ara_toplam=toplam_kalem,
+            on_odeme=0.0,
+        ))
     return satirlar, hesaplama.toplam_aylik_maliyet
 
 
@@ -468,41 +491,47 @@ async def gecmis_tumu_excel(
     else:
         hesaplamalar = oturum.exec(sorgu).all()
 
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill
+    from openpyxl import load_workbook
+    from openpyxl.styles import Font
     from openpyxl.utils import get_column_letter
 
-    kitap = Workbook()
-    kitap.remove(kitap.active)
-
+    # Her hesaplama için Azure formatında ayrı sayfa
+    kitap = None
     for hesaplama in hesaplamalar:
-        sayfa_adi = hesaplama.ad[:31] if hesaplama.ad else str(hesaplama.id)
-        sayfa = kitap.create_sheet(title=sayfa_adi)
-        basliklar = [t("xlsx_urun", dil), t("xlsx_ozet", dil), t("xlsx_bolge", dil),
-                     t("xlsx_miktar", dil), t("xlsx_birim", dil), t("xlsx_birim_fiyat", dil), t("xlsx_ara_toplam", dil)]
-        sayfa.append(basliklar)
-        for hucre in sayfa[1]:
-            hucre.font = Font(bold=True)
         satirlar, toplam = _hesaplamadan_satirlar(hesaplama)
-        for s in satirlar:
-            sayfa.append([s.urun, s.yapilandirma_ozeti, s.bolge, round(s.miktar, 4),
-                          s.birim, round(s.birim_fiyat, 6), round(s.ara_toplam, 2)])
-        sayfa.append([])
-        sayfa.append([t("xlsx_genel_toplam", dil), "", "", "", "", "", round(toplam, 2)])
-        for hucre in sayfa[sayfa.max_row]:
-            hucre.font = Font(bold=True)
-        sayfa.append([t("xlsx_genel_toplam_yillik", dil), "", "", "", "", "", round(toplam * 12, 2)])
-        for hucre in sayfa[sayfa.max_row]:
-            hucre.font = Font(bold=True)
-        sayfa.append([t("xlsx_para_birimi", dil), hesaplama.para_birimi])
-        olusturan = hesaplama.olusturan_kullanici_adi or ""
-        if olusturan:
-            sayfa.append([t("olusturan", dil), olusturan])
-        for sutun_index in range(1, len(basliklar) + 1):
-            harf = get_column_letter(sutun_index)
-            genislik = max(14, min(48, max(len(str(h.value or "")) for h in sayfa[harf]) + 2))
-            sayfa.column_dimensions[harf].width = genislik
+        if not satirlar:
+            continue
+        icerik = calisma_kitabi_olustur(satirlar, toplam, hesaplama.para_birimi, dil)
+        tek_kitap = load_workbook(io.BytesIO(icerik))
+        if kitap is None:
+            kitap = tek_kitap
+            sayfa_adi = (hesaplama.ad or str(hesaplama.id))[:31]
+            kitap.active.title = sayfa_adi
+        else:
+            sayfa_adi = (hesaplama.ad or str(hesaplama.id))[:31]
+            # Sayfa adı çakışmasını önle
+            mevcut = set(kitap.sheetnames)
+            temel = sayfa_adi
+            i = 2
+            while sayfa_adi in mevcut:
+                sayfa_adi = f"{temel[:28]}_{i}"
+                i += 1
+            kaynak = tek_kitap.active
+            yeni = kitap.create_sheet(title=sayfa_adi)
+            for row in kaynak.iter_rows():
+                for cell in row:
+                    yeni[cell.coordinate].value = cell.value
+                    if cell.has_style:
+                        yeni[cell.coordinate]._style = cell._style
+            for col, dim in kaynak.column_dimensions.items():
+                yeni.column_dimensions[col].width = dim.width
 
+    if kitap is None:
+        from openpyxl import Workbook
+        kitap = Workbook()
+        kitap.active.title = "Bos"
+
+    # Eski kod değişken kullanımını uyumlu kıl
     if not kitap.sheetnames:
         kitap.create_sheet("Bos")
 
