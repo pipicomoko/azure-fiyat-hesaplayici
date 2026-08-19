@@ -139,7 +139,7 @@
                   data-kullanici="{{ (hesaplama.olusturan_kullanici_adi or '')|lower }}">
                 <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
                 <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-                <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
+                <td class="text-muted small">{{ hesaplama.olusturan_ad_soyad or hesaplama.olusturan_kullanici_adi or '-' }}</td>
                 <td class="text-muted small">{{ hesaplama.olusturan_unvan or '-' }}</td>
                 <td>{{ hesaplama.kalemler|length }}</td>
                 <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>

@@ -241,6 +241,7 @@ async def tahmin_kaydet(
         olusturan_gruplar=list(kullanici.get("gruplar", [])),
         olusturan_departman=departman_anahtari,
         olusturan_unvan=kullanici.get("unvan") or "",
+        olusturan_ad_soyad=kullanici.get("ad_soyad") or kullanici.get("kullanici_adi") or "",
     )
     oturum.add(hesaplama)
     oturum.flush()
