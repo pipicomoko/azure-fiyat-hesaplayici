@@ -522,10 +522,15 @@ class GirisGerekli(Exception):
 
 def aktif_kullanici(request: Request) -> dict:
     """FastAPI dependency: oturumdaki kullaniciyi dondurur, oturum yoksa
-    GirisGerekli firlatir."""
+    GirisGerekli firlatir. Eksik departman bilgisini unvandan tamamlar."""
     kullanici = request.session.get("kullanici")
     if kullanici is None:
         raise GirisGerekli()
+    if not kullanici.get("departman") and kullanici.get("unvan"):
+        departman = _departman_anahtari_etiketten_turetilir(kullanici["unvan"])
+        if departman and departman != "diger":
+            kullanici["departman"] = departman
+            request.session["kullanici"] = kullanici
     return kullanici
 
 

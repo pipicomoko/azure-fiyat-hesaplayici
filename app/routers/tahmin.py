@@ -312,12 +312,16 @@ async def gecmis_listesi(
         hesaplamalar = oturum.exec(sorgu).all()
     elif kapsam == "departman":
         departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
-        sorgu = sorgu.where(
-            or_(
-                Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
-                Hesaplama.olusturan_departman.in_(departmanlar),
+        if departmanlar:
+            sorgu = sorgu.where(
+                or_(
+                    Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
+                    Hesaplama.olusturan_departman.in_(departmanlar),
+                )
             )
-        )
+        else:
+            # Departman belirlenemedi — sadece kendi kayıtları
+            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
         hesaplamalar = [
             hesaplama
             for hesaplama in oturum.exec(sorgu).all()
@@ -443,10 +447,13 @@ async def gecmis_tumu_excel(
         hesaplamalar = oturum.exec(sorgu).all()
     elif kapsam == "departman":
         departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
-        sorgu = sorgu.where(or_(
-            Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
-            Hesaplama.olusturan_departman.in_(departmanlar),
-        ))
+        if departmanlar:
+            sorgu = sorgu.where(or_(
+                Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
+                Hesaplama.olusturan_departman.in_(departmanlar),
+            ))
+        else:
+            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
         hesaplamalar = [h for h in oturum.exec(sorgu).all() if hesaplamaya_erisebilir_mi(kullanici, h)]
     else:
         hesaplamalar = oturum.exec(sorgu).all()
