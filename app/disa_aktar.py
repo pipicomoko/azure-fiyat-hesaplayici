@@ -1,19 +1,22 @@
 """Tahminin .xlsx (Excel) olarak disa aktarilmasi.
 
-Azure Pricing Calculator'in orijinal export formatina uygun cikti uretir:
-Service type | Region | Description | Estimated monthly cost
+Microsoft Azure Pricing Calculator'in orijinal export formatına birebir uygun:
 
-Her fiziksel tahmin kalemi (VM, Disk vb.) icin tek bir satir yazilir;
-alt-bilesenler (Compute, OS, Disk, Bant genisligi) toplam uzerinden
-birlestirilir — aynen Azure'un orijinal Excel export'u gibi.
+  Sayfa: "Your Estimate"
+  A1: Microsoft Azure Estimate
+  A2: Your Estimate
+  Basliklar: Service category | Service type | Custom name | Region |
+             Description | Estimated monthly cost | Estimated upfront cost
+  Veriler: her kalem tek satir
+  Support satiri: Support | Support | - | Support | - | 0 | 0
+  Total satiri: Total / F=toplam / G=0
+  Disclaimer YOK (kullanici istegi)
 """
 
 from __future__ import annotations
 
 import io
-from collections import defaultdict
 from datetime import datetime, timezone
-from typing import NamedTuple
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -27,16 +30,23 @@ class TahminBosHatasi(Exception):
     """Bos bir tahmin disa aktarilamaz."""
 
 
-class _GrupAnahtari(NamedTuple):
-    urun: str
-    bolge: str
-    # Konfigürasyon özetinin kalem-adı kısmını çıkar (ilk " / " öncesi)
-    ozet_kok: str
+# Azure orijinalindeki başlık rengi (açık gri arka plan)
+_BASLIK_DOLGU = PatternFill("solid", fgColor="F2F2F2")
+_BASLIK_YAZI = Font(bold=True)
+_TOPLAM_DOLGU = PatternFill("solid", fgColor="FFFFFF")
+_TOPLAM_YAZI = Font(bold=True)
 
 
-def _ozet_koku(yapilandirma_ozeti: str) -> str:
-    """'1 x D2s v3 - Ubuntu - East US / Compute' → '1 x D2s v3 - Ubuntu - East US'"""
-    return yapilandirma_ozeti.split(" / ")[0].strip()
+def _hucrele(ws, row: int, col: int, value, bold=False, fill=None, align="left", number_format=None):
+    cell = ws.cell(row=row, column=col, value=value)
+    if bold:
+        cell.font = Font(bold=True)
+    if fill:
+        cell.fill = fill
+    cell.alignment = Alignment(horizontal=align, vertical="center", wrap_text=False)
+    if number_format:
+        cell.number_format = number_format
+    return cell
 
 
 def calisma_kitabi_olustur(
@@ -49,95 +59,85 @@ def calisma_kitabi_olustur(
         raise TahminBosHatasi()
 
     kitap = Workbook()
-    sayfa = kitap.active
-    sayfa.title = t("xlsx_sayfa_adi", dil)
+    ws = kitap.active
+    ws.title = "Your Estimate"
 
-    # ── Üst bilgi ─────────────────────────────────────────────────────────────
-    sayfa.append([t("xlsx_baslik_satiri", dil)])
-    sayfa["A1"].font = Font(bold=True, size=14, color="0078D4")
-    sayfa.append([
-        t("xlsx_olusturulma_tarihi", dil),
-        datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-    ])
-    sayfa.append([t("xlsx_para_birimi", dil), para_birimi])
-    sayfa.append([])  # boş satır
+    # ── Satır 1: Microsoft Azure Estimate ────────────────────────────────────
+    _hucrele(ws, 1, 1, "Microsoft Azure Estimate", bold=True)
+    ws.row_dimensions[1].height = 18
 
-    # ── Kolon başlıkları ──────────────────────────────────────────────────────
+    # ── Satır 2: Your Estimate ────────────────────────────────────────────────
+    _hucrele(ws, 2, 1, "Your Estimate")
+
+    # ── Satır 3: Kolon başlıkları ─────────────────────────────────────────────
     basliklar = [
-        t("xlsx_servis_tipi", dil),
-        t("xlsx_bolge", dil),
-        t("xlsx_aciklama", dil),
-        t("xlsx_tahmini_aylik_maliyet", dil),
+        "Service category",
+        "Service type",
+        "Custom name",
+        "Region",
+        "Description",
+        "Estimated monthly cost",
+        "Estimated upfront cost",
     ]
-    sayfa.append(basliklar)
-    baslik_satiri = sayfa.max_row
-    for hucre in sayfa[baslik_satiri]:
-        hucre.font = Font(bold=True, color="FFFFFF")
-        hucre.fill = PatternFill("solid", fgColor="0078D4")
-        hucre.alignment = Alignment(horizontal="center", vertical="center")
+    for col, baslik in enumerate(basliklar, 1):
+        _hucrele(ws, 3, col, baslik, bold=True, fill=_BASLIK_DOLGU,
+                 align="center" if col >= 6 else "left")
+    ws.row_dimensions[3].height = 15
 
-    # ── Alt bileşenleri grupla → her fiziksel kalem için tek satır ────────────
-    gruplar: dict[_GrupAnahtari, float] = defaultdict(float)
-    grup_sirasi: list[_GrupAnahtari] = []
-
+    # ── Veri satırları ────────────────────────────────────────────────────────
     for satir in satirlar:
-        anahtar = _GrupAnahtari(
-            urun=satir.urun,
-            bolge=satir.bolge,
-            ozet_kok=_ozet_koku(satir.yapilandirma_ozeti),
-        )
-        if anahtar not in gruplar:
-            grup_sirasi.append(anahtar)
-        gruplar[anahtar] += satir.ara_toplam
+        row = ws.max_row + 1
+        _hucrele(ws, row, 1, satir.servis_kategori or "")
+        _hucrele(ws, row, 2, satir.urun)
+        _hucrele(ws, row, 3, satir.ozel_ad or "")
+        _hucrele(ws, row, 4, satir.bolge)
+        _hucrele(ws, row, 5, satir.yapilandirma_ozeti)
+        _hucrele(ws, row, 6, round(satir.ara_toplam, 2), align="right",
+                 number_format=f'#,##0.00')
+        _hucrele(ws, row, 7, round(satir.on_odeme, 2), align="right",
+                 number_format=f'#,##0.00')
+        ws.row_dimensions[row].height = 14
 
-    for anahtar in grup_sirasi:
-        toplam = round(gruplar[anahtar], 2)
-        sayfa.append([
-            anahtar.urun,
-            anahtar.bolge,
-            anahtar.ozet_kok,
-            toplam,
-        ])
-        satir_no = sayfa.max_row
-        # Zebra renklendirme (soluk mavi / beyaz)
-        if (satir_no - baslik_satiri) % 2 == 0:
-            for hucre in sayfa[satir_no]:
-                hucre.fill = PatternFill("solid", fgColor="EBF3FB")
-        maliyet_hucresi = sayfa.cell(row=satir_no, column=4)
-        maliyet_hucresi.alignment = Alignment(horizontal="right")
-        maliyet_hucresi.number_format = f'#,##0.00 "{para_birimi}"'
+    # ── Support satırı (Azure orijinalinde her zaman var) ─────────────────────
+    row = ws.max_row + 1
+    _hucrele(ws, row, 1, "Support")
+    _hucrele(ws, row, 2, "Support")
+    _hucrele(ws, row, 3, "")
+    _hucrele(ws, row, 4, "Support")
+    _hucrele(ws, row, 5, "")
+    _hucrele(ws, row, 6, 0, align="right", number_format='#,##0.00')
+    _hucrele(ws, row, 7, 0, align="right", number_format='#,##0.00')
 
-    # ── Toplam satırları ──────────────────────────────────────────────────────
-    sayfa.append([])
+    # ── Lisans Programı (Azure orijinalinde var) ──────────────────────────────
+    row = ws.max_row + 1
+    _hucrele(ws, row, 4, "Licensing Program")
+    _hucrele(ws, row, 5, "Microsoft Customer Agreement (MCA)")
 
-    toplam_satiri_no = sayfa.max_row + 1
-    sayfa.append([
-        t("xlsx_genel_toplam", dil), "", "",
-        round(genel_toplam, 2),
-    ])
-    for hucre in sayfa[sayfa.max_row]:
-        hucre.font = Font(bold=True)
-        hucre.fill = PatternFill("solid", fgColor="D0E8F8")
-    sayfa.cell(row=sayfa.max_row, column=4).number_format = f'#,##0.00 "{para_birimi}"'
-    sayfa.cell(row=sayfa.max_row, column=4).alignment = Alignment(horizontal="right")
+    # ── Total satırı ─────────────────────────────────────────────────────────
+    # 2 boş satır bırak (orijinalinde Billing Account, Billing Profile var)
+    ws.max_row  # sadece referans
+    row_billing1 = ws.max_row + 1
+    _hucrele(ws, row_billing1, 4, "Billing Account")
+    _hucrele(ws, row_billing1, 5, "")
+    row_billing2 = ws.max_row + 1
+    _hucrele(ws, row_billing2, 4, "Billing Profile")
+    _hucrele(ws, row_billing2, 5, "")
 
-    sayfa.append([
-        t("xlsx_genel_toplam_yillik", dil), "", "",
-        round(genel_toplam * 12, 2),
-    ])
-    for hucre in sayfa[sayfa.max_row]:
-        hucre.font = Font(bold=True)
-        hucre.fill = PatternFill("solid", fgColor="D0E8F8")
-    sayfa.cell(row=sayfa.max_row, column=4).number_format = f'#,##0.00 "{para_birimi}"'
-    sayfa.cell(row=sayfa.max_row, column=4).alignment = Alignment(horizontal="right")
+    row = ws.max_row + 1
+    _hucrele(ws, row, 4, "Total", bold=True)
+    _hucrele(ws, row, 6, round(genel_toplam, 2), bold=True, align="right",
+             number_format='#,##0.00')
+    _hucrele(ws, row, 7, 0, bold=True, align="right", number_format='#,##0.00')
 
-    # ── Sütun genişlikleri ────────────────────────────────────────────────────
-    sutun_genislikleri = [28, 22, 52, 26]
-    for idx, genislik in enumerate(sutun_genislikleri, 1):
-        sayfa.column_dimensions[get_column_letter(idx)].width = genislik
+    # ── Sütun genişlikleri (orijinal orantıda) ────────────────────────────────
+    sutun_genislikleri = {1: 18, 2: 20, 3: 16, 4: 18, 5: 80, 6: 26, 7: 26}
+    for col, genislik in sutun_genislikleri.items():
+        ws.column_dimensions[get_column_letter(col)].width = genislik
 
-    # ── Başlık satırı yüksekliği ──────────────────────────────────────────────
-    sayfa.row_dimensions[baslik_satiri].height = 20
+    # Description sütununda wrap text
+    for row_obj in ws.iter_rows(min_row=4, max_col=5, min_col=5):
+        for cell in row_obj:
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
 
     arabellek = io.BytesIO()
     kitap.save(arabellek)

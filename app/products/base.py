@@ -40,9 +40,17 @@ class FiyatSonucu:
 
 @dataclass
 class DisaAktarimSatiri:
-    """Excel'e aktarilacak tek bir satir (bir tahmin kaleminin bir maliyet
-    bileseni). Bir tahmin kalemi (orn. bir VM) birden fazla satir uretebilir
-    (Compute + OS + Disk + Islemler + Bant genisligi gibi)."""
+    """Excel'e aktarilacak tek bir satir.
+
+    Azure orijinal formatina uygun alanlar:
+      servis_kategori  → Service category (orn. Compute, Storage)
+      urun             → Service type     (orn. Virtual Machines)
+      ozel_ad          → Custom name      (kullanici tanimli isim, genelde bos)
+      bolge            → Region
+      yapilandirma_ozeti → Description
+      ara_toplam       → Estimated monthly cost
+      on_odeme         → Estimated upfront cost (genelde 0)
+    """
 
     urun: str
     yapilandirma_ozeti: str
@@ -51,6 +59,9 @@ class DisaAktarimSatiri:
     birim: str
     birim_fiyat: float
     ara_toplam: float
+    servis_kategori: str = ""
+    ozel_ad: str = ""
+    on_odeme: float = 0.0
 
 
 @dataclass

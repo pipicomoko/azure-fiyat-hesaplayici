@@ -51,17 +51,26 @@ class ManagedDisksUrunu:
     ) -> list[DisaAktarimSatiri]:
         bolge = bolge_bul(yapilandirma.get("bolge", ""))
         bolge_adi = bolge.ad if bolge else yapilandirma.get("bolge", "")
-        urun_adi = self.ad(dil)
-        ozet = self.ozet(yapilandirma, dil)
-        return [
-            DisaAktarimSatiri(
-                urun=urun_adi,
-                yapilandirma_ozeti=f"{ozet} / {t(kalem.anahtar, dil)}",
-                bolge=bolge_adi,
-                miktar=kalem.miktar,
-                birim=kalem.birim,
-                birim_fiyat=kalem.birim_fiyat,
-                ara_toplam=kalem.aylik_tutar,
-            )
-            for kalem in fiyat.kalemler
-        ]
+        adet = int(yapilandirma.get("adet", 1))
+        sku = yapilandirma.get("sku") or ""
+        boyut = yapilandirma.get("disk_boyutu_gib") or ""
+        sure = int(yapilandirma.get("sure_miktar", 730))
+        kademe = secenekler.kademe_adi(yapilandirma.get("kademe", ""), "en")
+        parcalar = [f"{adet} x {sku or (str(boyut) + ' GiB')} {kademe}", f"{sure} Hours"]
+        if yapilandirma.get("iops"):
+            parcalar.append(f"{yapilandirma['iops']} IOPS")
+        if yapilandirma.get("throughput_mbps"):
+            parcalar.append(f"{yapilandirma['throughput_mbps']} MB/s Throughput")
+        description = ", ".join(parcalar)
+        return [DisaAktarimSatiri(
+            servis_kategori="Storage",
+            urun=self.ad(dil),
+            ozel_ad="",
+            bolge=bolge_adi,
+            yapilandirma_ozeti=description,
+            miktar=fiyat.aylik_toplam,
+            birim="month",
+            birim_fiyat=fiyat.aylik_toplam,
+            ara_toplam=round(fiyat.aylik_toplam, 2),
+            on_odeme=0.0,
+        )]
