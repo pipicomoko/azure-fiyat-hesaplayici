@@ -19,7 +19,7 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "uygulama_adi": {"tr": "Pricing Calculator", "en": "Pricing Calculator"},
     "nav_ana_sayfa": {"tr": "Ana Sayfa", "en": "Home"},
     "nav_tahmin": {"tr": "Tahminim", "en": "Your Estimate"},
-    "nav_gecmis": {"tr": "Gecmis", "en": "History"},
+    "nav_gecmis": {"tr": "Estimate History", "en": "Estimate History"},
     "nav_yonetim": {"tr": "Yonetim", "en": "Administration"},
     "nav_cikis": {"tr": "Cikis Yap", "en": "Log out"},
     "nav_giris": {"tr": "Giris Yap", "en": "Log in"},
