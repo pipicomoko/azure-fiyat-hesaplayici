@@ -402,15 +402,33 @@ def _regex_departman_desenleri(harita: dict) -> dict[str, re.Pattern[str]]:
     return desenler
 
 
+_BILINEN_DEPARTMAN_ETIKETLERI: dict[str, str] = {
+    "finans": "Finans",
+    "ik": "IK",
+    "it": "IT",
+    "muhasebe": "Muhasebe",
+    "satinalma": "Satın Alma",
+    "lojistik": "Lojistik",
+    "satis": "Satış",
+    "pazarlama": "Pazarlama",
+    "hukuk": "Hukuk",
+    "yonetici": "Yönetici",
+    "diger": "Diğer",
+}
+
+
 def departman_etiketi(anahtar: str) -> str:
+    # 1) departman_haritasi.json'dan
     harita = departman_haritasini_yukle()
     bilgi = (harita.get("departmanlar") or {}).get(anahtar)
     if isinstance(bilgi, dict) and bilgi.get("etiket"):
         return str(bilgi["etiket"])
     if anahtar == str(harita.get("varsayilan_departman") or "diger"):
-        return str(harita.get("varsayilan_etiket") or "Diger")
-    # Anahtar birden fazla kelimeyse (örn. "satisvepaizarlama") olduğu gibi,
-    # tek kelimeyse ilk harfi büyük yap.
+        return str(harita.get("varsayilan_etiket") or "Diğer")
+    # 2) bilinen sabit etiket tablosu
+    if anahtar in _BILINEN_DEPARTMAN_ETIKETLERI:
+        return _BILINEN_DEPARTMAN_ETIKETLERI[anahtar]
+    # 3) bilinmeyen: ilk harf büyük
     return anahtar.capitalize()
 
 
