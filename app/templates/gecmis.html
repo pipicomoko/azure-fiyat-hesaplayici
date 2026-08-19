@@ -3,20 +3,6 @@
 {% block baslik %}{{ t('gecmis_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<section class="hero-panel mb-4">
-  <div class="hero-panel-body">
-    <div>
-      <span class="hero-eyebrow">History</span>
-      <h1 class="hero-title mb-2">{{ t('gecmis_baslik', dil) }}</h1>
-      <p class="hero-text mb-0">{{ t('gecmis_aciklama', dil) }}</p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a href="/gecmis-excel" class="btn btn-outline-secondary btn-sm">{{ t('excel_aktar_tumu', dil) }}</a>
-      <a href="/tahmin" class="btn btn-primary">{{ t('yeni_tahmin', dil) }}</a>
-    </div>
-  </div>
-</section>
-
 {# ── Sekme çubuğu ── #}
 <ul class="nav nav-tabs gecmis-tabs mb-4" id="gecmisTabs" role="tablist">
   <li class="nav-item" role="presentation">
