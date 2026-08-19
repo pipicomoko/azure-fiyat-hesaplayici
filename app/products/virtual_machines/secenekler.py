@@ -218,12 +218,44 @@ async def bolge_katalogunu_getir(bolge: str, tier: str, para_birimi: str = "USD"
     return katalog
 
 
+def _sku_goruntu_adi(arm_sku_adi: str) -> str:
+    """Standard_D2s_v3 → D2s v3 (Azure orijinalindeki gibi kısa isim)."""
+    # "Standard_" veya "Basic_" önekini kaldır
+    ad = re.sub(r"^(?:Standard|Basic)_", "", arm_sku_adi)
+    # Alt çizgileri boşluğa çevir
+    return ad.replace("_", " ")
+
+
+# Bilinen özel SKU'lar için gerçek core/RAM değerleri (Azure API'den türetilemiyor)
+_BILINEN_SKU_BOYUTLARI: dict[str, tuple[int, float]] = {
+    "Standard_A0": (1, 0.75),
+    "Standard_A1": (1, 1.75),
+    "Standard_A2": (2, 3.5),
+    "Standard_A3": (4, 7.0),
+    "Standard_A4": (8, 14.0),
+    "Standard_A5": (2, 14.0),
+    "Standard_A6": (4, 28.0),
+    "Standard_A7": (8, 56.0),
+    "Basic_A0": (1, 0.75),
+    "Basic_A1": (1, 1.75),
+    "Basic_A2": (2, 3.5),
+    "Basic_A3": (4, 7.0),
+    "Basic_A4": (8, 14.0),
+}
+
+
 def _boyut_etiketi(boyut: BoyutBilgisi, dil: str) -> str:
+    goruntu = _sku_goruntu_adi(boyut.arm_sku_adi)
+    # Önce bilinen sabit değerlere bak
+    if boyut.arm_sku_adi in _BILINEN_SKU_BOYUTLARI:
+        vcpu, ram = _BILINEN_SKU_BOYUTLARI[boyut.arm_sku_adi]
+        return f"{goruntu}: {vcpu} Cores, {ram:g} GB RAM"
     kategori = seri_kategorisi(boyut.seri)
-    ram = tahmini_ram_gib(boyut.vcpu, kategori)
-    vcpu_metni = f"{boyut.vcpu} vCPU" if boyut.vcpu is not None else "?"
-    ram_metni = f", {ram:g} GiB RAM" if ram is not None else ""
-    return f"{boyut.arm_sku_adi}: {vcpu_metni}{ram_metni}"
+    vcpu = boyut.vcpu if (boyut.vcpu is not None and boyut.vcpu > 0) else None
+    ram = tahmini_ram_gib(vcpu, kategori)
+    vcpu_metni = f"{vcpu} Cores" if vcpu is not None else "?"
+    ram_metni = f", {ram:g} GB RAM" if ram is not None else ""
+    return f"{goruntu}: {vcpu_metni}{ram_metni}"
 
 
 def bos_yapilandirma() -> dict:
