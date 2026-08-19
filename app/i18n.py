@@ -80,6 +80,8 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "para_birimi": {"tr": "Para birimi", "en": "Currency"},
     "dil_degistir": {"tr": "Dil", "en": "Language"},
     "disa_aktar": {"tr": "Excel'e aktar", "en": "Export to Excel"},
+    "excel_aktar": {"tr": "Excel'e aktar", "en": "Export to Excel"},
+    "excel_aktar_tumu": {"tr": "Tümünü Excel'e aktar", "en": "Export all to Excel"},
     "disa_aktar_bos_hata": {
         "tr": "Tahmininiz bos, disa aktarilacak bir sey yok.",
         "en": "Your estimate is empty, there is nothing to export.",

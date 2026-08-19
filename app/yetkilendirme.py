@@ -509,12 +509,10 @@ def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
 
 
 def hesaplamayi_silebilir_mi(kullanici: dict | None, hesaplama) -> bool:
-    """Silme: kaydin sahibi veya admin."""
+    """Silme: yalnizca kaydin sahibi silebilir. Hicbir yonetici/admin baskasinin kaydini silemez."""
     if kullanici is None:
         return False
-    if hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi"):
-        return True
-    return kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM)
+    return hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi")
 
 
 class GirisGerekli(Exception):

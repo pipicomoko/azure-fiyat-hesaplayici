@@ -18,9 +18,10 @@
         </span>
       </p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
       <a href="/gecmis" class="btn btn-outline-secondary btn-sm">{{ t('geri', dil) }}</a>
-      {% if gecmis_gorunumu == 'admin' or hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi %}
+      <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-outline-secondary btn-sm">↓ Excel</a>
+      {% if hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi %}
       <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
             onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
         <button type="submit" class="btn btn-outline-danger btn-sm">{{ t('sil', dil) }}</button>

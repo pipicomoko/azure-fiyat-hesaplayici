@@ -383,6 +383,122 @@ async def gecmis_detay(
     )
 
 
+def _hesaplamadan_satirlar(hesaplama) -> tuple[list[DisaAktarimSatiri], float]:
+    """Kaydedilmis bir Hesaplama nesnesinden DisaAktarimSatiri listesi uretir."""
+    satirlar: list[DisaAktarimSatiri] = []
+    for kalem in hesaplama.kalemler:
+        for b in (kalem.fiyat_kalemleri or []):
+            if isinstance(b, dict):
+                satirlar.append(DisaAktarimSatiri(
+                    urun=kalem.urun_tipi or "",
+                    yapilandirma_ozeti=kalem.ozet or "",
+                    bolge=b.get("bolge", ""),
+                    miktar=float(b.get("miktar", 0)),
+                    birim=b.get("birim", ""),
+                    birim_fiyat=float(b.get("birim_fiyat", 0)),
+                    ara_toplam=float(b.get("aylik_tutar", 0)),
+                ))
+    return satirlar, hesaplama.toplam_aylik_maliyet
+
+
+@gecmis_router.get("/gecmis/{hesaplama_id}/excel")
+async def gecmis_detay_excel(
+    hesaplama_id: int,
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    dil = istekten_dil_al(request)
+    hesaplama = oturum.get(Hesaplama, hesaplama_id)
+    if hesaplama is None or not hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+        return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
+    satirlar, toplam = _hesaplamadan_satirlar(hesaplama)
+    try:
+        icerik = calisma_kitabi_olustur(satirlar, toplam, hesaplama.para_birimi, dil)
+    except TahminBosHatasi:
+        return HTMLResponse(f'<div class="alert alert-danger">{t("disa_aktar_bos_hata", dil)}</div>', status_code=400)
+    dosya_adi = f"azure-tahmin-{hesaplama.ad}-{hesaplama.olusturulma_tarihi.strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(icerik),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{dosya_adi}"'},
+    )
+
+
+@gecmis_router.get("/gecmis-excel")
+async def gecmis_tumu_excel(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    """Kullanicinin gorebilecegi tum hesaplamalari tek bir Excel dosyasina aktarir."""
+    dil = istekten_dil_al(request)
+    from sqlalchemy import or_
+    from app.yetkilendirme import gecmis_erisim_kapsami, kullanicinin_yonettigi_departmanlar
+
+    kapsam = gecmis_erisim_kapsami(kullanici)
+    sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
+    if kapsam == "kendi":
+        sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
+        hesaplamalar = oturum.exec(sorgu).all()
+    elif kapsam == "departman":
+        departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
+        sorgu = sorgu.where(or_(
+            Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
+            Hesaplama.olusturan_departman.in_(departmanlar),
+        ))
+        hesaplamalar = [h for h in oturum.exec(sorgu).all() if hesaplamaya_erisebilir_mi(kullanici, h)]
+    else:
+        hesaplamalar = oturum.exec(sorgu).all()
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    kitap = Workbook()
+    kitap.remove(kitap.active)
+
+    for hesaplama in hesaplamalar:
+        sayfa_adi = hesaplama.ad[:31] if hesaplama.ad else str(hesaplama.id)
+        sayfa = kitap.create_sheet(title=sayfa_adi)
+        basliklar = [t("xlsx_urun", dil), t("xlsx_ozet", dil), t("xlsx_bolge", dil),
+                     t("xlsx_miktar", dil), t("xlsx_birim", dil), t("xlsx_birim_fiyat", dil), t("xlsx_ara_toplam", dil)]
+        sayfa.append(basliklar)
+        for hucre in sayfa[1]:
+            hucre.font = Font(bold=True)
+        satirlar, toplam = _hesaplamadan_satirlar(hesaplama)
+        for s in satirlar:
+            sayfa.append([s.urun, s.yapilandirma_ozeti, s.bolge, round(s.miktar, 4),
+                          s.birim, round(s.birim_fiyat, 6), round(s.ara_toplam, 2)])
+        sayfa.append([])
+        sayfa.append([t("xlsx_genel_toplam", dil), "", "", "", "", "", round(toplam, 2)])
+        for hucre in sayfa[sayfa.max_row]:
+            hucre.font = Font(bold=True)
+        sayfa.append([t("xlsx_genel_toplam_yillik", dil), "", "", "", "", "", round(toplam * 12, 2)])
+        for hucre in sayfa[sayfa.max_row]:
+            hucre.font = Font(bold=True)
+        sayfa.append([t("xlsx_para_birimi", dil), hesaplama.para_birimi])
+        olusturan = hesaplama.olusturan_kullanici_adi or ""
+        if olusturan:
+            sayfa.append([t("olusturan", dil), olusturan])
+        for sutun_index in range(1, len(basliklar) + 1):
+            harf = get_column_letter(sutun_index)
+            genislik = max(14, min(48, max(len(str(h.value or "")) for h in sayfa[harf]) + 2))
+            sayfa.column_dimensions[harf].width = genislik
+
+    if not kitap.sheetnames:
+        kitap.create_sheet("Bos")
+
+    arabellek = io.BytesIO()
+    kitap.save(arabellek)
+    dosya_adi = f"azure-tahminler-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(arabellek.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{dosya_adi}"'},
+    )
+
+
 @gecmis_router.post("/gecmis/{hesaplama_id}/sil")
 async def gecmis_sil(
     hesaplama_id: int,
