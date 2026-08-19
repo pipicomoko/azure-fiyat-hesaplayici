@@ -397,44 +397,62 @@ async def gecmis_detay(
     )
 
 
-_URUN_TIPI_KATEGORI = {
-    "virtual_machines": "Compute",
-    "managed_disks": "Storage",
-}
-_URUN_TIPI_ADI = {
-    "virtual_machines": "Virtual Machines",
-    "managed_disks": "Managed Disks",
-}
-
-
-def _hesaplamadan_satirlar(hesaplama) -> tuple[list[DisaAktarimSatiri], float]:
+def _hesaplamadan_satirlar(hesaplama, dil: str = "en") -> tuple[list[DisaAktarimSatiri], float]:
     """Kaydedilmis Hesaplama'dan Azure formatinda DisaAktarimSatiri listesi uretir.
-    Her fiziksel kalem (VM, Disk) icin tek satir — alt bilesenler toplanir."""
+    Urun modullerinin disa_aktarim_satirlari() metodunu cagirarak tam Description uretir."""
+    from app.products.base import FiyatSonucu, FiyatKalemi
+    from app import products as _products_pkg
+    import importlib
+
     satirlar: list[DisaAktarimSatiri] = []
     for kalem in hesaplama.kalemler:
         urun_tipi = kalem.urun_tipi or ""
-        kategori = _URUN_TIPI_KATEGORI.get(urun_tipi, "Other")
-        urun_adi = _URUN_TIPI_ADI.get(urun_tipi, urun_tipi)
-        # fiyat_kalemleri listesindeki tüm alt bileşenlerin toplamı
-        toplam_kalem = float(kalem.aylik_maliyet or 0)
-        # bolgeyi fiyat_kalemleri'nden al
-        bolge = ""
-        for b in (kalem.fiyat_kalemleri or []):
-            if isinstance(b, dict) and b.get("bolge"):
-                bolge = b["bolge"]
-                break
-        satirlar.append(DisaAktarimSatiri(
-            servis_kategori=kategori,
-            urun=urun_adi,
-            ozel_ad="",
-            bolge=bolge,
-            yapilandirma_ozeti=kalem.ozet or "",
-            miktar=toplam_kalem,
-            birim="month",
-            birim_fiyat=toplam_kalem,
-            ara_toplam=toplam_kalem,
-            on_odeme=0.0,
-        ))
+        # FiyatSonucu'yu DB verisinden reconstruct et
+        fiyat_kalemleri_nesneler = [
+            FiyatKalemi(
+                anahtar=b.get("anahtar", ""),
+                miktar=float(b.get("miktar", 0)),
+                birim=b.get("birim", ""),
+                birim_fiyat=float(b.get("birim_fiyat", 0)),
+                aylik_tutar=float(b.get("aylik_tutar", 0)),
+            )
+            for b in (kalem.fiyat_kalemleri or [])
+            if isinstance(b, dict)
+        ]
+        fiyat = FiyatSonucu(
+            aylik_toplam=float(kalem.aylik_maliyet or 0),
+            para_birimi=hesaplama.para_birimi or "USD",
+            kalemler=fiyat_kalemleri_nesneler,
+        )
+        try:
+            modul = importlib.import_module(f"app.products.{urun_tipi}")
+            # disa_aktarim_satirlari metoduna sahip ilk sinifi bul
+            urun_cls = next(
+                (v for v in vars(modul).values()
+                 if isinstance(v, type) and hasattr(v, "disa_aktarim_satirlari")),
+                None,
+            )
+            if urun_cls is None:
+                raise AttributeError("Urun sinifi bulunamadi")
+            urun_obj = urun_cls()
+            yeni_satirlar = urun_obj.disa_aktarim_satirlari(
+                kalem.yapilandirma or {}, fiyat, dil
+            )
+            satirlar.extend(yeni_satirlar)
+        except Exception:
+            # Modül yoksa ya da hata varsa basit satır oluştur
+            satirlar.append(DisaAktarimSatiri(
+                servis_kategori="Other",
+                urun=urun_tipi,
+                ozel_ad="",
+                bolge=(kalem.yapilandirma or {}).get("bolge", ""),
+                yapilandirma_ozeti=kalem.ozet or "",
+                miktar=float(kalem.aylik_maliyet or 0),
+                birim="month",
+                birim_fiyat=float(kalem.aylik_maliyet or 0),
+                ara_toplam=float(kalem.aylik_maliyet or 0),
+                on_odeme=0.0,
+            ))
     return satirlar, hesaplama.toplam_aylik_maliyet
 
 
@@ -449,7 +467,7 @@ async def gecmis_detay_excel(
     hesaplama = oturum.get(Hesaplama, hesaplama_id)
     if hesaplama is None or not hesaplamaya_erisebilir_mi(kullanici, hesaplama):
         return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
-    satirlar, toplam = _hesaplamadan_satirlar(hesaplama)
+    satirlar, toplam = _hesaplamadan_satirlar(hesaplama, dil)
     try:
         icerik = calisma_kitabi_olustur(satirlar, toplam, hesaplama.para_birimi, dil)
     except TahminBosHatasi:
@@ -498,7 +516,7 @@ async def gecmis_tumu_excel(
     # Her hesaplama için Azure formatında ayrı sayfa
     kitap = None
     for hesaplama in hesaplamalar:
-        satirlar, toplam = _hesaplamadan_satirlar(hesaplama)
+        satirlar, toplam = _hesaplamadan_satirlar(hesaplama, dil)
         if not satirlar:
             continue
         icerik = calisma_kitabi_olustur(satirlar, toplam, hesaplama.para_birimi, dil)
