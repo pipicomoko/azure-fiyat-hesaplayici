@@ -225,7 +225,13 @@ async def tahmin_kaydet(
         return HTMLResponse(f'<div class="alert alert-danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
 
     departman_anahtari = kullanici.get("departman")
-    if not departman_anahtari:
+    # "diger" veya None ise unvandan türetmeyi dene
+    if (not departman_anahtari or departman_anahtari == "diger") and kullanici.get("unvan"):
+        from app.yetkilendirme import _departman_anahtari_etiketten_turetilir as _dep_turet
+        turetilen = _dep_turet(kullanici["unvan"])
+        if turetilen and turetilen != "diger":
+            departman_anahtari = turetilen
+    if not departman_anahtari or departman_anahtari == "diger":
         departman_anahtari, _ = gruplardan_departman_belirle(kullanici.get("gruplar"))
     hesaplama = Hesaplama(
         ad=hesaplama_adi,

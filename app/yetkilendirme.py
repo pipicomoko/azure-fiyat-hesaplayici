@@ -546,8 +546,9 @@ def aktif_kullanici(request: Request) -> dict:
     if kullanici.get("kullanici_adi") and kullanici["kullanici_adi"] != kullanici["kullanici_adi"].lower():
         kullanici["kullanici_adi"] = kullanici["kullanici_adi"].lower()
         guncellendi = True
-    # Departman eksikse unvandan türet
-    if not kullanici.get("departman") and kullanici.get("unvan"):
+    # Departman eksik veya "diger" ise unvandan türetmeyi dene
+    mevcut_dep = kullanici.get("departman")
+    if (not mevcut_dep or mevcut_dep == "diger") and kullanici.get("unvan"):
         departman = _departman_anahtari_etiketten_turetilir(kullanici["unvan"])
         if departman and departman != "diger":
             kullanici["departman"] = departman
