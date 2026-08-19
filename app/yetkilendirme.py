@@ -470,7 +470,9 @@ def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
     if kullanici is None:
         return False
 
-    sahip = hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi")
+    kayit_sahibi = (hesaplama.olusturan_kullanici_adi or "").lower()
+    oturum_kullanicisi = (kullanici.get("kullanici_adi") or "").lower()
+    sahip = kayit_sahibi == oturum_kullanicisi
     if sahip:
         return True
 
@@ -512,7 +514,7 @@ def hesaplamayi_silebilir_mi(kullanici: dict | None, hesaplama) -> bool:
     """Silme: yalnizca kaydin sahibi silebilir. Hicbir yonetici/admin baskasinin kaydini silemez."""
     if kullanici is None:
         return False
-    return hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi")
+    return (hesaplama.olusturan_kullanici_adi or "").lower() == (kullanici.get("kullanici_adi") or "").lower()
 
 
 class GirisGerekli(Exception):
@@ -526,11 +528,19 @@ def aktif_kullanici(request: Request) -> dict:
     kullanici = request.session.get("kullanici")
     if kullanici is None:
         raise GirisGerekli()
+    guncellendi = False
+    # Kullanıcı adını küçük harfe normalize et (DB'deki kayıtlarla eşleşmesi için)
+    if kullanici.get("kullanici_adi") and kullanici["kullanici_adi"] != kullanici["kullanici_adi"].lower():
+        kullanici["kullanici_adi"] = kullanici["kullanici_adi"].lower()
+        guncellendi = True
+    # Departman eksikse unvandan türet
     if not kullanici.get("departman") and kullanici.get("unvan"):
         departman = _departman_anahtari_etiketten_turetilir(kullanici["unvan"])
         if departman and departman != "diger":
             kullanici["departman"] = departman
-            request.session["kullanici"] = kullanici
+            guncellendi = True
+    if guncellendi:
+        request.session["kullanici"] = kullanici
     return kullanici
 
 

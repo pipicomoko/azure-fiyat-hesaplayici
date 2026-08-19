@@ -62,7 +62,7 @@
               <td>
                 <div class="d-flex gap-1 justify-content-end">
                   <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
-                  {% if hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi %}
+                  {% if (hesaplama.olusturan_kullanici_adi or '')|lower == (kullanici.kullanici_adi or '')|lower %}
                   <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
                         onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
                     <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
