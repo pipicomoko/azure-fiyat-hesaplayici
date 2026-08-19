@@ -16,6 +16,7 @@ Microsoft Azure Pricing Calculator'in orijinal export formatına birebir uygun:
 from __future__ import annotations
 
 import io
+import textwrap
 from datetime import datetime, timezone
 
 from openpyxl import Workbook
@@ -35,6 +36,27 @@ _BASLIK_DOLGU = PatternFill("solid", fgColor="F2F2F2")
 _BASLIK_YAZI = Font(bold=True)
 _TOPLAM_DOLGU = PatternFill("solid", fgColor="FFFFFF")
 _TOPLAM_YAZI = Font(bold=True)
+
+
+# Description sutunu genisligi (Excel karakter birimi)
+_ACIKLAMA_GENISLIGI = 110
+# Tek satir metin yuksekligi (punto)
+_SATIR_YUKSEKLIGI = 15.0
+
+
+def _satir_yuksekligi(metin: str | None, sutun_genisligi: int) -> float:
+    """Sarilmis metnin kac satir kaplayacagini tahmin edip yukseklik dondurur.
+
+    Excel wrap_text ile satiri otomatik buyutmez (openpyxl customHeight yazar),
+    bu yuzden kelime bazli sarma simulasyonu ile yuksekligi biz hesapliyoruz.
+    """
+    if not metin:
+        return _SATIR_YUKSEKLIGI
+    satir_sayisi = 0
+    for paragraf in str(metin).split("\n"):
+        sarilmis = textwrap.wrap(paragraf, width=sutun_genisligi) or [""]
+        satir_sayisi += len(sarilmis)
+    return max(_SATIR_YUKSEKLIGI, satir_sayisi * _SATIR_YUKSEKLIGI)
 
 
 def _hucrele(ws, row: int, col: int, value, bold=False, fill=None, align="left", number_format=None):
@@ -96,7 +118,10 @@ def calisma_kitabi_olustur(
                  number_format=f'#,##0.00')
         _hucrele(ws, row, 7, round(satir.on_odeme, 2), align="right",
                  number_format=f'#,##0.00')
-        ws.row_dimensions[row].height = 14
+        # Description tamamen okunabilsin: sarma satir sayisina gore yukseklik
+        ws.row_dimensions[row].height = _satir_yuksekligi(
+            satir.yapilandirma_ozeti, _ACIKLAMA_GENISLIGI
+        )
 
     # ── Support satırı (Azure orijinalinde her zaman var) ─────────────────────
     row = ws.max_row + 1
@@ -130,7 +155,7 @@ def calisma_kitabi_olustur(
     _hucrele(ws, row, 7, 0, bold=True, align="right", number_format='#,##0.00')
 
     # ── Sütun genişlikleri (orijinal orantıda) ────────────────────────────────
-    sutun_genislikleri = {1: 18, 2: 20, 3: 16, 4: 18, 5: 80, 6: 26, 7: 26}
+    sutun_genislikleri = {1: 18, 2: 20, 3: 16, 4: 18, 5: _ACIKLAMA_GENISLIGI, 6: 26, 7: 26}
     for col, genislik in sutun_genislikleri.items():
         ws.column_dimensions[get_column_letter(col)].width = genislik
 
