@@ -1,0 +1,17 @@
+{
+  "_aciklama": "AD grup adlari departmanlara eslenir. yetki_haritasi.json icinde gecmis.departman_gor izni olan gruplar (or. IT.Mudur, Yoneticiler), kendi departmanindaki calisanlarin kayitlarini gorebilir.",
+  "departmanlar": {
+    "finans": { "etiket": "Finans", "gruplar": [] },
+    "it": { "etiket": "IT", "gruplar": [] },
+    "ik": { "etiket": "IK", "gruplar": [] },
+    "muhasebe": { "etiket": "Muhasebe", "gruplar": [] }
+  },
+  "regex_departmanlar": {
+    "finans": "\\b(finans)\\b",
+    "it": "\\b(it|bilgi islem|information technology|teknoloji)\\b",
+    "ik": "\\b(hr|human resources|ik|insan)\\b",
+    "muhasebe": "\\b(muhasebe)\\b"
+  },
+  "varsayilan_departman": "diger",
+  "varsayilan_etiket": "Diger"
+}

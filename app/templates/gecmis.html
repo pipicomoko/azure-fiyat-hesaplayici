@@ -15,7 +15,7 @@
 </section>
 
 {% if hesaplamalar %}
-{% if admin_mi %}
+{% if gecmis_gorunumu == 'admin' %}
 <div class="vstack gap-4">
   {% for grup in gecmis_gruplari %}
   <section class="section-card">
@@ -49,10 +49,12 @@
               <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
               <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
               <td>
+                {% if gecmis_gorunumu == 'admin' or hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi %}
                 <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
                       onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
                   <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
                 </form>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -78,7 +80,7 @@
           <tr>
             <th>{{ t('ad', dil) }}</th>
             <th>{{ t('tarih', dil) }}</th>
-            {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
+            {% if gecmis_gorunumu == 'departman' %}
             <th>{{ t('olusturan', dil) }}</th>
             {% endif %}
             <th>{{ t('kalem_sayisi', dil) }}</th>
@@ -92,17 +94,19 @@
           <tr>
             <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
             <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-            {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
+            {% if gecmis_gorunumu == 'departman' %}
             <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
             {% endif %}
             <td>{{ hesaplama.kalemler|length }}</td>
             <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
             <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
             <td>
+              {% if gecmis_gorunumu == 'admin' or hesaplama.olusturan_kullanici_adi == kullanici.kullanici_adi %}
               <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
                     onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
                 <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
               </form>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}

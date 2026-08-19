@@ -211,6 +211,77 @@ def test_gecmis_sadece_sahibi_gorur_admin_hepsini_gorur(client, veritabani):
     app.dependency_overrides.pop(aktif_kullanici, None)
 
 
+def test_it_muduru_kendi_departmanini_gorur_diger_departmani_gormez(client, veritabani):
+    from app.main import app
+    from app.yetkilendirme import aktif_kullanici
+
+    app.dependency_overrides[aktif_kullanici] = lambda: {
+        "kullanici_adi": "ayse.it", "ad_soyad": "Ayse IT", "unvan": "", "gruplar": ["Calisanlar", "IT"],
+    }
+    _kaydet(client, "IT Calisan Tahmini")
+
+    app.dependency_overrides[aktif_kullanici] = lambda: {
+        "kullanici_adi": "mehmet.hr", "ad_soyad": "Mehmet HR", "unvan": "", "gruplar": ["Calisanlar", "HR"],
+    }
+    _kaydet(client, "HR Calisan Tahmini")
+
+    app.dependency_overrides[aktif_kullanici] = lambda: {
+        "kullanici_adi": "ali.mudur",
+        "ad_soyad": "Ali Mudur",
+        "unvan": "",
+        "gruplar": ["Mudurler", "IT"],
+    }
+    mudur_gecmis = client.get("/gecmis")
+    assert "IT Calisan Tahmini" in mudur_gecmis.text
+    assert "HR Calisan Tahmini" not in mudur_gecmis.text
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        from sqlmodel import select
+
+        hr_kayit = oturum.exec(select(Hesaplama).where(Hesaplama.ad == "HR Calisan Tahmini")).one()
+    detay_yaniti = client.get(f"/gecmis/{hr_kayit.id}")
+    assert detay_yaniti.status_code == 403
+
+    app.dependency_overrides.pop(aktif_kullanici, None)
+
+
+def test_yonetici_departman_grubu_yoksa_sadece_kendininkini_gorur(client, veritabani):
+    from app.main import app
+    from app.yetkilendirme import aktif_kullanici
+
+    app.dependency_overrides[aktif_kullanici] = lambda: {
+        "kullanici_adi": "zeynep.kara", "ad_soyad": "Zeynep Kara", "unvan": "", "gruplar": ["Calisanlar"],
+    }
+    _kaydet(client, "Zeynep Tahmini")
+
+    app.dependency_overrides[aktif_kullanici] = lambda: {
+        "kullanici_adi": "deniz.aksoy", "ad_soyad": "Deniz Aksoy", "unvan": "", "gruplar": ["Calisanlar"],
+    }
+    _kaydet(client, "Deniz Tahmini")
+
+    app.dependency_overrides[aktif_kullanici] = lambda: {
+        "kullanici_adi": "genel.mudur", "ad_soyad": "Genel Mudur", "unvan": "", "gruplar": ["Mudurler"],
+    }
+    mudur_gecmis = client.get("/gecmis")
+    assert "Zeynep Tahmini" not in mudur_gecmis.text
+    assert "Deniz Tahmini" not in mudur_gecmis.text
+
+    app.dependency_overrides.pop(aktif_kullanici, None)
+
+
+def test_gruplardan_departman_belirle_it_ik_ve_diger():
+    assert gruplardan_departman_belirle(["Calisanlar", "IT"]) == ("it", "IT")
+    assert gruplardan_departman_belirle(["HR.Calisanlar"]) == ("ik", "IK")
+    assert gruplardan_departman_belirle(["Calisanlar"]) == ("diger", "Diger")
+
+
+def test_gecmis_erisim_kapsami_admin_mudur_calisan():
+    assert gecmis_erisim_kapsami({"gruplar": ["Adminler"]}) == "admin"
+    assert gecmis_erisim_kapsami({"gruplar": ["Mudurler", "IT"]}) == "departman"
+    assert gecmis_erisim_kapsami({"gruplar": ["Mudurler"]}) == "kendi"
+    assert gecmis_erisim_kapsami({"gruplar": ["Calisanlar"]}) == "kendi"
+
+
 def test_sahibi_kendi_tahminini_silebilir(client, veritabani):
     from app.main import app
     from app.yetkilendirme import aktif_kullanici

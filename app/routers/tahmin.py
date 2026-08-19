@@ -18,13 +18,13 @@ tek bir gercek kaynaktan saglanir.
 from __future__ import annotations
 
 import io
-import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.database import oturum_al
@@ -41,23 +41,20 @@ from app.para_birimleri import PARA_BIRIMLERI, VARSAYILAN_PARA_BIRIMI, guvenli_p
 from app.products import KAYITLI_URUNLER, urun_al
 from app.products.base import DisaAktarimSatiri, FiyatBulunamadiHatasi, FiyatSonucu, UrunModulu
 from app.sablonlar import render, templates
-from app.yetkilendirme import IZIN_HESAPLAMA_KULLAN, IZIN_YONETIM_ERISIM, kullanici_izinli_mi, yetki_gerekli
+from app.yetkilendirme import (
+    IZIN_HESAPLAMA_KULLAN,
+    departman_etiketi,
+    gecmis_erisim_kapsami,
+    gruplardan_departman_belirle,
+    hesaplama_departmani,
+    hesaplamaya_erisebilir_mi,
+    hesaplamayi_silebilir_mi,
+    kullanicinin_departmanlari,
+    kullanicinin_yonettigi_departmanlar,
+    yetki_gerekli,
+)
 
 router = APIRouter(prefix="/tahmin")
-
-_HR_GRUP_DESENI = re.compile(r"\b(hr|human resources|ik|insan)\b", re.IGNORECASE)
-_IT_GRUP_DESENI = re.compile(r"\b(it|bilgi islem|information technology|teknoloji)\b", re.IGNORECASE)
-
-
-def _grup_bolumu_belirle(gruplar: list[str] | None) -> tuple[str, str]:
-    gruplar = gruplar or []
-    for grup in gruplar:
-        if _IT_GRUP_DESENI.search(grup):
-            return ("it", "IT")
-    for grup in gruplar:
-        if _HR_GRUP_DESENI.search(grup):
-            return ("hr", "HR")
-    return ("diger", "Diger")
 
 
 @dataclass
@@ -227,12 +224,16 @@ async def tahmin_kaydet(
     if not kalem_sonuclari or any(k.hata for k in kalem_sonuclari):
         return HTMLResponse(f'<div class="alert alert-danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
 
+    departman_anahtari = kullanici.get("departman")
+    if not departman_anahtari:
+        departman_anahtari, _ = gruplardan_departman_belirle(kullanici.get("gruplar"))
     hesaplama = Hesaplama(
         ad=hesaplama_adi,
         para_birimi=para_birimi,
         toplam_aylik_maliyet=0.0,
         olusturan_kullanici_adi=kullanici["kullanici_adi"],
         olusturan_gruplar=list(kullanici.get("gruplar", [])),
+        olusturan_departman=departman_anahtari,
     )
     oturum.add(hesaplama)
     oturum.flush()
@@ -296,14 +297,6 @@ async def tahmin_disa_aktar(request: Request, kullanici: dict = Depends(yetki_ge
 gecmis_router = APIRouter()
 
 
-def _hesaplamaya_erisebilir_mi(kullanici: dict, hesaplama: Hesaplama) -> bool:
-    """Kaydin sahibi (olusturan_kullanici_adi) veya yonetim.eris izni olan
-    (Adminler) erisebilir. Sahipsiz (eski) kayitlara sadece Adminler erisir."""
-    if kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
-        return True
-    return hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"]
-
-
 @gecmis_router.get("/gecmis")
 async def gecmis_listesi(
     request: Request,
@@ -311,27 +304,45 @@ async def gecmis_listesi(
     kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
 ):
     sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
-    admin_mi = kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM)
-    if not admin_mi:
+    kapsam = gecmis_erisim_kapsami(kullanici)
+    if kapsam == "kendi":
         sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
-    hesaplamalar = oturum.exec(sorgu).all()
+        hesaplamalar = oturum.exec(sorgu).all()
+    elif kapsam == "departman":
+        departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
+        sorgu = sorgu.where(
+            or_(
+                Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
+                Hesaplama.olusturan_departman.in_(departmanlar),
+            )
+        )
+        hesaplamalar = [
+            hesaplama
+            for hesaplama in oturum.exec(sorgu).all()
+            if hesaplamaya_erisebilir_mi(kullanici, hesaplama)
+        ]
+    else:
+        hesaplamalar = oturum.exec(sorgu).all()
+
     gecmis_gruplari = []
-    if admin_mi:
-        kovalar: dict[str, dict] = {
-            "it": {"anahtar": "it", "etiket": "IT", "hesaplamalar": []},
-            "hr": {"anahtar": "hr", "etiket": "HR", "hesaplamalar": []},
-            "diger": {"anahtar": "diger", "etiket": "Diger", "hesaplamalar": []},
-        }
+    if kapsam == "admin":
+        kovalar: dict[str, dict] = {}
         for hesaplama in hesaplamalar:
-            anahtar, etiket = _grup_bolumu_belirle(hesaplama.olusturan_gruplar)
-            kova = kovalar[anahtar]
-            kova["etiket"] = etiket
-            kova["hesaplamalar"].append(hesaplama)
+            anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or "diger"
+            etiket = departman_etiketi(anahtar)
+            if anahtar not in kovalar:
+                kovalar[anahtar] = {"anahtar": anahtar, "etiket": etiket, "hesaplamalar": []}
+            kovalar[anahtar]["hesaplamalar"].append(hesaplama)
         gecmis_gruplari = [kova for kova in kovalar.values() if kova["hesaplamalar"]]
+
     return render(
         request,
         "gecmis.html",
-        {"hesaplamalar": hesaplamalar, "gecmis_gruplari": gecmis_gruplari, "admin_mi": admin_mi},
+        {
+            "hesaplamalar": hesaplamalar,
+            "gecmis_gruplari": gecmis_gruplari,
+            "gecmis_gorunumu": kapsam,
+        },
     )
 
 
@@ -346,12 +357,16 @@ async def gecmis_detay(
     hesaplama = oturum.get(Hesaplama, hesaplama_id)
     if hesaplama is None:
         return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
-    if not _hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+    if not hesaplamaya_erisebilir_mi(kullanici, hesaplama):
         return HTMLResponse(
             f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
         )
 
-    return render(request, "gecmis_detay.html", {"hesaplama": hesaplama})
+    return render(
+        request,
+        "gecmis_detay.html",
+        {"hesaplama": hesaplama, "gecmis_gorunumu": gecmis_erisim_kapsami(kullanici)},
+    )
 
 
 @gecmis_router.post("/gecmis/{hesaplama_id}/sil")
@@ -365,7 +380,7 @@ async def gecmis_sil(
     hesaplama = oturum.get(Hesaplama, hesaplama_id)
     if hesaplama is None:
         return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
-    if not _hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+    if not hesaplamayi_silebilir_mi(kullanici, hesaplama):
         return HTMLResponse(
             f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
         )

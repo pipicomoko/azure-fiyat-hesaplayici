@@ -5,6 +5,9 @@ from ldap3.core.exceptions import LDAPBindError
 from app.yetkilendirme import (
     _grup_adini_cikar,
     giris_dogrula,
+    gruplardan_departman_belirle,
+    gecmis_erisim_kapsami,
+    hesaplamaya_erisebilir_mi,
     kullanici_izinli_mi,
     kullanicinin_izinleri,
     yetki_haritasini_yukle,

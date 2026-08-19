@@ -19,6 +19,7 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import ssl
 from pathlib import Path
 
@@ -52,9 +53,12 @@ if APP_ORTAMI == "production" and LDAP_TLS_MODU == "kapali":
 # hangi AD grubunun hangi izne sahip oldugunu yapilandirabilir).
 _VARSAYILAN_YETKI_DOSYASI = Path(__file__).resolve().parent.parent / "config" / "yetki_haritasi.json"
 YETKI_HARITASI_DOSYASI = Path(os.getenv("YETKI_HARITASI_DOSYASI") or _VARSAYILAN_YETKI_DOSYASI)
+_VARSAYILAN_DEPARTMAN_DOSYASI = Path(__file__).resolve().parent.parent / "config" / "departman_haritasi.json"
+DEPARTMAN_HARITASI_DOSYASI = Path(os.getenv("DEPARTMAN_HARITASI_DOSYASI") or _VARSAYILAN_DEPARTMAN_DOSYASI)
 
 IZIN_HESAPLAMA_KULLAN = "hesaplama.kullan"
 IZIN_YONETIM_ERISIM = "yonetim.eris"
+IZIN_GECMIS_DEPARTMAN = "gecmis.departman_gor"
 
 
 class LdapTlsHatasi(Exception):
@@ -157,6 +161,33 @@ def _grup_adini_cikar(distinguished_name: str) -> str:
     return ilk_parca.split("=", 1)[1]
 
 
+def _departman_anahtari_etiketten_turetilir(deger: str | None) -> str | None:
+    """OU (Finans/IT/IK/...) gibi adlardan departman anahtari (it/ik/finans/...) uretir."""
+    if not deger:
+        return None
+    norm = deger.strip().lower()
+    norm_sikistir = re.sub(r"\s+", "", norm)
+
+    bilinen: dict[str, str] = {
+        "finans": "finans",
+        "financial": "finans",
+        "ik": "ik",
+        "insankaynaklari": "ik",
+        "humanresources": "ik",
+        "hr": "ik",
+        "it": "it",
+        "bilgiislem": "it",
+        "informationtechnology": "it",
+        "muhasebe": "muhasebe",
+        "accounting": "muhasebe",
+        # departman disi genel roller
+        "yonetici": "diger",
+        "genelmudur": "diger",
+        "generalmanager": "diger",
+    }
+    return bilinen.get(norm_sikistir)
+
+
 def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
     oznitelikler = kayit.entry_attributes_as_dict
     grup_dns = oznitelikler.get("memberOf") or []
@@ -165,11 +196,22 @@ def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
     gruplar = [_grup_adini_cikar(str(dn)) for dn in grup_dns if dn]
     ad_soyad = kayit.cn.value if getattr(kayit, "cn", None) and kayit.cn.value else kullanici_adi
     unvan = kayit.title.value if getattr(kayit, "title", None) and kayit.title.value else ""
+    dn = getattr(kayit, "entry_dn", "") or ""
+    departman: str | None = None
+    if dn:
+        for parc in str(dn).split(","):
+            if parc.upper().startswith("OU="):
+                ou_adi = parc.split("=", 1)[1].strip()
+                aday = _departman_anahtari_etiketten_turetilir(ou_adi)
+                if aday is not None:
+                    departman = aday
+                    break
     return {
         "kullanici_adi": kullanici_adi,
         "ad_soyad": ad_soyad,
         "unvan": unvan,
         "gruplar": gruplar,
+        "departman": departman,
     }
 
 
@@ -192,11 +234,22 @@ def _yanittan_kullanici(yanit: list | None, kullanici_adi: str) -> dict | None:
         title = nitelikler.get("title") or ""
         if isinstance(title, list):
             title = title[0] if title else ""
+        dn = madde.get("dn") or ""
+        departman: str | None = None
+        if dn:
+            for parc in str(dn).split(","):
+                if parc.upper().startswith("OU="):
+                    ou_adi = parc.split("=", 1)[1].strip()
+                    aday = _departman_anahtari_etiketten_turetilir(ou_adi)
+                    if aday is not None:
+                        departman = aday
+                        break
         return {
             "kullanici_adi": kullanici_adi,
             "ad_soyad": cn or kullanici_adi,
             "unvan": title or "",
             "gruplar": [_grup_adini_cikar(str(dn)) for dn in grup_dns if dn],
+            "departman": departman,
         }
     return None
 
@@ -300,6 +353,132 @@ def kullanicinin_izinleri(kullanici: dict | None) -> set[str]:
 
 def kullanici_izinli_mi(kullanici: dict | None, izin: str) -> bool:
     return izin in kullanicinin_izinleri(kullanici)
+
+
+def departman_haritasini_yukle() -> dict:
+    """Departman -> AD grup eslemesini dosyadan okur."""
+    try:
+        with open(DEPARTMAN_HARITASI_DOSYASI, encoding="utf-8") as dosya:
+            return json.load(dosya)
+    except (OSError, json.JSONDecodeError) as hata:
+        logger.error("Departman haritasi yuklenemedi (%s): %s", DEPARTMAN_HARITASI_DOSYASI, hata)
+        return {}
+
+
+def _regex_departman_desenleri(harita: dict) -> dict[str, re.Pattern[str]]:
+    desenler: dict[str, re.Pattern[str]] = {}
+    for anahtar, desen in (harita.get("regex_departmanlar") or {}).items():
+        if isinstance(desen, str):
+            desenler[str(anahtar)] = re.compile(desen, re.IGNORECASE)
+    return desenler
+
+
+def departman_etiketi(anahtar: str) -> str:
+    harita = departman_haritasini_yukle()
+    bilgi = (harita.get("departmanlar") or {}).get(anahtar)
+    if isinstance(bilgi, dict) and bilgi.get("etiket"):
+        return str(bilgi["etiket"])
+    if anahtar == str(harita.get("varsayilan_departman") or "diger"):
+        return str(harita.get("varsayilan_etiket") or "Diger")
+    return anahtar.upper()
+
+
+def gruplardan_departman_belirle(gruplar: list[str] | None) -> tuple[str, str]:
+    """AD grup listesinden departman anahtari ve goruntuleme etiketi dondurur."""
+    gruplar = gruplar or []
+    harita = departman_haritasini_yukle()
+    departmanlar = harita.get("departmanlar") or {}
+    regex_desenleri = _regex_departman_desenleri(harita)
+    varsayilan = str(harita.get("varsayilan_departman") or "diger")
+    varsayilan_etiket = str(harita.get("varsayilan_etiket") or "Diger")
+
+    for anahtar, bilgi in departmanlar.items():
+        if not isinstance(bilgi, dict):
+            continue
+        tanimli_gruplar = {str(grup) for grup in bilgi.get("gruplar") or []}
+        if tanimli_gruplar.intersection(gruplar):
+            return str(anahtar), str(bilgi.get("etiket") or anahtar.upper())
+
+    for grup in gruplar:
+        for anahtar, desen in regex_desenleri.items():
+            if desen.search(grup):
+                bilgi = departmanlar.get(anahtar) or {}
+                return anahtar, str(bilgi.get("etiket") or anahtar.upper())
+
+    return varsayilan, varsayilan_etiket
+
+
+def kullanicinin_departmanlari(kullanici: dict | None) -> set[str]:
+    if kullanici is None:
+        return set()
+    departman = kullanici.get("departman")
+    if departman:
+        return {str(departman)}
+    anahtar, _ = gruplardan_departman_belirle(kullanici.get("gruplar"))
+    return {anahtar}
+
+
+def kullanicinin_yonettigi_departmanlar(kullanici: dict | None) -> set[str]:
+    """Mudurler yalnizca acikca tanimli departmanlari (IT, HR vb.) yonetir."""
+    if kullanici is None:
+        return set()
+    harita = departman_haritasini_yukle()
+    varsayilan = str(harita.get("varsayilan_departman") or "diger")
+    return {departman for departman in kullanicinin_departmanlari(kullanici) if departman != varsayilan}
+
+
+def hesaplama_departmani(olusturan_gruplar: list[str] | None, olusturan_departman: str | None = None) -> str | None:
+    if olusturan_departman:
+        return olusturan_departman
+    if not olusturan_gruplar:
+        return None
+    anahtar, _ = gruplardan_departman_belirle(olusturan_gruplar)
+    return anahtar
+
+
+def gecmis_erisim_kapsami(kullanici: dict | None) -> str:
+    """admin: tum kayitlar | departman: kendi + departman | kendi: yalnizca kendi."""
+    if kullanici is None:
+        return "kendi"
+    if kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
+        return "admin"
+    if kullanici_izinli_mi(kullanici, IZIN_GECMIS_DEPARTMAN) and kullanicinin_yonettigi_departmanlar(kullanici):
+        return "departman"
+    return "kendi"
+
+
+def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
+    """Gecmis kaydina erisim: admin tumunu, mudur departmanini, calisan kendininkini."""
+    if kullanici is None:
+        return False
+
+    sahip = hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi")
+    if sahip:
+        return True
+
+    kapsam = gecmis_erisim_kapsami(kullanici)
+    if kapsam == "admin":
+        return True
+
+    if hesaplama.olusturan_kullanici_adi is None:
+        return False
+
+    if kapsam != "departman":
+        return False
+
+    kayit_departmani = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman)
+    if kayit_departmani is None:
+        return False
+    return kayit_departmani in kullanicinin_yonettigi_departmanlar(kullanici)
+
+
+def hesaplamayi_silebilir_mi(kullanici: dict | None, hesaplama) -> bool:
+    """Silme: kaydin sahibi veya admin."""
+    if kullanici is None:
+        return False
+    if hesaplama.olusturan_kullanici_adi == kullanici.get("kullanici_adi"):
+        return True
+    return kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM)
 
 
 class GirisGerekli(Exception):

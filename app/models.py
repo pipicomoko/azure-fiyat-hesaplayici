@@ -20,6 +20,9 @@ class Hesaplama(SQLModel, table=True):
     `olusturan_gruplar`: admin gecmis ekraninda kayitlari IT/HR gibi
     organizasyonel basliklar altinda duzenleyebilmek icin, kaydetme anindaki
     AD grup snapshot'i.
+
+    `olusturan_departman`: erisim kontrolu ve admin gruplamasinda kullanilan
+    departman anahtari (it, hr, diger).
     """
 
     __tablename__ = "hesaplamalar"
@@ -33,6 +36,7 @@ class Hesaplama(SQLModel, table=True):
     para_birimi: str = Field(default="USD")
     olusturan_kullanici_adi: Optional[str] = Field(default=None, index=True)
     olusturan_gruplar: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    olusturan_departman: Optional[str] = Field(default=None, index=True)
 
     kalemler: list["HesaplamaKalemi"] = Relationship(
         back_populates="hesaplama",
