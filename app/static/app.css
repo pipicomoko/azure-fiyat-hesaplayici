@@ -39,6 +39,25 @@
   --app-shadow: 0 24px 55px rgba(2, 6, 23, 0.34);
 }
 
+[data-theme="pink"] {
+  --app-bg: #fff5fb;
+  --app-bg-accent: radial-gradient(circle at top left, rgba(236, 72, 153, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(244, 114, 182, 0.14), transparent 24%),
+    linear-gradient(180deg, #fff7fb 0%, #ffe6f3 100%);
+  --app-surface: rgba(255, 255, 255, 0.88);
+  --app-surface-strong: #ffffff;
+  --app-surface-muted: rgba(255, 235, 245, 0.9);
+  --app-border: rgba(219, 39, 119, 0.16);
+  --app-border-strong: rgba(236, 72, 153, 0.26);
+  --app-text: #3b0a23;
+  --app-text-muted: #7b5b6a;
+  --app-primary: #ec4899;
+  --app-primary-strong: #db2777;
+  --app-success: #10b981;
+  --app-danger: #f43f5e;
+  --app-shadow: 0 24px 55px rgba(219, 39, 119, 0.18);
+}
+
 html,
 body {
   min-height: 100%;
@@ -69,6 +88,13 @@ a {
   border-bottom: 1px solid var(--app-border);
 }
 
+.app-navbar .container-fluid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+}
+
 .app-brand {
   display: inline-flex;
   align-items: center;
@@ -86,13 +112,19 @@ a {
   justify-content: center;
   border-radius: 0.95rem;
   color: #fff;
-  background: linear-gradient(135deg, var(--app-primary), #0ea5e9);
-  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
+  background: linear-gradient(135deg, var(--app-primary), var(--app-primary-strong));
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--app-primary) 28%, transparent);
 }
 
 .app-nav-caption {
   color: var(--app-text-muted);
   font-size: 0.95rem;
+}
+
+.app-nav-main {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
 }
 
 .app-nav-link,
@@ -121,8 +153,99 @@ a {
   gap: 0.5rem;
 }
 
+.app-nav-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.app-nav-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.25rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-surface-strong) 82%, transparent);
+}
+
+.app-tool-button {
+  min-height: 2.35rem;
+}
+
 .theme-toggle-icon {
   font-size: 1rem;
+}
+
+.app-user-menu {
+  position: relative;
+}
+
+.app-user-menu summary {
+  list-style: none;
+}
+
+.app-user-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-user-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.app-user-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-primary) 26%, var(--app-border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--app-primary) 18%, var(--app-surface-strong)), color-mix(in srgb, var(--app-primary-strong) 10%, var(--app-surface-strong)));
+  color: var(--app-primary-strong);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--app-primary) 14%, transparent);
+}
+
+.app-user-avatar-large {
+  width: 3rem;
+  height: 3rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--app-primary), var(--app-primary-strong));
+}
+
+.app-user-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.65rem);
+  min-width: 240px;
+  padding: 0.9rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  background: color-mix(in srgb, var(--app-surface-strong) 94%, transparent);
+  box-shadow: var(--app-shadow);
+}
+
+.app-user-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.app-user-name {
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.app-user-meta {
+  color: var(--app-text-muted);
+  font-size: 0.9rem;
 }
 
 .hero-panel,
@@ -292,6 +415,41 @@ a {
   font-size: 1rem;
 }
 
+.kaydet-basari-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--app-radius-lg);
+  background: color-mix(in srgb, var(--app-success) 12%, var(--app-surface-strong));
+  border: 1px solid color-mix(in srgb, var(--app-success) 28%, var(--app-border));
+  color: var(--app-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.kaydet-basari-banner:hover {
+  background: color-mix(in srgb, var(--app-success) 20%, var(--app-surface-strong));
+  color: var(--app-text);
+  text-decoration: none;
+}
+
+.kaydet-basari-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: var(--app-success);
+  color: #fff;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
 .app-estimate-item {
   overflow: hidden;
 }
@@ -451,6 +609,16 @@ a {
 }
 
 @media (max-width: 991.98px) {
+  .app-navbar .container-fluid {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .app-nav-main,
+  .app-nav-actions {
+    justify-content: space-between;
+  }
+
   .hero-panel-body,
   .section-card-header {
     flex-direction: column;
@@ -465,6 +633,22 @@ a {
 @media (max-width: 767.98px) {
   .app-navbar {
     padding: 0.75rem 0;
+  }
+
+  .app-nav-main,
+  .app-nav-actions,
+  .app-nav-tools {
+    flex-wrap: wrap;
+  }
+
+  .app-nav-main {
+    justify-content: flex-start;
+  }
+
+  .app-user-popover {
+    right: auto;
+    left: 0;
+    min-width: 220px;
   }
 
   .hero-panel-body,

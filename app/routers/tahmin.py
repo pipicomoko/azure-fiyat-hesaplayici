@@ -256,8 +256,10 @@ async def tahmin_kaydet(
     oturum.commit()
 
     return HTMLResponse(
-        f'<div class="alert alert-success">"{hesaplama_adi}" {t("kaydet_basarili", dil)} '
-        f'<a href="/gecmis">{t("nav_gecmis", dil)}</a></div>'
+        f'<a href="/gecmis" class="kaydet-basari-banner">'
+        f'<span class="kaydet-basari-icon">✓</span>'
+        f'<span>"{hesaplama_adi}" {t("kaydet_basarili", dil)}</span>'
+        f'</a>'
     )
 
 
