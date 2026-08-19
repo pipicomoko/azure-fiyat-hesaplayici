@@ -13,6 +13,14 @@ from app.products.virtual_machines import fiyatlama, secenekler
 from app.products.virtual_machines.secenekler import SecenekSonucu
 
 
+def _sayiya_cevir(deger: Any) -> float:
+    """Form/JSON'dan gelen degeri sayiya cevirir; "0" gibi metinler 0 olur."""
+    try:
+        return float(deger)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 class VirtualMachinesUrunu:
     anahtar = "virtual_machines"
     sablon_adi = "urunler/_vm_form.html"
@@ -84,11 +92,12 @@ class VirtualMachinesUrunu:
 
         # Disk bilgisi
         disk = yapilandirma.get("disk") or {}
-        if disk.get("adet", 0):
-            disk_adet = int(disk.get("adet", 1))
+        disk_adet = _sayiya_cevir(disk.get("adet"))
+        if disk_adet:
+            disk_adet = int(disk_adet)
             disk_sku = disk.get("sku") or ""
             disk_boyut = disk.get("disk_boyutu_gib") or ""
-            disk_sure = int(disk.get("sure_miktar", 730))
+            disk_sure = int(_sayiya_cevir(disk.get("sure_miktar")) or 730)
             disk_bilgi = f"{disk_adet} X {disk_boyut or disk_sku} GiB Disks, {disk_sure} Hours"
             if disk.get("iops"):
                 disk_bilgi += f", {disk['iops']} IOPS"
@@ -98,12 +107,13 @@ class VirtualMachinesUrunu:
 
         # Bant genişliği
         bant = yapilandirma.get("bant_genisligi") or {}
-        if bant.get("cikis_gb", 0):
+        gb = _sayiya_cevir(bant.get("cikis_gb"))
+        if gb:
             transfer_tip = bant.get("veri_transfer_tipi", "interregion")
             tip_str = "Inter Region transfer type" if transfer_tip == "interregion" else "Internet Egress transfer type"
             kaynak = bant.get("kaynak_bolge", "")
             hedef = bant.get("hedef_bolge", "")
-            gb = bant.get("cikis_gb", 0)
+            gb = f"{gb:g}"
             bolge_str = f"from {kaynak} to {hedef}" if hedef else f"from {kaynak}"
             parcalar.append(f"{tip_str}, {gb} GB outbound data transfer {bolge_str}")
 

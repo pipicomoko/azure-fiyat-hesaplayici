@@ -36,6 +36,7 @@ from app.form_yardimcilari import (
     coklu_kalem_formunu_ayir,
 )
 from app.i18n import DESTEKLENEN_DILLER, DIL_COOKIE_ADI, Dil, form_alanindan_dil_al, istekten_dil_al, t
+from app.kayitli_tahmin import hesaplamadan_satirlar
 from app.models import Hesaplama, HesaplamaKalemi
 from app.para_birimleri import PARA_BIRIMLERI, VARSAYILAN_PARA_BIRIMI, guvenli_para_birimi
 from app.products import KAYITLI_URUNLER, urun_al
@@ -398,62 +399,8 @@ async def gecmis_detay(
 
 
 def _hesaplamadan_satirlar(hesaplama, dil: str = "en") -> tuple[list[DisaAktarimSatiri], float]:
-    """Kaydedilmis Hesaplama'dan Azure formatinda DisaAktarimSatiri listesi uretir.
-    Urun modullerinin disa_aktarim_satirlari() metodunu cagirarak tam Description uretir."""
-    from app.products.base import FiyatSonucu, FiyatKalemi
-    from app import products as _products_pkg
-    import importlib
-
-    satirlar: list[DisaAktarimSatiri] = []
-    for kalem in hesaplama.kalemler:
-        urun_tipi = kalem.urun_tipi or ""
-        # FiyatSonucu'yu DB verisinden reconstruct et
-        fiyat_kalemleri_nesneler = [
-            FiyatKalemi(
-                anahtar=b.get("anahtar", ""),
-                miktar=float(b.get("miktar", 0)),
-                birim=b.get("birim", ""),
-                birim_fiyat=float(b.get("birim_fiyat", 0)),
-                aylik_tutar=float(b.get("aylik_tutar", 0)),
-            )
-            for b in (kalem.fiyat_kalemleri or [])
-            if isinstance(b, dict)
-        ]
-        fiyat = FiyatSonucu(
-            aylik_toplam=float(kalem.aylik_maliyet or 0),
-            para_birimi=hesaplama.para_birimi or "USD",
-            kalemler=fiyat_kalemleri_nesneler,
-        )
-        try:
-            modul = importlib.import_module(f"app.products.{urun_tipi}")
-            # disa_aktarim_satirlari metoduna sahip ilk sinifi bul
-            urun_cls = next(
-                (v for v in vars(modul).values()
-                 if isinstance(v, type) and hasattr(v, "disa_aktarim_satirlari")),
-                None,
-            )
-            if urun_cls is None:
-                raise AttributeError("Urun sinifi bulunamadi")
-            urun_obj = urun_cls()
-            yeni_satirlar = urun_obj.disa_aktarim_satirlari(
-                kalem.yapilandirma or {}, fiyat, dil
-            )
-            satirlar.extend(yeni_satirlar)
-        except Exception:
-            # Modül yoksa ya da hata varsa basit satır oluştur
-            satirlar.append(DisaAktarimSatiri(
-                servis_kategori="Other",
-                urun=urun_tipi,
-                ozel_ad="",
-                bolge=(kalem.yapilandirma or {}).get("bolge", ""),
-                yapilandirma_ozeti=kalem.ozet or "",
-                miktar=float(kalem.aylik_maliyet or 0),
-                birim="month",
-                birim_fiyat=float(kalem.aylik_maliyet or 0),
-                ara_toplam=float(kalem.aylik_maliyet or 0),
-                on_odeme=0.0,
-            ))
-    return satirlar, hesaplama.toplam_aylik_maliyet
+    """Kaydedilmis Hesaplama'dan Azure formatinda DisaAktarimSatiri listesi uretir."""
+    return hesaplamadan_satirlar(hesaplama, dil)
 
 
 @gecmis_router.get("/gecmis/{hesaplama_id}/excel")

@@ -38,7 +38,15 @@
       <div>
         <span class="section-kicker mb-2">{{ "VM" if kalem.urun_tipi == 'virtual_machines' else "Disk" }}</span>
         <h2 class="h6 mb-0">{{ t('urun_vm_ad', dil) if kalem.urun_tipi == 'virtual_machines' else t('urun_disk_ad', dil) }}</h2>
-        <small class="text-muted">{{ kalem.ozet }}</small>
+        {% set bolge_adi = kalem_bolgesi(kalem, hesaplama.para_birimi, 'en') %}
+        {% if bolge_adi %}
+        <div class="detail-spec-region">{{ bolge_adi }}</div>
+        {% endif %}
+        <ul class="detail-spec-list">
+          {% for ozellik in kalem_aciklamasi(kalem, hesaplama.para_birimi, 'en').split('; ') %}
+          <li>{{ ozellik }}</li>
+          {% endfor %}
+        </ul>
       </div>
       <div class="text-end">
         <div class="fw-bold">{{ kalem.aylik_maliyet | para(hesaplama.para_birimi) }}</div>
@@ -52,7 +60,7 @@
       {% for bilesen in kalem.fiyat_kalemleri %}
       <tr>
         <td class="text-muted">{{ t(bilesen.anahtar, dil) }}</td>
-        <td class="text-muted">{{ bilesen.miktar | round(2) }} {{ bilesen.birim }} &times; {{ bilesen.birim_fiyat | birim_fiyat(hesaplama.para_birimi) }}</td>
+        <td class="text-muted">{{ bilesen.miktar | round(2) }} {{ bilesen.birim | birim(dil) }} &times; {{ bilesen.birim_fiyat | birim_fiyat(hesaplama.para_birimi) }}</td>
         <td class="text-end">{{ bilesen.aylik_tutar | para(hesaplama.para_birimi) }}</td>
       </tr>
       {% endfor %}

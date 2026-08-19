@@ -10,6 +10,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from app.i18n import istekten_dil_al, t
+from app.kayitli_tahmin import birim_etiketi, kalem_aciklamasi, kalem_bolgesi
 from app.yetkilendirme import hesaplama_departmani, kullanici_izinli_mi
 from app.zaman import yerel_saate_cevir
 
@@ -17,6 +18,8 @@ templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["t"] = t
 templates.env.globals["kullanici_izinli_mi"] = kullanici_izinli_mi
 templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
+templates.env.globals["kalem_aciklamasi"] = kalem_aciklamasi
+templates.env.globals["kalem_bolgesi"] = kalem_bolgesi
 
 
 def _para_bicimlendir(deger: float, para_birimi: str = "USD") -> str:
@@ -36,6 +39,7 @@ def _yillik(deger: float) -> float:
 
 templates.env.filters["para"] = _para_bicimlendir
 templates.env.filters["birim_fiyat"] = _birim_fiyat_bicimlendir
+templates.env.filters["birim"] = birim_etiketi
 templates.env.filters["yillik"] = _yillik
 templates.env.filters["yerel_saat"] = yerel_saate_cevir
 
