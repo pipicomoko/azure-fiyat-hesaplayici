@@ -15,6 +15,55 @@
 </section>
 
 {% if hesaplamalar %}
+{% if admin_mi %}
+<div class="vstack gap-4">
+  {% for grup in gecmis_gruplari %}
+  <section class="section-card">
+    <div class="section-card-header">
+      <div>
+        <h2 class="section-title mb-1">{{ grup.etiket }}</h2>
+        <p class="section-subtitle mb-0">{{ grup.hesaplamalar|length }} kayit</p>
+      </div>
+    </div>
+    <div class="section-card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle app-table mb-0">
+          <thead>
+            <tr>
+              <th>{{ t('ad', dil) }}</th>
+              <th>{{ t('tarih', dil) }}</th>
+              <th>{{ t('olusturan', dil) }}</th>
+              <th>{{ t('kalem_sayisi', dil) }}</th>
+              <th>{{ t('toplam_aylik', dil) }}</th>
+              <th>{{ t('toplam_yillik', dil) }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for hesaplama in grup.hesaplamalar %}
+            <tr>
+              <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+              <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+              <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
+              <td>{{ hesaplama.kalemler|length }}</td>
+              <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
+              <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
+              <td>
+                <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
+                      onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
 <section class="section-card">
   <div class="section-card-header">
     <div>
@@ -62,6 +111,7 @@
     </div>
   </div>
 </section>
+{% endif %}
 {% else %}
 <div class="section-card">
   <div class="section-card-body">

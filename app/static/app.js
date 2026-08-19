@@ -51,13 +51,37 @@ function syncSummaryTotals() {
   }
 }
 
+function initializeDetailsState() {
+  document.querySelectorAll("[data-details-key]").forEach((details) => {
+    if (details.dataset.detailsReady === "true") {
+      return;
+    }
+
+    details.addEventListener("toggle", () => {
+      const key = details.dataset.detailsKey;
+      const container = details.closest(".tahmin-kalemi");
+      if (!key || !container) {
+        return;
+      }
+
+      const input = container.querySelector(`[data-details-state-input="${key}"]`);
+      if (input) {
+        input.value = details.open ? "true" : "false";
+      }
+    });
+    details.dataset.detailsReady = "true";
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initializeThemeToggle();
+  initializeDetailsState();
   syncSummaryTotals();
 });
 
 document.body.addEventListener("htmx:afterSwap", () => {
   initializeThemeToggle();
+  initializeDetailsState();
   syncSummaryTotals();
 });
 

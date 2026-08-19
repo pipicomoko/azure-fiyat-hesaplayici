@@ -16,6 +16,10 @@ class Hesaplama(SQLModel, table=True):
     (kullaniciyla birlikte netlestirilmis, "asla kullanici adi saklama"
     varsayilan kuralinin bu tek alan icin gevsetilmesi). Sifre/kimlik bilgisi
     HICBIR ZAMAN saklanmaz; bu kural degismedi.
+
+    `olusturan_gruplar`: admin gecmis ekraninda kayitlari IT/HR gibi
+    organizasyonel basliklar altinda duzenleyebilmek icin, kaydetme anindaki
+    AD grup snapshot'i.
     """
 
     __tablename__ = "hesaplamalar"
@@ -28,6 +32,7 @@ class Hesaplama(SQLModel, table=True):
     toplam_aylik_maliyet: float = Field(default=0.0)
     para_birimi: str = Field(default="USD")
     olusturan_kullanici_adi: Optional[str] = Field(default=None, index=True)
+    olusturan_gruplar: list[str] = Field(default_factory=list, sa_column=Column(JSON))
 
     kalemler: list["HesaplamaKalemi"] = Relationship(
         back_populates="hesaplama",

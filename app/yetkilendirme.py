@@ -15,6 +15,7 @@ bagimliligi hem sayfa/uc noktalarinda hem de (kullanici_izinli_mi araciligiyla)
 sablonlarda kullanilir, boylece on yuz ve arka uc ayni kurallari uygular.
 """
 
+import ipaddress
 import json
 import logging
 import os
@@ -22,8 +23,9 @@ import ssl
 from pathlib import Path
 
 from fastapi import Depends, HTTPException, Request
-from ldap3 import ALL, AUTO_BIND_NO_TLS, AUTO_BIND_TLS_BEFORE_BIND, SIMPLE, Connection, Server, Tls
-from ldap3.core.exceptions import LDAPException
+from ldap3 import AUTO_BIND_TLS_BEFORE_BIND, NONE, SIMPLE, SUBTREE, Connection, Server, Tls
+from ldap3.core.exceptions import LDAPException, LDAPStartTLSError
+from ldap3.utils.conv import escape_filter_chars
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ LDAP_DOMAIN = os.getenv("LDAP_DOMAIN", "sirket.local")
 LDAP_ARAMA_TABANI = os.getenv("LDAP_ARAMA_TABANI", "DC=sirket,DC=local")
 # kapali: sadece gelistirme. starttls: LDAP baglantisi acilir, sonra TLS'e
 # yukseltilir (RFC 2830). ldaps: baslangictan itibaren TLS/SSL soket.
-LDAP_TLS_MODU = os.getenv("LDAP_TLS_MODU", "starttls")
+LDAP_TLS_MODU = os.getenv("LDAP_TLS_MODU", "ldaps")
 LDAP_CA_SERTIFIKA_DOSYASI = os.getenv("LDAP_CA_SERTIFIKA_DOSYASI") or None
 
 if APP_ORTAMI == "production" and LDAP_TLS_MODU == "kapali":
@@ -55,39 +57,148 @@ IZIN_HESAPLAMA_KULLAN = "hesaplama.kullan"
 IZIN_YONETIM_ERISIM = "yonetim.eris"
 
 
-def _sunucu_olustur() -> Server:
-    if LDAP_TLS_MODU == "kapali":
-        return Server(LDAP_SUNUCU, port=LDAP_PORT, get_info=ALL)
+class LdapTlsHatasi(Exception):
+    """AD DC TLS el sikismasi kurulamadi. Yanlis sifre degildir."""
 
-    tls = Tls(
-        validate=ssl.CERT_REQUIRED,
-        ca_certs_file=LDAP_CA_SERTIFIKA_DOSYASI,
-        version=ssl.PROTOCOL_TLS_CLIENT,
-    )
+
+def _ip_adresi_mi(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
+
+def _ca_dosyasi() -> str | None:
+    ham = (os.getenv("LDAP_CA_SERTIFIKA_DOSYASI") or "").strip()
+    adaylar: list[Path] = []
+    if ham:
+        yol = Path(ham)
+        if not yol.is_absolute():
+            yol = Path(__file__).resolve().parent.parent / ham
+        adaylar.append(yol)
+    adaylar.append(Path(__file__).resolve().parent.parent / "config" / "ad-ca.pem")
+    for yol in adaylar:
+        if yol.is_file() and yol.stat().st_size > 0:
+            return str(yol)
+    return None
+
+
+def _tls_hatasi_mi(hata: BaseException) -> bool:
+    if isinstance(hata, (LDAPStartTLSError, ssl.SSLError, TimeoutError)):
+        return True
+    mesaj = str(hata).lower()
+    return any(parca in mesaj for parca in ("ssl", "tls", "starttls", "certificate"))
+
+
+def _tls_ayarlari() -> Tls:
+    ca = _ca_dosyasi()
+    ayar: dict = {
+        "validate": ssl.CERT_REQUIRED if ca else ssl.CERT_NONE,
+        "version": ssl.PROTOCOL_TLS_CLIENT,
+    }
+    if ca:
+        ayar["ca_certs_file"] = ca
+    if not _ip_adresi_mi(LDAP_SUNUCU):
+        ayar["valid_names"] = [LDAP_SUNUCU, LDAP_DOMAIN]
+    elif ca is None:
+        logger.warning("LDAP TLS: CA dosyasi yok, sunucu sertifikasi dogrulanmiyor")
+    return Tls(**ayar)
+
+
+def _sunucu_olustur() -> Server:
+    # get_info=NONE: her giriste AD sema/DSE sorgusu acilmasin. Bu sorgu
+    # hem yavas hem de eszamanli girislerde DC uzerinde baglanti tuketir.
+    ortak = {"connect_timeout": 8, "get_info": NONE}
+    if LDAP_TLS_MODU == "kapali":
+        return Server(LDAP_SUNUCU, port=LDAP_PORT or 389, **ortak)
+
+    tls = _tls_ayarlari()
     if LDAP_TLS_MODU == "ldaps":
-        return Server(LDAP_SUNUCU, port=LDAP_PORT or 636, use_ssl=True, tls=tls, get_info=ALL)
+        return Server(LDAP_SUNUCU, port=LDAP_PORT or 636, use_ssl=True, tls=tls, **ortak)
     if LDAP_TLS_MODU == "starttls":
-        return Server(LDAP_SUNUCU, port=LDAP_PORT or 389, use_ssl=False, tls=tls, get_info=ALL)
+        return Server(LDAP_SUNUCU, port=LDAP_PORT or 389, use_ssl=False, tls=tls, **ortak)
     raise RuntimeError(f"Gecersiz LDAP_TLS_MODU: {LDAP_TLS_MODU!r}")
 
 
 def _baglanti_olustur(sunucu: Server, kullanici_principal: str, sifre: str) -> Connection:
     # LDAPS: TLS soket seviyesinde zaten kurulu -> ek adim gerekmez.
     # StartTLS: duz baglanti acilir, bind'dan ONCE start_tls() otomatik cagrilir.
-    auto_bind = AUTO_BIND_TLS_BEFORE_BIND if LDAP_TLS_MODU == "starttls" else AUTO_BIND_NO_TLS
+    auto_bind = AUTO_BIND_TLS_BEFORE_BIND if LDAP_TLS_MODU == "starttls" else True
     return Connection(
         sunucu,
         user=kullanici_principal,
         password=sifre,
         authentication=SIMPLE,
         auto_bind=auto_bind,
+        raise_exceptions=True,
+        receive_timeout=10,
+        auto_referrals=False,
     )
+
+
+def _bind_kimlikleri(kullanici_adi: str) -> list[str]:
+    """AD, ayni hesabi UPN veya sAMAccountName ile kabul edebilir."""
+    kimlikler = [f"{kullanici_adi}@{LDAP_DOMAIN}", kullanici_adi]
+    netbios = LDAP_DOMAIN.split(".", 1)[0].upper()
+    if netbios:
+        kimlikler.append(f"{netbios}\\{kullanici_adi}")
+    # Ayni degeri tekrar denememek icin sirayi koru.
+    gorulen: list[str] = []
+    for kimlik in kimlikler:
+        if kimlik not in gorulen:
+            gorulen.append(kimlik)
+    return gorulen
 
 
 def _grup_adini_cikar(distinguished_name: str) -> str:
     """'CN=Adminler,OU=Gruplar,DC=sirket,DC=local' -> 'Adminler'"""
     ilk_parca = distinguished_name.split(",")[0]
     return ilk_parca.split("=", 1)[1]
+
+
+def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
+    oznitelikler = kayit.entry_attributes_as_dict
+    grup_dns = oznitelikler.get("memberOf") or []
+    if isinstance(grup_dns, str):
+        grup_dns = [grup_dns]
+    gruplar = [_grup_adini_cikar(str(dn)) for dn in grup_dns if dn]
+    ad_soyad = kayit.cn.value if getattr(kayit, "cn", None) and kayit.cn.value else kullanici_adi
+    unvan = kayit.title.value if getattr(kayit, "title", None) and kayit.title.value else ""
+    return {
+        "kullanici_adi": kullanici_adi,
+        "ad_soyad": ad_soyad,
+        "unvan": unvan,
+        "gruplar": gruplar,
+    }
+
+
+def _yanittan_kullanici(yanit: list | None, kullanici_adi: str) -> dict | None:
+    """SAFE_SYNC/SYNC arama cevabindan kullanici bilgisi cikarir."""
+    for madde in yanit or []:
+        if not isinstance(madde, dict):
+            continue
+        if madde.get("type") not in (None, "searchResEntry") and "attributes" not in madde:
+            continue
+        nitelikler = madde.get("attributes") or {}
+        if not nitelikler and not madde.get("dn"):
+            continue
+        grup_dns = nitelikler.get("memberOf") or []
+        if isinstance(grup_dns, str):
+            grup_dns = [grup_dns]
+        cn = nitelikler.get("cn") or kullanici_adi
+        if isinstance(cn, list):
+            cn = cn[0] if cn else kullanici_adi
+        title = nitelikler.get("title") or ""
+        if isinstance(title, list):
+            title = title[0] if title else ""
+        return {
+            "kullanici_adi": kullanici_adi,
+            "ad_soyad": cn or kullanici_adi,
+            "unvan": title or "",
+            "gruplar": [_grup_adini_cikar(str(dn)) for dn in grup_dns if dn],
+        }
+    return None
 
 
 def giris_dogrula(kullanici_adi: str, sifre: str) -> dict | None:
@@ -99,32 +210,62 @@ def giris_dogrula(kullanici_adi: str, sifre: str) -> dict | None:
     burada hesaplanmaz (bkz. kullanicinin_izinleri) ki yetki_haritasi.json
     degistiginde, kullanici tekrar giris yapmadan yeni izinler gecerli olsun.
     """
-    kullanici_principal = f"{kullanici_adi}@{LDAP_DOMAIN}"
-    sunucu = _sunucu_olustur()
+    kullanici_adi = (kullanici_adi or "").strip()
+    if kullanici_adi.lower().endswith("@" + LDAP_DOMAIN.lower()):
+        kullanici_adi = kullanici_adi[: -(len(LDAP_DOMAIN) + 1)]
+    if not kullanici_adi or not sifre:
+        return None
 
-    try:
-        baglanti = _baglanti_olustur(sunucu, kullanici_principal, sifre)
-    except LDAPException:
+    sunucu = _sunucu_olustur()
+    baglanti = None
+    son_hata = None
+    for kimlik in _bind_kimlikleri(kullanici_adi):
+        try:
+            baglanti = _baglanti_olustur(sunucu, kimlik, sifre)
+            if baglanti.bound:
+                break
+            baglanti.unbind()
+            baglanti = None
+        except LDAPException as hata:
+            if _tls_hatasi_mi(hata):
+                logger.warning("LDAP TLS baglantisi kurulamadi: %s", type(hata).__name__)
+                raise LdapTlsHatasi from hata
+            son_hata = type(hata).__name__
+            baglanti = None
+
+    if baglanti is None or not baglanti.bound:
+        logger.warning("LDAP bind basarisiz: %s", son_hata or "unbound")
         return None
 
     try:
-        baglanti.search(
+        guvenli_ad = escape_filter_chars(kullanici_adi)
+        guvenli_upn = escape_filter_chars(f"{kullanici_adi}@{LDAP_DOMAIN}")
+        arama_sonucu = baglanti.search(
             search_base=LDAP_ARAMA_TABANI,
-            search_filter=f"(userPrincipalName={kullanici_principal})",
-            attributes=["cn", "title", "memberOf"],
+            search_filter=(
+                f"(|(sAMAccountName={guvenli_ad})"
+                f"(userPrincipalName={guvenli_upn})"
+                f"(userPrincipalName={guvenli_ad}))"
+            ),
+            search_scope=SUBTREE,
+            attributes=["cn", "title", "memberOf", "sAMAccountName"],
         )
-        if not baglanti.entries:
-            return None
+        if baglanti.entries:
+            return _kayittan_kullanici(baglanti.entries[0], kullanici_adi)
 
-        kayit = baglanti.entries[0]
-        gruplar = [_grup_adini_cikar(dn) for dn in kayit.memberOf.values]
+        yanit = arama_sonucu[2] if isinstance(arama_sonucu, tuple) and len(arama_sonucu) >= 3 else None
+        kullanici = _yanittan_kullanici(yanit, kullanici_adi)
+        if kullanici:
+            return kullanici
 
-        return {
-            "kullanici_adi": kullanici_adi,
-            "ad_soyad": kayit.cn.value,
-            "unvan": kayit.title.value if kayit.title.value else "",
-            "gruplar": gruplar,
-        }
+        logger.warning("LDAP bind oldu ama kullanici kaydi bulunamadi")
+        return None
+    except LDAPException as hata:
+        if _tls_hatasi_mi(hata):
+            logger.warning("LDAP TLS arama sirasinda dustu: %s", type(hata).__name__)
+            raise LdapTlsHatasi from hata
+        logger.warning("LDAP arama basarisiz: %s", type(hata).__name__)
+        return None
     finally:
         baglanti.unbind()
 

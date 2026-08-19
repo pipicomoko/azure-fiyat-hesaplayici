@@ -18,6 +18,7 @@ tek bir gercek kaynaktan saglanir.
 from __future__ import annotations
 
 import io
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -43,6 +44,20 @@ from app.sablonlar import render, templates
 from app.yetkilendirme import IZIN_HESAPLAMA_KULLAN, IZIN_YONETIM_ERISIM, kullanici_izinli_mi, yetki_gerekli
 
 router = APIRouter(prefix="/tahmin")
+
+_HR_GRUP_DESENI = re.compile(r"\b(hr|human resources|ik|insan)\b", re.IGNORECASE)
+_IT_GRUP_DESENI = re.compile(r"\b(it|bilgi islem|information technology|teknoloji)\b", re.IGNORECASE)
+
+
+def _grup_bolumu_belirle(gruplar: list[str] | None) -> tuple[str, str]:
+    gruplar = gruplar or []
+    for grup in gruplar:
+        if _IT_GRUP_DESENI.search(grup):
+            return ("it", "IT")
+    for grup in gruplar:
+        if _HR_GRUP_DESENI.search(grup):
+            return ("hr", "HR")
+    return ("diger", "Diger")
 
 
 @dataclass
@@ -217,6 +232,7 @@ async def tahmin_kaydet(
         para_birimi=para_birimi,
         toplam_aylik_maliyet=0.0,
         olusturan_kullanici_adi=kullanici["kullanici_adi"],
+        olusturan_gruplar=list(kullanici.get("gruplar", [])),
     )
     oturum.add(hesaplama)
     oturum.flush()
@@ -295,10 +311,28 @@ async def gecmis_listesi(
     kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
 ):
     sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
-    if not kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
+    admin_mi = kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM)
+    if not admin_mi:
         sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
     hesaplamalar = oturum.exec(sorgu).all()
-    return render(request, "gecmis.html", {"hesaplamalar": hesaplamalar})
+    gecmis_gruplari = []
+    if admin_mi:
+        kovalar: dict[str, dict] = {
+            "it": {"anahtar": "it", "etiket": "IT", "hesaplamalar": []},
+            "hr": {"anahtar": "hr", "etiket": "HR", "hesaplamalar": []},
+            "diger": {"anahtar": "diger", "etiket": "Diger", "hesaplamalar": []},
+        }
+        for hesaplama in hesaplamalar:
+            anahtar, etiket = _grup_bolumu_belirle(hesaplama.olusturan_gruplar)
+            kova = kovalar[anahtar]
+            kova["etiket"] = etiket
+            kova["hesaplamalar"].append(hesaplama)
+        gecmis_gruplari = [kova for kova in kovalar.values() if kova["hesaplamalar"]]
+    return render(
+        request,
+        "gecmis.html",
+        {"hesaplamalar": hesaplamalar, "gecmis_gruplari": gecmis_gruplari, "admin_mi": admin_mi},
+    )
 
 
 @gecmis_router.get("/gecmis/{hesaplama_id}")

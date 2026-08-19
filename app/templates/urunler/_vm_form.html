@@ -127,7 +127,13 @@
       {% endif %}
     </div>
 
-    <details class="mt-3 app-details">
+    <input type="hidden"
+           name="{{ kalem_id }}._ui.disk_open"
+           value="{{ 'true' if yapilandirma.get('_ui', {}).get('disk_open', True) else 'false' }}"
+           data-details-state-input="disk">
+    <details class="mt-3 app-details"
+             data-details-key="disk"
+             {% if yapilandirma.get('_ui', {}).get('disk_open', True) %}open{% endif %}>
       <summary class="small text-muted">{{ t('vm_bolum_disk', dil) }}</summary>
       <div class="row g-2 align-items-end mt-1">
         <div class="col-md-3">
@@ -157,12 +163,56 @@
             {% endfor %}
           </select>
         </div>
+        {% elif secenekler.disk.disk_boyutu_gib %}
+        <div class="col-md-3">
+          <label class="form-label small mb-0">{{ t('alan_disk_boyutu', dil) }} (GiB)</label>
+          <select class="form-select form-select-sm" name="{{ kalem_id }}.disk.disk_boyutu_gib">
+            {% for deger, etiket in secenekler.disk.disk_boyutu_gib %}
+            <option value="{{ deger }}" {{ 'selected' if deger == (yapilandirma.disk.disk_boyutu_gib | string) }}>{{ etiket }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% else %}
+        <div class="col-md-3">
+          <label class="form-label small mb-0">{{ t('alan_disk_boyutu', dil) }} (GiB)</label>
+          <input type="number" min="1" max="65536" step="1" class="form-control form-control-sm"
+                 name="{{ kalem_id }}.disk.disk_boyutu_gib" value="{{ yapilandirma.disk.disk_boyutu_gib }}">
+        </div>
         {% endif %}
         <div class="col-md-2">
           <label class="form-label small mb-0">{{ t('alan_adet_disk', dil) }}</label>
           <input type="number" min="0" step="1" class="form-control form-control-sm"
                  name="{{ kalem_id }}.disk.adet" value="{{ yapilandirma.disk.adet }}">
         </div>
+        {% if 'sure_birimi' in secenekler.disk_gorunur_alanlar %}
+        <div class="col-md-2">
+          <label class="form-label small mb-0">{{ t('alan_sure_birimi', dil) }}</label>
+          <select class="form-select form-select-sm" name="{{ kalem_id }}.disk.sure_birimi">
+            {% for deger, etiket in secenekler.disk.sure_birimi %}
+            <option value="{{ deger }}" {{ 'selected' if deger == yapilandirma.disk.sure_birimi }}>{{ etiket }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small mb-0">{{ t('alan_sure_miktar', dil) }}</label>
+          <input type="number" min="0" step="1" class="form-control form-control-sm"
+                 name="{{ kalem_id }}.disk.sure_miktar" value="{{ yapilandirma.disk.sure_miktar }}">
+        </div>
+        {% endif %}
+        {% if 'iops' in secenekler.disk_gorunur_alanlar %}
+        <div class="col-md-2">
+          <label class="form-label small mb-0">{{ t('alan_iops', dil) }}</label>
+          <input type="number" min="0" step="1" class="form-control form-control-sm"
+                 name="{{ kalem_id }}.disk.iops" value="{{ yapilandirma.disk.iops }}">
+        </div>
+        {% endif %}
+        {% if 'throughput_mbps' in secenekler.disk_gorunur_alanlar %}
+        <div class="col-md-2">
+          <label class="form-label small mb-0">{{ t('alan_throughput', dil) }}</label>
+          <input type="number" min="0" step="1" class="form-control form-control-sm"
+                 name="{{ kalem_id }}.disk.throughput_mbps" value="{{ yapilandirma.disk.throughput_mbps }}">
+        </div>
+        {% endif %}
         {% if 'islem_adet' in secenekler.disk_gorunur_alanlar %}
         <div class="col-md-2">
           <label class="form-label small mb-0">{{ t('alan_islem_adet', dil) }}</label>
@@ -189,7 +239,13 @@
       </div>
     </details>
 
-    <details class="mt-3 app-details">
+    <input type="hidden"
+           name="{{ kalem_id }}._ui.bandwidth_open"
+           value="{{ 'true' if yapilandirma.get('_ui', {}).get('bandwidth_open', False) else 'false' }}"
+           data-details-state-input="bandwidth">
+    <details class="mt-3 app-details"
+             data-details-key="bandwidth"
+             {% if yapilandirma.get('_ui', {}).get('bandwidth_open', False) %}open{% endif %}>
       <summary class="small text-muted">{{ t('vm_bolum_bant_genisligi', dil) }}</summary>
       <div class="row g-2 align-items-end mt-1">
         <div class="col-md-3">

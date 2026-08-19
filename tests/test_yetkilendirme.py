@@ -27,6 +27,7 @@ class _SahteKayit:
         self.cn = _SahteOznitelik(cn)
         self.title = _SahteOznitelik(title)
         self.memberOf = _SahteOznitelik(memberof)
+        self.entry_attributes_as_dict = {"cn": cn, "title": title, "memberOf": memberof}
 
 
 class _SahteBaglanti:
@@ -34,12 +35,13 @@ class _SahteBaglanti:
     ldap3.Connection ile ayni imzayi tasir ki yetkilendirme.py hicbir sey
     fark etmesin (TLS/StartTLS parametreleri dahil)."""
 
-    def __init__(self, sunucu, user, password, authentication, auto_bind):
+    def __init__(self, sunucu, user, password, authentication, auto_bind, **kwargs):
         if password != "dogru-sifre":
             raise LDAPBindError("gecersiz kimlik bilgileri")
+        self.bound = True
         self.entries = []
 
-    def search(self, search_base, search_filter, attributes):
+    def search(self, search_base, search_filter, attributes, **kwargs):
         self.entries = [
             _SahteKayit(
                 cn="Can Aydin",

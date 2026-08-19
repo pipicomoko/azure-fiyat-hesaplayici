@@ -16,7 +16,7 @@ DESTEKLENEN_DILLER: tuple[Dil, ...] = ("tr", "en")
 
 _METINLER: dict[str, dict[Dil, str]] = {
     # Genel / navigasyon
-    "uygulama_adi": {"tr": "Azure Fiyat Hesaplayici", "en": "Azure Pricing Calculator"},
+    "uygulama_adi": {"tr": "Pricing Calculator", "en": "Pricing Calculator"},
     "nav_ana_sayfa": {"tr": "Ana Sayfa", "en": "Home"},
     "nav_tahmin": {"tr": "Tahminim", "en": "Your Estimate"},
     "nav_gecmis": {"tr": "Gecmis", "en": "History"},
@@ -34,6 +34,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "giris_hata": {
         "tr": "Kullanici adi veya sifre hatali.",
         "en": "Incorrect username or password.",
+    },
+    "giris_tls_hata": {
+        "tr": "LDAP TLS baglantisi kurulamadi. Windows Server AD DC uzerinde LDAPS (636) veya StartTLS acik olmali.",
+        "en": "LDAP TLS connection failed. Enable LDAPS (port 636) or StartTLS on the Windows Server AD DC.",
     },
     "giris_gerekli": {
         "tr": "Bu sayfayi goruntulemek icin giris yapmalisiniz.",

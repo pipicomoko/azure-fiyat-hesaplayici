@@ -39,13 +39,49 @@ docker compose up --build
 Uygulama http://localhost:8000 adresinde acilir (giris ekranina yonlendirir). Saglik kontrolu:
 http://localhost:8000/saglik
 
+Ayni agdaki baska bir bilgisayar icin Mac'in LAN IP'sini kullanin, ornek:
+`http://10.22.251.190:8000` (IP `ipconfig getifaddr en0` ile gorulur).
+
+## Domain ile internete acmak (Cloudflare Tunnel)
+
+Router portu acmadan, satin alinan bir domain'i bu makinedeki Docker uygulamaya baglamak
+icin Cloudflare Tunnel kullanin. Bu yol HTTPS verir ve 8000/5432 portlarini internete
+acmaz.
+
+1. [Cloudflare](https://dash.cloudflare.com/sign-up) hesabi acin.
+2. Domain satin alin (Cloudflare Registrar, Namecheap, Google/Squarespace vb.).
+3. Domain'i Cloudflare'a ekleyin. Cloudflare disinda aldiysaniz nameserver'lari
+   Cloudflare'in verdigi NS kayitlariyla degistirin (DNS Cloudflare uzerinden yonetilsin).
+4. Zero Trust > Networks > Tunnels > Create a tunnel. Public hostname olarak
+   kok domain kullanabilirsiniz: `sirketiniz.com` -> `http://app:8000`
+   (`www.sirketiniz.com` da ayni hedefe eklenebilir. Alt alan adi sart degil.)
+5. Tunnel token'i kopyalayip `.env` icine `CLOUDFLARE_TUNNEL_TOKEN=...` yazin.
+6. Uygulama ayaktayken:
+
+```bash
+docker compose --profile tunnel up -d
+```
+
+Bundan sonra baska bir bilgisayar `https://sirketiniz.com` adresinden acar.
+Mac uykuya gecerse veya `docker compose down` yapilirsa tunel de durur.
+
+Bu kurulum hala gelistirme ortamidir: varsayilan `SECRET_KEY` kullanmayin, LDAP'i
+uretimde `ldaps` veya `starttls` yapin, veritabani portu yalnizca localhost'ta dinler.
+
 ## Ortam degiskenleri
 
 `.env.example` dosyasina bakin. Onemli olanlar:
 
 - `LDAP_SUNUCU`, `LDAP_DOMAIN`, `LDAP_ARAMA_TABANI`: sirketin AD DS sunucu bilgileri.
-- `LDAP_TLS_MODU`: `starttls` (varsayilan) | `ldaps` | `kapali`. `APP_ENV=production` iken
-  `kapali` kabul edilmez.
+- `LDAP_TLS_MODU`: `ldaps` (varsayilan) | `starttls` | `kapali`. `APP_ENV=production` iken
+  `kapali` kabul edilmez. LDAPS icin AD DC'de sunucu sertifikasi olmali (port 636).
+- `LDAP_CA_SERTIFIKA_DOSYASI`: DC/CA sertifikasinin PEM yolu, varsayilan `config/ad-ca.pem`.
+
+Windows Server AD DC uzerinde LDAPS acmak (kisaca): Domain Controller sertifikasini
+(Server Authentication) Local Computer > Personal deposuna koyun, NTDS'i veya sunucuyu
+yeniden baslatin, CA sertifikasini Base-64 olarak export edip `config/ad-ca.pem` olarak
+kaydedin. 636 uzerinde TLS el sikismasi olmadan uygulama giris yapamaz.
+
 - `YETKI_HARITASI_DOSYASI`: varsayilan `config/yetki_haritasi.json` yerine baska bir dosya
   belirtmek icin (AD grubu -> izin eslemesini kod degistirmeden yapilandirmak icin).
 

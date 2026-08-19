@@ -2,7 +2,6 @@
   <div class="container-fluid px-3 px-lg-4">
     <div class="d-flex align-items-center gap-3">
       <a class="navbar-brand app-brand" href="{{ '/tahmin' if kullanici else '/giris' }}">
-        <span class="app-brand-mark">AZ</span>
         <span>{{ t('uygulama_adi', dil) }}</span>
       </a>
       {% if kullanici %}
@@ -13,9 +12,6 @@
       {% if kullanici %}
         <a class="btn btn-sm app-nav-link" href="/tahmin">{{ t('nav_tahmin', dil) }}</a>
         <a class="btn btn-sm app-nav-link" href="/gecmis">{{ t('nav_gecmis', dil) }}</a>
-        {% if kullanici_izinli_mi(kullanici, 'yonetim.eris') %}
-        <a class="btn btn-sm app-nav-link app-nav-link-accent" href="/yonetim">{{ t('nav_yonetim', dil) }}</a>
-        {% endif %}
       {% endif %}
 
       <button type="button"
