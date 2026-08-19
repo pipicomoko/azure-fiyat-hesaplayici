@@ -162,7 +162,7 @@ def _grup_adini_cikar(distinguished_name: str) -> str:
 
 
 def _departman_anahtari_etiketten_turetilir(deger: str | None) -> str | None:
-    """OU (Finans/IT/IK/...) gibi adlardan departman anahtari (it/ik/finans/...) uretir."""
+    """OU, unvan veya grup adi gibi degerlerden departman anahtari uretir."""
     if not deger:
         return None
     norm = deger.strip().lower()
@@ -170,22 +170,36 @@ def _departman_anahtari_etiketten_turetilir(deger: str | None) -> str | None:
 
     bilinen: dict[str, str] = {
         "finans": "finans",
+        "finansanalisti": "finans",
+        "finansmuduru": "finans",
         "financial": "finans",
         "ik": "ik",
+        "ikmuduru": "ik",
+        "ikuzmani": "ik",
         "insankaynaklari": "ik",
         "humanresources": "ik",
         "hr": "ik",
         "it": "it",
+        "itmuduru": "it",
+        "sistemyoneticisi": "it",
         "bilgiislem": "it",
         "informationtechnology": "it",
         "muhasebe": "muhasebe",
+        "muhasebemuduru": "muhasebe",
+        "muhasebeuzmani": "muhasebe",
         "accounting": "muhasebe",
         # departman disi genel roller
         "yonetici": "diger",
         "genelmudur": "diger",
         "generalmanager": "diger",
     }
-    return bilinen.get(norm_sikistir)
+    if norm_sikistir in bilinen:
+        return bilinen[norm_sikistir]
+    # Unvan içinde departman kelimesi geçiyorsa (örn. "IK Muduru", "IT Muduru")
+    for anahtar, deger_dep in [("finans", "finans"), ("ik", "ik"), ("it", "it"), ("muhasebe", "muhasebe")]:
+        if re.search(r"\b" + anahtar + r"\b", norm):
+            return deger_dep
+    return None
 
 
 def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
@@ -203,9 +217,11 @@ def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
             if parc.upper().startswith("OU="):
                 ou_adi = parc.split("=", 1)[1].strip()
                 aday = _departman_anahtari_etiketten_turetilir(ou_adi)
-                if aday is not None:
+                if aday is not None and aday != "diger":
                     departman = aday
                     break
+    if not departman and unvan:
+        departman = _departman_anahtari_etiketten_turetilir(unvan)
     return {
         "kullanici_adi": kullanici_adi,
         "ad_soyad": ad_soyad,
@@ -241,9 +257,11 @@ def _yanittan_kullanici(yanit: list | None, kullanici_adi: str) -> dict | None:
                 if parc.upper().startswith("OU="):
                     ou_adi = parc.split("=", 1)[1].strip()
                     aday = _departman_anahtari_etiketten_turetilir(ou_adi)
-                    if aday is not None:
+                    if aday is not None and aday != "diger":
                         departman = aday
                         break
+        if not departman and title:
+            departman = _departman_anahtari_etiketten_turetilir(str(title))
         return {
             "kullanici_adi": kullanici_adi,
             "ad_soyad": cn or kullanici_adi,
@@ -469,7 +487,25 @@ def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
     kayit_departmani = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman)
     if kayit_departmani is None:
         return False
-    return kayit_departmani in kullanicinin_yonettigi_departmanlar(kullanici)
+    if kayit_departmani not in kullanicinin_yonettigi_departmanlar(kullanici):
+        return False
+
+    # Mudur sadece calisanlarin kayitlarini gorebilir; baskalarinin (mudur/yonetici) kayitlarina erisemez.
+    # olusturan_gruplar bos veya bilinmiyorsa guvenli tarafa gec: erisimi reddet.
+    kayit_sahibi_gruplari = set(hesaplama.olusturan_gruplar or [])
+    if not kayit_sahibi_gruplari:
+        return False
+    harita = yetki_haritasini_yukle()
+    yetkili_gruplar = {
+        grup
+        for grup, izinler in harita.items()
+        if not grup.startswith("_") and (
+            IZIN_YONETIM_ERISIM in izinler or IZIN_GECMIS_DEPARTMAN in izinler
+        )
+    }
+    if kayit_sahibi_gruplari.intersection(yetkili_gruplar):
+        return False
+    return True
 
 
 def hesaplamayi_silebilir_mi(kullanici: dict | None, hesaplama) -> bool:
