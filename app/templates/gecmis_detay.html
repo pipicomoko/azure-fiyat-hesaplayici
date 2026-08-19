@@ -12,7 +12,7 @@
         {{ t('gecmis_detay_aciklama', dil) }}
         <span class="d-block mt-2">
           {{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}
-          {% if hesaplama.olusturan_kullanici_adi and gecmis_gorunumu in ('admin', 'departman') %}
+          {% if hesaplama.olusturan_kullanici_adi and gecmis_gorunumu in ('yonetici', 'departman') %}
           &middot; {{ t('olusturan', dil) }}: {{ hesaplama.olusturan_kullanici_adi }}
           {% endif %}
         </span>

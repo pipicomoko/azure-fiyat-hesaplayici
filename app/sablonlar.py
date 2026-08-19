@@ -10,12 +10,13 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from app.i18n import istekten_dil_al, t
-from app.yetkilendirme import kullanici_izinli_mi
+from app.yetkilendirme import hesaplama_departmani, kullanici_izinli_mi
 from app.zaman import yerel_saate_cevir
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["t"] = t
 templates.env.globals["kullanici_izinli_mi"] = kullanici_izinli_mi
+templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
 
 
 def _para_bicimlendir(deger: float, para_birimi: str = "USD") -> str:

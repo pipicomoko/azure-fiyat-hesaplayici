@@ -17,73 +17,187 @@
   </div>
 </section>
 
-{% if gecmis_gruplari %}
-<div class="vstack gap-4">
-  {% for grup in gecmis_gruplari %}
-  {% set is_personal = grup.anahtar == 'personal' %}
-  <section class="section-card">
-    <div class="section-card-header">
-      <div class="d-flex align-items-center gap-2">
-        {% if is_personal %}
-        <span class="gecmis-grup-badge gecmis-grup-badge-personal">Personal</span>
-        {% else %}
-        <span class="gecmis-grup-badge">{{ grup.etiket }}</span>
-        {% endif %}
-        <span class="section-subtitle mb-0">{{ grup.hesaplamalar|length }} {{ t('kayit', dil) }}</span>
+{# ── Sekme çubuğu ── #}
+<ul class="nav nav-tabs gecmis-tabs mb-4" id="gecmisTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="personal-tab" data-bs-toggle="tab"
+            data-bs-target="#personal-panel" type="button" role="tab"
+            aria-controls="personal-panel" aria-selected="true">
+      Personal
+      <span class="badge bg-secondary ms-1">{{ personal_hesaplamalar|length }}</span>
+    </button>
+  </li>
+  {% if gecmis_gorunumu in ('yonetici', 'departman') %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="search-tab" data-bs-toggle="tab"
+            data-bs-target="#search-panel" type="button" role="tab"
+            aria-controls="search-panel" aria-selected="false">
+      {{ t('gecmis_arama', dil) }}
+      <span class="badge bg-secondary ms-1">{{ arama_hesaplamalari|length }}</span>
+    </button>
+  </li>
+  {% endif %}
+</ul>
+
+<div class="tab-content" id="gecmisTabsContent">
+
+  {# ── Personal sekmesi ── #}
+  <div class="tab-pane fade show active" id="personal-panel" role="tabpanel" aria-labelledby="personal-tab">
+    {% if personal_hesaplamalar %}
+    <section class="section-card">
+      <div class="section-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <span class="gecmis-grup-badge gecmis-grup-badge-personal">Personal</span>
+          <span class="section-subtitle mb-0">{{ personal_hesaplamalar|length }} {{ t('kayit', dil) }}</span>
+        </div>
+      </div>
+      <div class="section-card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle app-table mb-0">
+            <thead>
+              <tr>
+                <th>{{ t('ad', dil) }}</th>
+                <th>{{ t('tarih', dil) }}</th>
+                <th>{{ t('kalem_sayisi', dil) }}</th>
+                <th>{{ t('toplam_aylik', dil) }}</th>
+                <th>{{ t('toplam_yillik', dil) }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for hesaplama in personal_hesaplamalar %}
+              <tr>
+                <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+                <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+                <td>{{ hesaplama.kalemler|length }}</td>
+                <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
+                <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
+                <td>
+                  <div class="d-flex gap-1 justify-content-end">
+                    <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+                    <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
+                          onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    {% else %}
+    <div class="section-card">
+      <div class="section-card-body">
+        <p class="empty-state mb-0">{{ t('gecmis_bos', dil) }}</p>
       </div>
     </div>
-    <div class="section-card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-sm align-middle app-table mb-0">
-          <thead>
-            <tr>
-              <th>{{ t('ad', dil) }}</th>
-              <th>{{ t('tarih', dil) }}</th>
-              {% if not is_personal and gecmis_gorunumu in ('admin', 'departman') %}
-              <th>{{ t('olusturan', dil) }}</th>
-              {% endif %}
-              <th>{{ t('kalem_sayisi', dil) }}</th>
-              <th>{{ t('toplam_aylik', dil) }}</th>
-              <th>{{ t('toplam_yillik', dil) }}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for hesaplama in grup.hesaplamalar %}
-            <tr>
-              <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
-              <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-              {% if not is_personal and gecmis_gorunumu in ('admin', 'departman') %}
-              <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
-              {% endif %}
-              <td>{{ hesaplama.kalemler|length }}</td>
-              <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
-              <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
-              <td>
-                <div class="d-flex gap-1 justify-content-end">
-                  <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
-                  {% if (hesaplama.olusturan_kullanici_adi or '')|lower == (kullanici.kullanici_adi or '')|lower %}
-                  <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
-                        onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
-                  </form>
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-  {% endfor %}
-</div>
-{% else %}
-<div class="section-card">
-  <div class="section-card-body">
-    <p class="empty-state mb-0">{{ t('gecmis_bos', dil) }}</p>
+    {% endif %}
   </div>
+
+  {# ── Search sekmesi (yönetici ve müdür) ── #}
+  {% if gecmis_gorunumu in ('yonetici', 'departman') %}
+  <div class="tab-pane fade" id="search-panel" role="tabpanel" aria-labelledby="search-tab">
+
+    {# Filtre araçları #}
+    <div class="gecmis-search-toolbar mb-3">
+      {% if gecmis_gorunumu == 'yonetici' %}
+      <select id="gecmisDepartmanFiltre" class="form-select form-select-sm gecmis-search-select">
+        <option value="">{{ t('gecmis_tum_departmanlar', dil) }}</option>
+        {% for dep in departman_listesi %}
+        <option value="{{ dep.anahtar }}">{{ dep.etiket }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <input type="search" id="gecmisIsimFiltre" class="form-control form-control-sm gecmis-search-input"
+             placeholder="{{ t('gecmis_isim_ara', dil) }}" autocomplete="off">
+    </div>
+
+    {% if arama_hesaplamalari %}
+    <section class="section-card">
+      <div class="section-card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle app-table mb-0" id="gecmisAramaTablosu">
+            <thead>
+              <tr>
+                <th>{{ t('ad', dil) }}</th>
+                <th>{{ t('tarih', dil) }}</th>
+                <th>{{ t('olusturan', dil) }}</th>
+                <th>{{ t('gecmis_unvan', dil) }}</th>
+                <th>{{ t('kalem_sayisi', dil) }}</th>
+                <th>{{ t('toplam_aylik', dil) }}</th>
+                <th>{{ t('toplam_yillik', dil) }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for hesaplama in arama_hesaplamalari %}
+              {% set dep_anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or 'diger' %}
+              <tr data-dep="{{ dep_anahtar }}"
+                  data-kullanici="{{ (hesaplama.olusturan_kullanici_adi or '')|lower }}">
+                <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+                <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+                <td class="text-muted small">{{ hesaplama.olusturan_kullanici_adi or '-' }}</td>
+                <td class="text-muted small">{{ hesaplama.olusturan_unvan or '-' }}</td>
+                <td>{{ hesaplama.kalemler|length }}</td>
+                <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
+                <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
+                <td>
+                  <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <p id="gecmisAramaSonucYok" class="empty-state mt-3" style="display:none;">
+      {{ t('gecmis_bos', dil) }}
+    </p>
+    {% else %}
+    <div class="section-card">
+      <div class="section-card-body">
+        <p class="empty-state mb-0">{{ t('gecmis_bos', dil) }}</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
 </div>
+
+{% if gecmis_gorunumu in ('yonetici', 'departman') %}
+<script>
+(function () {
+  var depFiltre = document.getElementById('gecmisDepartmanFiltre');
+  var isimFiltre = document.getElementById('gecmisIsimFiltre');
+  var tablo = document.getElementById('gecmisAramaTablosu');
+  var bosMsg = document.getElementById('gecmisAramaSonucYok');
+  if (!tablo) return;
+
+  function filtrele() {
+    var dep = depFiltre ? depFiltre.value.toLowerCase() : '';
+    var isim = isimFiltre ? isimFiltre.value.toLowerCase().trim() : '';
+    var satirlar = tablo.querySelectorAll('tbody tr');
+    var gorunen = 0;
+    satirlar.forEach(function (satir) {
+      var satirDep = (satir.dataset.dep || '').toLowerCase();
+      var satirKullanici = (satir.dataset.kullanici || '').toLowerCase();
+      var depEsles = !dep || satirDep === dep;
+      var isimEsles = !isim || satirKullanici.indexOf(isim) !== -1;
+      var goster = depEsles && isimEsles;
+      satir.style.display = goster ? '' : 'none';
+      if (goster) gorunen++;
+    });
+    if (bosMsg) bosMsg.style.display = gorunen === 0 ? '' : 'none';
+  }
+
+  if (depFiltre) depFiltre.addEventListener('change', filtrele);
+  if (isimFiltre) isimFiltre.addEventListener('input', filtrele);
+})();
+</script>
 {% endif %}
 {% endblock %}

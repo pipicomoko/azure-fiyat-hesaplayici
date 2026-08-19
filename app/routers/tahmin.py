@@ -234,6 +234,7 @@ async def tahmin_kaydet(
         olusturan_kullanici_adi=kullanici["kullanici_adi"],
         olusturan_gruplar=list(kullanici.get("gruplar", [])),
         olusturan_departman=departman_anahtari,
+        olusturan_unvan=kullanici.get("unvan") or "",
     )
     oturum.add(hesaplama)
     oturum.flush()
@@ -320,7 +321,6 @@ async def gecmis_listesi(
                 )
             )
         else:
-            # Departman belirlenemedi — sadece kendi kayıtları
             sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
         hesaplamalar = [
             hesaplama
@@ -328,37 +328,40 @@ async def gecmis_listesi(
             if hesaplamaya_erisebilir_mi(kullanici, hesaplama)
         ]
     else:
+        # yonetici — tum kayitlar
         hesaplamalar = oturum.exec(sorgu).all()
 
-    # Tüm kapsam seviyeleri için gruplu görünüm oluştur.
-    # Kullanıcının kendi kayıtları her zaman "personal" grubunda; diğerleri departmana göre.
-    kovalar: dict[str, dict] = {}
-    PERSONAL_KEY = "personal"
+    kullanici_adi_lower = (kullanici.get("kullanici_adi") or "").lower()
+    personal_hesaplamalar = [
+        h for h in hesaplamalar
+        if (h.olusturan_kullanici_adi or "").lower() == kullanici_adi_lower
+    ]
+    arama_hesaplamalari = [
+        h for h in hesaplamalar
+        if (h.olusturan_kullanici_adi or "").lower() != kullanici_adi_lower
+    ]
 
-    for hesaplama in hesaplamalar:
-        sahip = (hesaplama.olusturan_kullanici_adi or "").lower() == (kullanici.get("kullanici_adi") or "").lower()
-        if sahip:
-            anahtar = PERSONAL_KEY
-            etiket = "Personal"
-        else:
-            anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or "diger"
-            etiket = departman_etiketi(anahtar)
-        if anahtar not in kovalar:
-            kovalar[anahtar] = {"anahtar": anahtar, "etiket": etiket, "hesaplamalar": []}
-        kovalar[anahtar]["hesaplamalar"].append(hesaplama)
-
-    # Personal en üste, sonra departmanlar alfabetik
-    gecmis_gruplari = []
-    if PERSONAL_KEY in kovalar:
-        gecmis_gruplari.append(kovalar.pop(PERSONAL_KEY))
-    gecmis_gruplari.extend(sorted(kovalar.values(), key=lambda g: g["etiket"]))
+    # Yonetici icin departman listesi dropdown icin
+    departman_listesi: list[dict] = []
+    if kapsam == "yonetici":
+        dep_anahtarlari: set[str] = set()
+        for h in arama_hesaplamalari:
+            dep = hesaplama_departmani(h.olusturan_gruplar, h.olusturan_departman)
+            if dep:
+                dep_anahtarlari.add(dep)
+        departman_listesi = sorted(
+            [{"anahtar": dep, "etiket": departman_etiketi(dep)} for dep in dep_anahtarlari],
+            key=lambda d: d["etiket"],
+        )
 
     return render(
         request,
         "gecmis.html",
         {
             "hesaplamalar": hesaplamalar,
-            "gecmis_gruplari": gecmis_gruplari,
+            "personal_hesaplamalar": personal_hesaplamalar,
+            "arama_hesaplamalari": arama_hesaplamalari,
+            "departman_listesi": departman_listesi,
             "gecmis_gorunumu": kapsam,
         },
     )

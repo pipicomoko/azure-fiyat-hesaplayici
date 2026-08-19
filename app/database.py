@@ -27,6 +27,13 @@ def veritabanini_olustur() -> None:
                 baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_departman VARCHAR"))
             else:
                 baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_departman TEXT"))
+    sutunlar = {sutun["name"] for sutun in denetleyici.get_columns("hesaplamalar")}
+    if "olusturan_unvan" not in sutunlar:
+        with engine.begin() as baglanti:
+            if engine.dialect.name == "postgresql":
+                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_unvan VARCHAR"))
+            else:
+                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_unvan TEXT"))
 
 
 def _eksik_departmanlari_doldur() -> None:

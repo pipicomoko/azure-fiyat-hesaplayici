@@ -2,11 +2,10 @@
   "_aciklama": "Active Directory grup adi -> uygulama izinleri eslemesi. Bu dosyayi degistirerek (veya YETKI_HARITASI_DOSYASI ortam degiskeniyle baska bir dosya belirterek) hangi AD grubunun hangi izne sahip oldugunu, kod degistirmeden yapilandirabilirsiniz. Degisiklikler yeniden baslatma gerekmeden bir sonraki istekte etkin olur.",
   "_izinler": {
     "hesaplama.kullan": "Tahmin calisma alanini kullanma, urun ekleme/duzenleme, disa aktarma",
-    "yonetim.eris": "Tum kullanicilarin gecmis tahminlerini departman bazinda goruntuleme (admin)",
+    "gecmis.yonetici_gor": "Tum departmanlarin gecmis tahminlerini goruntuleme (yonetici)",
     "gecmis.departman_gor": "Kendi departmanindaki calisanlarin gecmis tahminlerini goruntuleme (mudur)"
   },
-  "Adminler": ["hesaplama.kullan", "yonetim.eris"],
-  "Yoneticiler": ["hesaplama.kullan", "yonetim.eris"],
+  "Yoneticiler": ["hesaplama.kullan", "gecmis.yonetici_gor"],
   "Mudurler": ["hesaplama.kullan", "gecmis.departman_gor"],
   "Calisanlar": ["hesaplama.kullan"]
 }

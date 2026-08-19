@@ -649,6 +649,47 @@ a {
   }
 }
 
+/* ── Gecmis sekme araç çubuğu ── */
+.gecmis-tabs .nav-link {
+  color: var(--text-muted);
+  border-color: transparent;
+}
+
+.gecmis-tabs .nav-link.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: transparent;
+}
+
+.gecmis-search-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.gecmis-search-select {
+  max-width: 220px;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.gecmis-search-input {
+  max-width: 280px;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.gecmis-search-select:focus,
+.gecmis-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--accent) 25%, transparent);
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
 @media (max-width: 767.98px) {
   .app-navbar {
     padding: 0.75rem 0;

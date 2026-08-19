@@ -37,6 +37,7 @@ class Hesaplama(SQLModel, table=True):
     olusturan_kullanici_adi: Optional[str] = Field(default=None, index=True)
     olusturan_gruplar: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     olusturan_departman: Optional[str] = Field(default=None, index=True)
+    olusturan_unvan: Optional[str] = Field(default=None)
 
     kalemler: list["HesaplamaKalemi"] = Relationship(
         back_populates="hesaplama",

@@ -57,7 +57,7 @@ _VARSAYILAN_DEPARTMAN_DOSYASI = Path(__file__).resolve().parent.parent / "config
 DEPARTMAN_HARITASI_DOSYASI = Path(os.getenv("DEPARTMAN_HARITASI_DOSYASI") or _VARSAYILAN_DEPARTMAN_DOSYASI)
 
 IZIN_HESAPLAMA_KULLAN = "hesaplama.kullan"
-IZIN_YONETIM_ERISIM = "yonetim.eris"
+IZIN_YONETICI_ERISIM = "gecmis.yonetici_gor"
 IZIN_GECMIS_DEPARTMAN = "gecmis.departman_gor"
 
 
@@ -455,18 +455,18 @@ def hesaplama_departmani(olusturan_gruplar: list[str] | None, olusturan_departma
 
 
 def gecmis_erisim_kapsami(kullanici: dict | None) -> str:
-    """admin: tum kayitlar | departman: kendi + departman | kendi: yalnizca kendi."""
+    """yonetici: tum kayitlar | departman: kendi + departman | kendi: yalnizca kendi."""
     if kullanici is None:
         return "kendi"
-    if kullanici_izinli_mi(kullanici, IZIN_YONETIM_ERISIM):
-        return "admin"
+    if kullanici_izinli_mi(kullanici, IZIN_YONETICI_ERISIM):
+        return "yonetici"
     if kullanici_izinli_mi(kullanici, IZIN_GECMIS_DEPARTMAN) and kullanicinin_yonettigi_departmanlar(kullanici):
         return "departman"
     return "kendi"
 
 
 def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
-    """Gecmis kaydina erisim: admin tumunu, mudur departmanini, calisan kendininkini."""
+    """Gecmis kaydina erisim: yonetici tumunu, mudur departmanini, calisan kendininkini."""
     if kullanici is None:
         return False
 
@@ -477,7 +477,7 @@ def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
         return True
 
     kapsam = gecmis_erisim_kapsami(kullanici)
-    if kapsam == "admin":
+    if kapsam == "yonetici":
         return True
 
     if hesaplama.olusturan_kullanici_adi is None:
@@ -502,7 +502,7 @@ def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
         grup
         for grup, izinler in harita.items()
         if not grup.startswith("_") and (
-            IZIN_YONETIM_ERISIM in izinler or IZIN_GECMIS_DEPARTMAN in izinler
+            IZIN_YONETICI_ERISIM in izinler or IZIN_GECMIS_DEPARTMAN in izinler
         )
     }
     if kayit_sahibi_gruplari.intersection(yetkili_gruplar):

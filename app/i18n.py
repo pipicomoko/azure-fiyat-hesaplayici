@@ -158,6 +158,12 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Bu tahmine sadece olusturan kisi veya yoneticiler erisebilir.",
         "en": "Only the creator or administrators can access this estimate.",
     },
+    "gecmis_personal": {"tr": "Kişisel", "en": "Personal"},
+    "gecmis_arama": {"tr": "Arama", "en": "Search"},
+    "gecmis_departman_sec": {"tr": "Departman seçin", "en": "Select department"},
+    "gecmis_isim_ara": {"tr": "İsim ara...", "en": "Search by name..."},
+    "gecmis_unvan": {"tr": "Ünvan", "en": "Title"},
+    "gecmis_tum_departmanlar": {"tr": "Tüm departmanlar", "en": "All departments"},
     # Yonetim
     "yonetim_baslik": {"tr": "Yonetim Paneli", "en": "Administration"},
     "yonetim_ozet": {
