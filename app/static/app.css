@@ -195,6 +195,15 @@ a {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  outline: none;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.app-user-summary:focus-visible .app-user-avatar {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
 }
 
 .app-user-avatar {

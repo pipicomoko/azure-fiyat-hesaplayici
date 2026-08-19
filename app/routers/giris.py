@@ -11,6 +11,8 @@ router = APIRouter()
 
 @router.get("/giris")
 async def giris_ekrani(request: Request):
+    if request.session.get("kullanici"):
+        return RedirectResponse("/tahmin", status_code=303)
     return render(request, "giris.html", {"hata": None})
 
 
