@@ -699,24 +699,52 @@ a {
 
 .gecmis-search-select {
   max-width: 220px;
-  background-color: var(--bg-card);
-  color: var(--text-primary);
-  border-color: var(--border-color);
 }
 
 .gecmis-search-input {
   max-width: 280px;
-  background-color: var(--bg-card);
-  color: var(--text-primary);
-  border-color: var(--border-color);
+}
+
+.gecmis-search-select,
+.gecmis-search-input,
+.gecmis-tarih-alani input {
+  background-color: var(--app-surface);
+  color: var(--app-text);
+  border-color: var(--app-border);
 }
 
 .gecmis-search-select:focus,
-.gecmis-search-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--accent) 25%, transparent);
-  background-color: var(--bg-card);
-  color: var(--text-primary);
+.gecmis-search-input:focus,
+.gecmis-tarih-alani input:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--app-primary) 25%, transparent);
+  background-color: var(--app-surface);
+  color: var(--app-text);
+}
+
+.gecmis-tarih-alani {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0;
+}
+
+.gecmis-tarih-etiket {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+}
+
+.gecmis-tarih-alani input {
+  width: 10.5rem;
+}
+
+/* Koyu temada tarayicinin takvim ikonu okunur kalsin */
+[data-theme="dark"] .gecmis-tarih-alani input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
 }
 
 @media (max-width: 767.98px) {

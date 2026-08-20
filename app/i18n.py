@@ -165,6 +165,13 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "ara": {"tr": "Ara", "en": "Search"},
     "gecmis_unvan": {"tr": "Ünvan", "en": "Title"},
     "gecmis_tum_departmanlar": {"tr": "Tüm departmanlar", "en": "All departments"},
+    "gecmis_tarih_baslangic": {"tr": "Başlangıç", "en": "From"},
+    "gecmis_tarih_bitis": {"tr": "Bitiş", "en": "To"},
+    "gecmis_filtre_temizle": {"tr": "Temizle", "en": "Clear"},
+    "gecmis_filtre_sonuc_yok": {
+        "tr": "Seçilen filtrelere uygun kayıt yok.",
+        "en": "No records match the selected filters.",
+    },
     # Yonetim
     "yonetim_baslik": {"tr": "Yonetim Paneli", "en": "Administration"},
     "yonetim_ozet": {

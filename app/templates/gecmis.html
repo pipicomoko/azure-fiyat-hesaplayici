@@ -10,7 +10,7 @@
             data-bs-target="#personal-panel" type="button" role="tab"
             aria-controls="personal-panel" aria-selected="true">
       Personal
-      <span class="badge bg-secondary ms-1">{{ personal_hesaplamalar|length }}</span>
+      <span class="badge bg-secondary ms-1" id="personalSekmeSayac">{{ personal_hesaplamalar|length }}</span>
     </button>
   </li>
   {% if gecmis_gorunumu in ('yonetici', 'departman') %}
@@ -19,7 +19,7 @@
             data-bs-target="#search-panel" type="button" role="tab"
             aria-controls="search-panel" aria-selected="false">
       {{ t('gecmis_arama', dil) }}
-      <span class="badge bg-secondary ms-1">{{ arama_hesaplamalari|length }}</span>
+      <span class="badge bg-secondary ms-1" id="aramaSekmeSayac">{{ arama_hesaplamalari|length }}</span>
     </button>
   </li>
   {% endif %}
@@ -30,16 +30,34 @@
   {# ── Personal sekmesi ── #}
   <div class="tab-pane fade show active" id="personal-panel" role="tabpanel" aria-labelledby="personal-tab">
     {% if personal_hesaplamalar %}
+
+    {# Tarih araligi filtresi #}
+    <div class="gecmis-search-toolbar mb-3">
+      <label class="gecmis-tarih-alani">
+        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
+        <input type="date" id="personalTarihBaslangic" class="form-control form-control-sm">
+      </label>
+      <label class="gecmis-tarih-alani">
+        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
+        <input type="date" id="personalTarihBitis" class="form-control form-control-sm">
+      </label>
+      <button type="button" id="personalFiltreTemizle" class="btn btn-sm btn-outline-secondary">
+        {{ t('gecmis_filtre_temizle', dil) }}
+      </button>
+    </div>
+
     <section class="section-card">
       <div class="section-card-header">
         <div class="d-flex align-items-center gap-2">
           <span class="gecmis-grup-badge gecmis-grup-badge-personal">Personal</span>
-          <span class="section-subtitle mb-0">{{ personal_hesaplamalar|length }} {{ t('kayit', dil) }}</span>
+          <span class="section-subtitle mb-0">
+            <span id="personalSayac">{{ personal_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
+          </span>
         </div>
       </div>
       <div class="section-card-body p-0">
         <div class="table-responsive">
-          <table class="table table-sm align-middle app-table mb-0">
+          <table class="table table-sm align-middle app-table mb-0" id="gecmisPersonalTablosu">
             <thead>
               <tr>
                 <th>{{ t('ad', dil) }}</th>
@@ -52,7 +70,7 @@
             </thead>
             <tbody>
               {% for hesaplama in personal_hesaplamalar %}
-              <tr>
+              <tr data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
                 <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
                 <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
                 <td>{{ hesaplama.kalemler|length }}</td>
@@ -74,6 +92,9 @@
         </div>
       </div>
     </section>
+    <p id="gecmisPersonalSonucYok" class="empty-state mt-3" style="display:none;">
+      {{ t('gecmis_filtre_sonuc_yok', dil) }}
+    </p>
     {% else %}
     <div class="section-card">
       <div class="section-card-body">
@@ -99,6 +120,17 @@
       {% endif %}
       <input type="search" id="gecmisIsimFiltre" class="form-control form-control-sm gecmis-search-input"
              placeholder="{{ t('gecmis_isim_ara', dil) }}" autocomplete="off">
+      <label class="gecmis-tarih-alani">
+        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
+        <input type="date" id="gecmisTarihBaslangic" class="form-control form-control-sm">
+      </label>
+      <label class="gecmis-tarih-alani">
+        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
+        <input type="date" id="gecmisTarihBitis" class="form-control form-control-sm">
+      </label>
+      <button type="button" id="gecmisFiltreTemizle" class="btn btn-sm btn-outline-secondary">
+        {{ t('gecmis_filtre_temizle', dil) }}
+      </button>
     </div>
 
     {% if arama_hesaplamalari %}
@@ -122,7 +154,9 @@
               {% for hesaplama in arama_hesaplamalari %}
               {% set dep_anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or 'diger' %}
               <tr data-dep="{{ dep_anahtar }}"
-                  data-kullanici="{{ (hesaplama.olusturan_kullanici_adi or '')|lower }}">
+                  data-kullanici="{{ (hesaplama.olusturan_kullanici_adi or '')|lower }}"
+                  data-ad-soyad="{{ (hesaplama.olusturan_ad_soyad or '')|lower }}"
+                  data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
                 <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
                 <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
                 <td class="text-muted small">{{ hesaplama.olusturan_ad_soyad or hesaplama.olusturan_kullanici_adi or '-' }}</td>
@@ -155,35 +189,84 @@
 
 </div>
 
-{% if gecmis_gorunumu in ('yonetici', 'departman') %}
 <script>
 (function () {
-  var depFiltre = document.getElementById('gecmisDepartmanFiltre');
-  var isimFiltre = document.getElementById('gecmisIsimFiltre');
-  var tablo = document.getElementById('gecmisAramaTablosu');
-  var bosMsg = document.getElementById('gecmisAramaSonucYok');
-  if (!tablo) return;
+  // Tarihler data-tarih icinde YYYY-MM-DD olarak durur; <input type="date">
+  // de ayni bicimi verdigi icin metin karsilastirmasi kronolojik siralamayla
+  // ayni sonucu verir.
+  function filtreKur(ayar) {
+    var tablo = document.getElementById(ayar.tablo);
+    if (!tablo) return;
+    var dep = document.getElementById(ayar.departman);
+    var isim = document.getElementById(ayar.isim);
+    var baslangic = document.getElementById(ayar.baslangic);
+    var bitis = document.getElementById(ayar.bitis);
+    var temizle = document.getElementById(ayar.temizle);
+    var bosMesaj = document.getElementById(ayar.bosMesaj);
+    var sayaclar = (ayar.sayaclar || [])
+      .map(function (id) { return document.getElementById(id); })
+      .filter(Boolean);
 
-  function filtrele() {
-    var dep = depFiltre ? depFiltre.value.toLowerCase() : '';
-    var isim = isimFiltre ? isimFiltre.value.toLowerCase().trim() : '';
-    var satirlar = tablo.querySelectorAll('tbody tr');
-    var gorunen = 0;
-    satirlar.forEach(function (satir) {
-      var satirDep = (satir.dataset.dep || '').toLowerCase();
-      var satirKullanici = (satir.dataset.kullanici || '').toLowerCase();
-      var depEsles = !dep || satirDep === dep;
-      var isimEsles = !isim || satirKullanici.indexOf(isim) !== -1;
-      var goster = depEsles && isimEsles;
-      satir.style.display = goster ? '' : 'none';
-      if (goster) gorunen++;
-    });
-    if (bosMsg) bosMsg.style.display = gorunen === 0 ? '' : 'none';
+    function filtrele() {
+      var depDeger = dep ? dep.value.toLowerCase() : '';
+      var isimDeger = isim ? isim.value.toLowerCase().trim() : '';
+      var baslangicDeger = baslangic ? baslangic.value : '';
+      var bitisDeger = bitis ? bitis.value : '';
+      var gorunen = 0;
+
+      tablo.querySelectorAll('tbody tr').forEach(function (satir) {
+        var satirDep = (satir.dataset.dep || '').toLowerCase();
+        var satirTarih = satir.dataset.tarih || '';
+        var kimlik = [satir.dataset.kullanici, satir.dataset.adSoyad]
+          .filter(Boolean).join(' ').toLowerCase();
+
+        var goster =
+          (!depDeger || satirDep === depDeger) &&
+          (!isimDeger || kimlik.indexOf(isimDeger) !== -1) &&
+          (!baslangicDeger || satirTarih >= baslangicDeger) &&
+          (!bitisDeger || satirTarih <= bitisDeger);
+
+        satir.style.display = goster ? '' : 'none';
+        if (goster) gorunen++;
+      });
+
+      if (bosMesaj) bosMesaj.style.display = gorunen === 0 ? '' : 'none';
+      sayaclar.forEach(function (alan) { alan.textContent = gorunen; });
+    }
+
+    if (dep) dep.addEventListener('change', filtrele);
+    if (isim) isim.addEventListener('input', filtrele);
+    if (baslangic) baslangic.addEventListener('change', filtrele);
+    if (bitis) bitis.addEventListener('change', filtrele);
+    if (temizle) {
+      temizle.addEventListener('click', function () {
+        [dep, isim, baslangic, bitis].forEach(function (alan) {
+          if (alan) alan.value = '';
+        });
+        filtrele();
+      });
+    }
   }
 
-  if (depFiltre) depFiltre.addEventListener('change', filtrele);
-  if (isimFiltre) isimFiltre.addEventListener('input', filtrele);
+  filtreKur({
+    tablo: 'gecmisPersonalTablosu',
+    baslangic: 'personalTarihBaslangic',
+    bitis: 'personalTarihBitis',
+    temizle: 'personalFiltreTemizle',
+    bosMesaj: 'gecmisPersonalSonucYok',
+    sayaclar: ['personalSayac', 'personalSekmeSayac'],
+  });
+
+  filtreKur({
+    tablo: 'gecmisAramaTablosu',
+    departman: 'gecmisDepartmanFiltre',
+    isim: 'gecmisIsimFiltre',
+    baslangic: 'gecmisTarihBaslangic',
+    bitis: 'gecmisTarihBitis',
+    temizle: 'gecmisFiltreTemizle',
+    bosMesaj: 'gecmisAramaSonucYok',
+    sayaclar: ['aramaSekmeSayac'],
+  });
 })();
 </script>
-{% endif %}
 {% endblock %}
