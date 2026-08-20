@@ -1,0 +1,281 @@
+#!/bin/sh
+# Idempotent AFH dizin tohumu (37 kullanici, AFH-*/DEPT-* gruplari, manager zinciri).
+# smblds /entrypoint.d icinde Samba acilmadan once veya sonra calisabilir.
+set -eu
+
+BASE="DC=sirket,DC=local"
+SAM_LDB="${SAM_LDB:-/var/lib/samba/private/sam.ldb}"
+PASS="${SEED_USER_PASS:-Sirket123!}"
+ADMIN_PASS="${ADMINPASS:-Passw0rd!}"
+
+ST() {
+  if [ -f "$SAM_LDB" ]; then
+    samba-tool "$@" -H "$SAM_LDB"
+  else
+    samba-tool "$@"
+  fi
+}
+
+ou_exists() {
+  ST ou list "$BASE" 2>/dev/null | grep -qx "$1" || \
+  ST ou list "OU=$2,$BASE" 2>/dev/null | grep -qx "$1"
+}
+
+ensure_ou() {
+  local name="$1"
+  local parent="${2:-}"
+  local parent_dn
+  if [ -n "$parent" ]; then
+    parent_dn="OU=$parent,$BASE"
+  else
+    parent_dn="$BASE"
+  fi
+  if ST ou list "$parent_dn" 2>/dev/null | grep -qx "$name"; then
+    return 0
+  fi
+  ST ou create "OU=$name,$parent_dn" 2>/dev/null || true
+}
+
+ensure_group() {
+  local name="$1"
+  if ST group show "$name" >/dev/null 2>&1; then
+    return 0
+  fi
+  ST group add "$name" --groupou="OU=Gruplar" 2>/dev/null || \
+  ST group add "$name" 2>/dev/null || true
+}
+
+user_exists() {
+  ST user show "$1" >/dev/null 2>&1
+}
+
+# sAMAccountName | Given | Surname | Title | userou (relative) | manager_sam | groups(comma)
+# userou ornek: OU=Yonetim,OU=Kullanicilar
+create_user() {
+  local sam="$1" given="$2" sur="$3" title="$4" userou="$5" manager="$6" groups="$7"
+  local cn="$given $sur"
+  if ! user_exists "$sam"; then
+    ST user create "$sam" "$PASS" \
+      --given-name="$given" \
+      --surname="$sur" \
+      --job-title="$title" \
+      --userou="$userou" \
+      --use-username-as-cn \
+      2>/dev/null || ST user create "$sam" "$PASS" \
+      --given-name="$given" \
+      --surname="$sur" \
+      --job-title="$title" \
+      --userou="$userou" \
+      2>/dev/null || true
+    # CN'i Ad Soyad yapmak icin LDIF (use-username-as-cn kullandiysak sAMAccountName)
+    # Goruntuleme adi icin displayName set et
+    set_attr "$sam" displayName "$cn" || true
+    set_attr "$sam" title "$title" || true
+  else
+    set_attr "$sam" title "$title" || true
+    set_attr "$sam" displayName "$cn" || true
+  fi
+
+  old_ifs=$IFS
+  IFS=,
+  # shellcheck disable=SC2086
+  set -- $groups
+  IFS=$old_ifs
+  for g in "$@"; do
+    g=$(printf '%s' "$g" | tr -d '[:space:]')
+    [ -z "$g" ] && continue
+    ST group addmembers "$g" "$sam" 2>/dev/null || true
+  done
+
+  if [ -n "$manager" ]; then
+    set_manager "$sam" "$manager" || true
+  fi
+}
+
+dn_of() {
+  local sam="$1"
+  ST user show "$sam" 2>/dev/null | awk -F': ' '/^dn:/ {print $2; exit}'
+}
+
+set_attr() {
+  local sam="$1" attr="$2" val="$3"
+  local dn
+  dn=$(dn_of "$sam") || return 1
+  [ -z "$dn" ] && return 1
+  local tmp
+  tmp=$(mktemp)
+  cat >"$tmp" <<EOF
+dn: $dn
+changetype: modify
+replace: $attr
+$attr: $val
+EOF
+  if [ -f "$SAM_LDB" ]; then
+    ldbmodify -H "$SAM_LDB" "$tmp" >/dev/null 2>&1 || true
+  else
+    ldbmodify -H "ldaps://127.0.0.1" -U "Administrator%${ADMIN_PASS}" "$tmp" >/dev/null 2>&1 || true
+  fi
+  rm -f "$tmp"
+}
+
+set_manager() {
+  local sam="$1" mgr="$2"
+  local mgr_dn
+  mgr_dn=$(dn_of "$mgr") || return 1
+  [ -z "$mgr_dn" ] && return 1
+  set_attr "$sam" manager "$mgr_dn"
+}
+
+echo "[afh-seed] OU agaci..."
+ensure_ou "Kullanicilar"
+ensure_ou "Yonetim" "Kullanicilar"
+ensure_ou "IT" "Kullanicilar"
+ensure_ou "Yonetim" "IT,OU=Kullanicilar"
+# Nested IT OUs: parent is OU=IT,OU=Kullanicilar
+ST ou create "OU=Yonetim,OU=IT,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=Altyapi,OU=IT,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=Yazilim,OU=IT,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=Guvenlik,OU=IT,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=Helpdesk,OU=IT,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=Finans,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=Muhasebe,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=IK,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=Lojistik,OU=Kullanicilar,$BASE" 2>/dev/null || true
+ST ou create "OU=BagimsizHesaplar,$BASE" 2>/dev/null || true
+ST ou create "OU=Gruplar,$BASE" 2>/dev/null || true
+ST ou create "OU=ServisHesaplari,$BASE" 2>/dev/null || true
+
+echo "[afh-seed] Gruplar..."
+for g in AFH-Calisanlar AFH-Yoneticiler AFH-Direktorler AFH-Adminler \
+         DEPT-IT DEPT-IT-Altyapi DEPT-IT-Yazilim DEPT-IT-Guvenlik DEPT-IT-Helpdesk \
+         DEPT-Finans DEPT-Muhasebe DEPT-IK DEPT-Lojistik SistemYoneticileri; do
+  ensure_group "$g"
+done
+
+echo "[afh-seed] Kullanicilar..."
+# Genel Mudur
+create_user ahmet.yildirim Ahmet Yildirim "Genel Mudur" \
+  "OU=Yonetim,OU=Kullanicilar" "" \
+  "AFH-Calisanlar,AFH-Direktorler"
+
+# IT
+create_user serkan.aydemir Serkan Aydemir "IT Direktoru" \
+  "OU=Yonetim,OU=IT,OU=Kullanicilar" "ahmet.yildirim" \
+  "AFH-Calisanlar,AFH-Direktorler,DEPT-IT"
+create_user baris.kocak Baris Kocak "IT Grup Muduru" \
+  "OU=Yonetim,OU=IT,OU=Kullanicilar" "serkan.aydemir" \
+  "AFH-Calisanlar,AFH-Direktorler,DEPT-IT"
+create_user emre.turan Emre Turan "IT Bolum Muduru (Altyapi ve Sistemler)" \
+  "OU=Altyapi,OU=IT,OU=Kullanicilar" "baris.kocak" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IT,DEPT-IT-Altyapi"
+create_user onur.simsek Onur Simsek "IT Yoneticisi (Sistem Yonetimi)" \
+  "OU=Altyapi,OU=IT,OU=Kullanicilar" "emre.turan" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IT,DEPT-IT-Altyapi"
+create_user kerem.acar Kerem Acar "Sistem Uzmani" \
+  "OU=Altyapi,OU=IT,OU=Kullanicilar" "onur.simsek" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Altyapi"
+create_user tuna.bozkurt Tuna Bozkurt "Sistem Uzmani" \
+  "OU=Altyapi,OU=IT,OU=Kullanicilar" "onur.simsek" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Altyapi"
+create_user gokhan.erdem Gokhan Erdem "IT Yoneticisi (Ag Yonetimi)" \
+  "OU=Altyapi,OU=IT,OU=Kullanicilar" "emre.turan" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IT,DEPT-IT-Altyapi"
+create_user volkan.uysal Volkan Uysal "Ag Uzmani" \
+  "OU=Altyapi,OU=IT,OU=Kullanicilar" "gokhan.erdem" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Altyapi"
+create_user deniz.kartal Deniz Kartal "IT Bolum Muduru (Yazilim Gelistirme)" \
+  "OU=Yazilim,OU=IT,OU=Kullanicilar" "baris.kocak" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IT,DEPT-IT-Yazilim"
+create_user aylin.gunes Aylin Gunes "IT Yoneticisi (Yazilim Ekibi)" \
+  "OU=Yazilim,OU=IT,OU=Kullanicilar" "deniz.kartal" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IT,DEPT-IT-Yazilim"
+create_user burcu.yalcin Burcu Yalcin "Yazilim Uzmani" \
+  "OU=Yazilim,OU=IT,OU=Kullanicilar" "aylin.gunes" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Yazilim"
+create_user mert.aksu Mert Aksu "Yazilim Uzmani" \
+  "OU=Yazilim,OU=IT,OU=Kullanicilar" "aylin.gunes" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Yazilim"
+create_user ceyda.polat Ceyda Polat "IT Bolum Muduru (Bilgi Guvenligi)" \
+  "OU=Guvenlik,OU=IT,OU=Kullanicilar" "baris.kocak" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IT,DEPT-IT-Guvenlik"
+create_user yusuf.er Yusuf Er "Guvenlik Uzmani" \
+  "OU=Guvenlik,OU=IT,OU=Kullanicilar" "ceyda.polat" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Guvenlik"
+create_user nazli.korkmaz Nazli Korkmaz "Guvenlik Uzmani" \
+  "OU=Guvenlik,OU=IT,OU=Kullanicilar" "ceyda.polat" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Guvenlik"
+create_user fatih.dogru Fatih Dogru "IT Bolum Muduru (Yardim Masasi)" \
+  "OU=Helpdesk,OU=IT,OU=Kullanicilar" "baris.kocak" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IT,DEPT-IT-Helpdesk"
+create_user irem.sari Irem Sari "Helpdesk Uzmani" \
+  "OU=Helpdesk,OU=IT,OU=Kullanicilar" "fatih.dogru" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Helpdesk"
+create_user oguz.tekin Oguz Tekin "Helpdesk Uzmani" \
+  "OU=Helpdesk,OU=IT,OU=Kullanicilar" "fatih.dogru" \
+  "AFH-Calisanlar,DEPT-IT,DEPT-IT-Helpdesk"
+
+# Finans
+create_user murat.ozturk Murat Ozturk "Finans Direktoru" \
+  "OU=Finans,OU=Kullanicilar" "ahmet.yildirim" \
+  "AFH-Calisanlar,AFH-Direktorler,DEPT-Finans"
+create_user sibel.arslan Sibel Arslan "Finans Muduru" \
+  "OU=Finans,OU=Kullanicilar" "murat.ozturk" \
+  "AFH-Calisanlar,AFH-Direktorler,DEPT-Finans"
+create_user caner.bulut Caner Bulut "Finans Yoneticisi" \
+  "OU=Finans,OU=Kullanicilar" "sibel.arslan" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-Finans"
+create_user elif.aydin Elif Aydin "Finans Uzmani" \
+  "OU=Finans,OU=Kullanicilar" "caner.bulut" \
+  "AFH-Calisanlar,DEPT-Finans"
+create_user kutay.sen Kutay Sen "Finans Uzmani" \
+  "OU=Finans,OU=Kullanicilar" "caner.bulut" \
+  "AFH-Calisanlar,DEPT-Finans"
+
+# Muhasebe
+create_user hande.aksoy Hande Aksoy "Muhasebe Muduru" \
+  "OU=Muhasebe,OU=Kullanicilar" "ahmet.yildirim" \
+  "AFH-Calisanlar,AFH-Direktorler,DEPT-Muhasebe"
+create_user tolga.yavuz Tolga Yavuz "Muhasebe Yoneticisi" \
+  "OU=Muhasebe,OU=Kullanicilar" "hande.aksoy" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-Muhasebe"
+create_user pelin.cakir Pelin Cakir "Muhasebe Uzmani" \
+  "OU=Muhasebe,OU=Kullanicilar" "tolga.yavuz" \
+  "AFH-Calisanlar,DEPT-Muhasebe"
+create_user berkay.solmaz Berkay Solmaz "Muhasebe Uzmani" \
+  "OU=Muhasebe,OU=Kullanicilar" "tolga.yavuz" \
+  "AFH-Calisanlar,DEPT-Muhasebe"
+
+# IK
+create_user zehra.kaplan Zehra Kaplan "IK Muduru" \
+  "OU=IK,OU=Kullanicilar" "ahmet.yildirim" \
+  "AFH-Calisanlar,AFH-Direktorler,DEPT-IK"
+create_user ugur.bayrak Ugur Bayrak "IK Yoneticisi" \
+  "OU=IK,OU=Kullanicilar" "zehra.kaplan" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-IK"
+create_user selin.dogan Selin Dogan "IK Uzmani" \
+  "OU=IK,OU=Kullanicilar" "ugur.bayrak" \
+  "AFH-Calisanlar,DEPT-IK"
+create_user erhan.kilic Erhan Kilic "IK Uzmani" \
+  "OU=IK,OU=Kullanicilar" "ugur.bayrak" \
+  "AFH-Calisanlar,DEPT-IK"
+
+# Lojistik
+create_user cem.aktas Cem Aktas "Lojistik Muduru" \
+  "OU=Lojistik,OU=Kullanicilar" "ahmet.yildirim" \
+  "AFH-Calisanlar,AFH-Direktorler,DEPT-Lojistik"
+create_user derya.celik Derya Celik "Lojistik Yoneticisi" \
+  "OU=Lojistik,OU=Kullanicilar" "cem.aktas" \
+  "AFH-Calisanlar,AFH-Yoneticiler,DEPT-Lojistik"
+create_user buse.karaca Buse Karaca "Lojistik Uzmani" \
+  "OU=Lojistik,OU=Kullanicilar" "derya.celik" \
+  "AFH-Calisanlar,DEPT-Lojistik"
+create_user kaan.yildiz Kaan Yildiz "Lojistik Uzmani" \
+  "OU=Lojistik,OU=Kullanicilar" "derya.celik" \
+  "AFH-Calisanlar,DEPT-Lojistik"
+
+# Bagimsiz admin
+create_user asli.demirtas Asli Demirtas "Sistem Yoneticisi" \
+  "OU=BagimsizHesaplar" "" \
+  "AFH-Adminler,SistemYoneticileri"
+
+echo "[afh-seed] Tamam."

@@ -100,14 +100,44 @@
           </div>
           <div class="section-card-body">
             <div class="vstack gap-3">
+              {% if duzenlenen_hesaplama_id %}
+              <input type="hidden" name="hesaplama_id" value="{{ duzenlenen_hesaplama_id }}">
+              {% endif %}
+              {% if red_gerekce %}
+              <div class="alert alert-warning py-2 small mb-0">
+                {{ t('red_gerekce', dil) }}: {{ red_gerekce }}
+              </div>
+              {% endif %}
               <div>
                 <label class="form-label small mb-1">{{ t('hesaplama_adi', dil) }}</label>
-                <input type="text" class="form-control form-control-sm" name="hesaplama_adi">
+                <input type="text" class="form-control form-control-sm" name="hesaplama_adi"
+                       value="{{ hesaplama_adi | default('') }}">
               </div>
+              {% set zincir = kullanici.manager_zinciri or ([kullanici.manager] if kullanici.manager else []) %}
+              {% if zincir %}
+              <div>
+                <label class="form-label small mb-1">{{ t('onay_hedefi', dil) }} <span class="text-danger">*</span></label>
+                <select class="form-select form-select-sm" name="onay_hedefi" id="onay-hedefi-secici" required>
+                  <option value="">{{ t('onay_hedefi_sec', dil) }}</option>
+                  {% for m in zincir %}
+                  <option value="{{ m }}">{{ m }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% else %}
+              <div class="alert alert-warning py-2 small mb-0">{{ t('onay_zincir_yok', dil) }}</div>
+              {% endif %}
               <div class="d-grid gap-2">
+                <button type="button" class="btn btn-outline-success btn-sm"
+                        hx-post="/tahmin/kaydet" hx-include="#tahmin-formu" hx-target="#kaydet-sonuc" hx-swap="innerHTML"
+                        hx-vals='{"onaya_gonder": "0"}'>
+                  {{ t('taslak_kaydet', dil) }}
+                </button>
                 <button type="button" class="btn btn-success btn-sm"
-                        hx-post="/tahmin/kaydet" hx-include="#tahmin-formu" hx-target="#kaydet-sonuc" hx-swap="innerHTML">
-                  {{ t('kaydet', dil) }}
+                        hx-post="/tahmin/kaydet" hx-include="#tahmin-formu" hx-target="#kaydet-sonuc" hx-swap="innerHTML"
+                        hx-vals='{"onaya_gonder": "1"}'
+                        {% if not zincir %}disabled title="{{ t('onay_zincir_yok', dil) }}"{% endif %}>
+                  {{ t('onaya_gonder', dil) }}
                 </button>
                 <button type="submit" formaction="/tahmin/disa-aktar" formmethod="post"
                         id="disa-aktar-butonu" class="btn btn-outline-primary btn-sm"

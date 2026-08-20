@@ -300,6 +300,14 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     if yeni.get("sure_birimi") not in SAAT_CARPANLARI:
         yeni["sure_birimi"] = "saat"
         yeni["sure_miktar"] = 730
+    try:
+        yeni["adet"] = max(1, int(float(yeni.get("adet", 1))))
+    except (TypeError, ValueError):
+        yeni["adet"] = 1
+    try:
+        yeni["sure_miktar"] = max(0.0, float(yeni.get("sure_miktar", 730) or 0))
+    except (TypeError, ValueError):
+        yeni["sure_miktar"] = 730.0
     if yeni.get("fiyatlandirma_modeli") not in FIYATLANDIRMA_MODELLERI:
         yeni["fiyatlandirma_modeli"] = "payg"
 

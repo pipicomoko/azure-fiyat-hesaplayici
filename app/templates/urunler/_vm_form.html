@@ -22,6 +22,13 @@
         {% if fiyat %}
         <div class="text-muted small">{{ fiyat.aylik_toplam | yillik | para(para_birimi) }} / {{ t('yillik_maliyet', dil) | lower }}</div>
         {% endif %}
+        <div class="mt-2 text-start">
+          <label class="form-label small mb-0">{{ t('indirim_yuzdesi', dil) }}</label>
+          <input type="number" min="0" max="100" step="0.1" class="form-control form-control-sm"
+                 name="{{ kalem_id }}.indirim_yuzdesi" placeholder="%"
+                 value="{{ yapilandirma.indirim_yuzdesi if yapilandirma.indirim_yuzdesi is defined and yapilandirma.indirim_yuzdesi is not none else '' }}"
+                 onchange="event.stopPropagation()">
+        </div>
       </div>
     </div>
 

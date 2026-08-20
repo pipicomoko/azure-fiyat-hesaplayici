@@ -62,6 +62,8 @@ class DisaAktarimSatiri:
     servis_kategori: str = ""
     ozel_ad: str = ""
     on_odeme: float = 0.0
+    indirim_yuzdesi: float | None = None
+    indirimli_aylik: float | None = None
 
 
 @dataclass

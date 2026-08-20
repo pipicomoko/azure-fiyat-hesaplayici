@@ -10,14 +10,14 @@ _ORNEK_CALISAN = {
     "kullanici_adi": "zeynep.kara",
     "ad_soyad": "Zeynep Kara",
     "unvan": "IK Uzmani",
-    "gruplar": ["Calisanlar"],
+    "gruplar": ["AFH-Calisanlar"],
 }
 
 _ORNEK_ADMIN = {
-    "kullanici_adi": "can.aydin",
-    "ad_soyad": "Can Aydin",
+    "kullanici_adi": "asli.demirtas",
+    "ad_soyad": "Asli Demirtas",
     "unvan": "Sistem Yoneticisi",
-    "gruplar": ["Adminler", "Calisanlar"],
+    "gruplar": ["AFH-Adminler"],
 }
 
 
@@ -52,6 +52,20 @@ def test_dogru_bilgilerle_giris_tahmine_yonlendirir(monkeypatch):
 
     assert yanit.status_code == 303
     assert yanit.headers["location"] == "/tahmin"
+
+
+def test_admin_giris_aktiviteye_yonlendirir(monkeypatch):
+    """Admin hesaplama.kullan yetkisine sahip degildir; /tahmin yerine audit sayfasina gider."""
+    monkeypatch.setattr(giris_modulu, "giris_dogrula", lambda k, s: _ORNEK_ADMIN)
+
+    yanit = client.post(
+        "/giris",
+        data={"kullanici_adi": "asli.demirtas", "sifre": "herhangi"},
+        follow_redirects=False,
+    )
+
+    assert yanit.status_code == 303
+    assert yanit.headers["location"] == "/admin/aktivite"
 
 
 def test_yanlis_bilgilerle_giris_reddedilir(monkeypatch):
@@ -129,7 +143,7 @@ def test_uc_kullanici_ayni_anda_bagimsiz_oturum_acar(monkeypatch):
             "kullanici_adi": kullanici_adi,
             "ad_soyad": kullanici_adi,
             "unvan": "",
-            "gruplar": ["Calisanlar"],
+            "gruplar": ["AFH-Calisanlar"],
         }
 
     monkeypatch.setattr(giris_modulu, "giris_dogrula", sahte_dogrula)

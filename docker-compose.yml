@@ -1,6 +1,7 @@
 services:
   app:
     build: .
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:
       - "8000:8000"
     environment:
@@ -13,13 +14,12 @@ services:
       LDAP_ARAMA_TABANI: ${LDAP_ARAMA_TABANI:-DC=sirket,DC=local}
       LDAP_TLS_MODU: ${LDAP_TLS_MODU:-ldaps}
       LDAP_CA_SERTIFIKA_DOSYASI: ${LDAP_CA_SERTIFIKA_DOSYASI:-config/ad-ca.pem}
+      GENEL_MUDUR_SAM: ${GENEL_MUDUR_SAM:-ahmet.yildirim}
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      - "dc01.sirket.local:192.168.56.10"
-      - "DC01:192.168.56.10"
-      - "sirket.local:192.168.56.10"
+      samba:
+        condition: service_started
     volumes:
       - ./app:/app/app
       - ./config:/app/config
@@ -46,6 +46,38 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
 
+  # Samba AD LDS (LDAPS :636). Windows VM parkta; gelistirme dizini burasi.
+  samba:
+    image: smblds/smblds:latest
+    hostname: dc01
+    environment:
+      TZ: Europe/Istanbul
+      REALM: ${SAMBA_REALM:-SIRKET.LOCAL}
+      DOMAIN: ${SAMBA_DOMAIN:-SIRKET}
+      ADMINPASS: ${SAMBA_ADMINPASS:-Passw0rd!}
+      INSECURE_LDAP: "false"
+    volumes:
+      - samba_data:/var/lib/samba
+      - ./config/samba-seed:/entrypoint.d:ro
+    ports:
+      - "127.0.0.1:636:636"
+      - "127.0.0.1:389:389"
+    networks:
+      default:
+        aliases:
+          - dc01.sirket.local
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "LDAPTLS_REQCERT=never ldapsearch -x -H ldaps://127.0.0.1:636 -D 'CN=Administrator,CN=Users,DC=sirket,DC=local' -w \"$$ADMINPASS\" -b 'DC=sirket,DC=local' -s base '(objectClass=*)' dn >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 180s
+
   # Istege bagli internet tuneli. Cloudflare hesabi + domain + tunnel token gerekir.
   # Calistirma: docker compose --profile tunnel up -d
   tunnel:
@@ -60,3 +92,4 @@ services:
 
 volumes:
   postgres_data:
+  samba_data:

@@ -127,15 +127,22 @@ async def _rezervasyon_kaydini_bul(bolge: str, sku: str, terim: str, para_birimi
     return adaylar[0] if adaylar else None
 
 
+def _pozitif_sayi(deger, varsayilan: float = 0.0) -> float:
+    try:
+        return float(deger)
+    except (TypeError, ValueError):
+        return varsayilan
+
+
 async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[FiyatKalemi]:
     bolge = yapilandirma["bolge"]
     sku = yapilandirma.get("sku")
     if not sku:
         raise FiyatBulunamadiHatasi()
 
-    adet = max(1, int(yapilandirma.get("adet", 1)))
+    adet = max(1, int(_pozitif_sayi(yapilandirma.get("adet", 1), 1)))
     carpan = SAAT_CARPANLARI.get(yapilandirma.get("sure_birimi", "saat"), 1)
-    toplam_saat = max(0.0, float(yapilandirma.get("sure_miktar", 730) or 0)) * carpan
+    toplam_saat = max(0.0, _pozitif_sayi(yapilandirma.get("sure_miktar", 730), 730)) * carpan
     fiyatlandirma_modeli = yapilandirma.get("fiyatlandirma_modeli", "payg")
     isletim_sistemi = yapilandirma.get("isletim_sistemi", "linux")
     yazilim_tipi = yapilandirma.get("yazilim_tipi", "ubuntu")
@@ -230,7 +237,7 @@ async def fiyatla(yapilandirma: dict, para_birimi: str) -> FiyatSonucu:
     kalemler = list(await _compute_ve_os_fiyatla(yapilandirma, para_birimi))
 
     disk_yapilandirma = yapilandirma.get("disk") or {}
-    if int(disk_yapilandirma.get("adet", 0) or 0) > 0:
+    if int(_pozitif_sayi(disk_yapilandirma.get("adet", 0), 0)) > 0:
         disk_sonucu = await disk_fiyatlama.fiyatla(disk_yapilandirma, para_birimi)
         kalemler.extend(disk_sonucu.kalemler)
 

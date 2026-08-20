@@ -1,0 +1,56 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('nav_onay', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<section class="hero-panel mb-4">
+  <div class="hero-panel-body">
+    <div>
+      <span class="hero-eyebrow">{{ t('nav_onay', dil) }}</span>
+      <h1 class="hero-title mb-2">{{ t('onay_baslik', dil) }}</h1>
+      <p class="hero-text mb-0">{{ t('onay_aciklama', dil) }}</p>
+    </div>
+  </div>
+</section>
+
+{% if bekleyenler %}
+<section class="section-card">
+  <div class="section-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0">
+        <thead>
+          <tr>
+            <th>{{ t('ad', dil) }}</th>
+            <th>{{ t('olusturan', dil) }}</th>
+            <th>{{ t('tarih', dil) }}</th>
+            <th>{{ t('toplam_aylik', dil) }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in bekleyenler %}
+          <tr>
+            <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
+            <td>{{ h.olusturan_ad_soyad or h.olusturan_kullanici_adi }}</td>
+            <td>{{ (h.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>{{ h.toplam_aylik_maliyet | para(h.para_birimi) }}</td>
+            <td class="text-end">
+              <form action="/onay/{{ h.id }}/onayla" method="post" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-success">{{ t('onayla', dil) }}</button>
+              </form>
+              <form action="/onay/{{ h.id }}/reddet" method="post" class="d-inline-flex gap-1 align-items-center">
+                <input type="text" name="gerekce" class="form-control form-control-sm" placeholder="{{ t('gerekce', dil) }}" style="max-width:10rem">
+                <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('reddet', dil) }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% else %}
+<p class="text-muted">{{ t('onay_bos', dil) }}</p>
+{% endif %}
+{% endblock %}

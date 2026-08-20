@@ -59,13 +59,13 @@ class VirtualMachinesUrunu:
         """
         from app.products.virtual_machines.secenekler import (
             _sku_goruntu_adi, _govdeyi_ayristir, seri_kategorisi,
-            tahmini_ram_gib, fiyatlandirma_modeli_adi, sure_birimi_adi,
+            tahmini_ram_gib, fiyatlandirma_modeli_adi,
             SAAT_CARPANLARI, _BILINEN_SKU_BOYUTLARI,
         )
         sku = yapilandirma.get("sku") or ""
-        adet = int(yapilandirma.get("adet", 1))
+        adet = max(1, int(_sayiya_cevir(yapilandirma.get("adet", 1)) or 1))
         sure_birimi = yapilandirma.get("sure_birimi", "ay")
-        sure_miktar = yapilandirma.get("sure_miktar", 730)
+        sure_miktar = _sayiya_cevir(yapilandirma.get("sure_miktar", 730)) or 730
         fm = fiyatlandirma_modeli_adi(yapilandirma.get("fiyatlandirma_modeli", "payg"), "en")
         isletim = yapilandirma.get("isletim_sistemi", "linux").capitalize()
 

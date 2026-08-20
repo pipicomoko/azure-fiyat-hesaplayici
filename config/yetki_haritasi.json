@@ -1,11 +1,16 @@
 {
-  "_aciklama": "Active Directory grup adi -> uygulama izinleri eslemesi. Bu dosyayi degistirerek (veya YETKI_HARITASI_DOSYASI ortam degiskeniyle baska bir dosya belirterek) hangi AD grubunun hangi izne sahip oldugunu, kod degistirmeden yapilandirabilirsiniz. Degisiklikler yeniden baslatma gerekmeden bir sonraki istekte etkin olur.",
+  "_aciklama": "AD grubu -> uygulama izinleri. AFH-* gruplari spesifikasyon 1.4 ile eslenir. Degisiklikler yeniden baslatma gerekmeden sonraki istekte etkin olur.",
   "_izinler": {
     "hesaplama.kullan": "Tahmin calisma alanini kullanma, urun ekleme/duzenleme, disa aktarma",
-    "gecmis.yonetici_gor": "Tum departmanlarin gecmis tahminlerini goruntuleme (yonetici)",
-    "gecmis.departman_gor": "Kendi departmanindaki calisanlarin gecmis tahminlerini goruntuleme (mudur)"
+    "gecmis.yonetici_gor": "Manager zincirindeki onaylanmis/iptal kayitlari (yonetici)",
+    "gecmis.direktor_gor": "Departman gorunumu + manager zinciri (direktor)",
+    "gecmis.admin_gor": "Tum kayitlar (admin; taslaklar haric)",
+    "onay.islem": "Onay kuyrugu: onayla/reddet",
+    "rapor.gor": "Onaylanmis kayit raporlari",
+    "audit.gor": "Aktivite gunlugu (admin)"
   },
-  "Yoneticiler": ["hesaplama.kullan", "gecmis.yonetici_gor"],
-  "Mudurler": ["hesaplama.kullan", "gecmis.departman_gor"],
-  "Calisanlar": ["hesaplama.kullan"]
+  "AFH-Adminler": ["gecmis.admin_gor", "rapor.gor", "audit.gor"],
+  "AFH-Direktorler": ["hesaplama.kullan", "gecmis.direktor_gor", "gecmis.yonetici_gor", "onay.islem", "rapor.gor"],
+  "AFH-Yoneticiler": ["hesaplama.kullan", "gecmis.yonetici_gor", "onay.islem", "rapor.gor"],
+  "AFH-Calisanlar": ["hesaplama.kullan"]
 }

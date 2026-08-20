@@ -4,26 +4,16 @@ from typing import Optional
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
+# Hesaplama durum makinesi (spesifikasyon §2)
+DURUM_TASLAK = "taslak"
+DURUM_ONAY_BEKLIYOR = "onay_bekliyor"
+DURUM_ONAYLANDI = "onaylandi"
+DURUM_IPTAL_EDILDI = "iptal_edildi"
+# Reddedilince kayit tekrar taslak olur; red gerekcesi ve revizyon artar.
+
 
 class Hesaplama(SQLModel, table=True):
-    """Bir maliyet tahmini (senaryo). Birden fazla kalemden olusur.
-
-    Ornek: "Web sunucusu - Ocak teklifi" adiyla kaydedilen, icinde bir VM ve
-    bir disk kalemi bulunan tahmin.
-
-    `olusturan_kullanici_adi`: kullanicinin sadece kendi kayitlarini
-    gorebilmesi/silebilmesi icin BILINCLI olarak saklanan AD kullanici adi
-    (kullaniciyla birlikte netlestirilmis, "asla kullanici adi saklama"
-    varsayilan kuralinin bu tek alan icin gevsetilmesi). Sifre/kimlik bilgisi
-    HICBIR ZAMAN saklanmaz; bu kural degismedi.
-
-    `olusturan_gruplar`: admin gecmis ekraninda kayitlari IT/HR gibi
-    organizasyonel basliklar altinda duzenleyebilmek icin, kaydetme anindaki
-    AD grup snapshot'i.
-
-    `olusturan_departman`: erisim kontrolu ve admin gruplamasinda kullanilan
-    departman anahtari (it, hr, diger).
-    """
+    """Bir maliyet tahmini (senaryo). Onay akisi ve rol bazli gorunurluk destekler."""
 
     __tablename__ = "hesaplamalar"
 
@@ -40,6 +30,16 @@ class Hesaplama(SQLModel, table=True):
     olusturan_unvan: Optional[str] = Field(default=None)
     olusturan_ad_soyad: Optional[str] = Field(default=None)
 
+    durum: str = Field(default=DURUM_TASLAK, index=True)
+    revizyon: int = Field(default=1)
+    onay_hedefi: Optional[str] = Field(default=None, index=True)
+    onaylayan_kullanici_adi: Optional[str] = Field(default=None)
+    onay_tarihi: Optional[datetime] = Field(default=None)
+    red_gerekce: Optional[str] = Field(default=None)
+    iptal_gerekce: Optional[str] = Field(default=None)
+    # Manager zinciri anlik goruntusu (onaya gonderildiginde)
+    olusturan_manager_zinciri: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+
     kalemler: list["HesaplamaKalemi"] = Relationship(
         back_populates="hesaplama",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -47,15 +47,7 @@ class Hesaplama(SQLModel, table=True):
 
 
 class HesaplamaKalemi(SQLModel, table=True):
-    """Bir tahmin icindeki tek bir urun kalemi (bir VM ya da bir disk).
-
-    `yapilandirma`, ilgili urun modulunun (app/products/...) yapilandirma
-    sozlugudur; `fiyat_kalemleri` ise kaydetme anindaki fiyat dokumunun
-    (Compute, OS, Depolama, Islemler, Bant genisligi gibi bilesenlerin)
-    JSON snapshot'idir. Fiyat, kaydetme aninda hesaplanip donmus haliyle
-    saklanir; Microsoft fiyatlari sonradan degisse bile bu kayit degismez
-    (gecmisle karsilastirma ozelligi bu sayede anlamli kalir).
-    """
+    """Tahmin icindeki tek urun kalemi; opsiyonel indirim yuzdesi tutar."""
 
     __tablename__ = "hesaplama_kalemleri"
 
@@ -65,8 +57,25 @@ class HesaplamaKalemi(SQLModel, table=True):
     urun_tipi: str
     ozet: str
     aylik_maliyet: float
+    indirim_yuzdesi: Optional[float] = Field(default=None)
+    indirimli_aylik_maliyet: Optional[float] = Field(default=None)
 
     yapilandirma: dict = Field(default_factory=dict, sa_column=Column(JSON))
     fiyat_kalemleri: list = Field(default_factory=list, sa_column=Column(JSON))
 
     hesaplama: Optional[Hesaplama] = Relationship(back_populates="kalemler")
+
+
+class AktiviteKaydi(SQLModel, table=True):
+    """Audit log: kim ne zaman onayladi/reddetti/iptal etti."""
+
+    __tablename__ = "aktivite_kayitlari"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    olusturulma_tarihi: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), index=True
+    )
+    aktor_kullanici_adi: str = Field(index=True)
+    islem: str = Field(index=True)
+    hesaplama_id: Optional[int] = Field(default=None, index=True)
+    detay: Optional[str] = Field(default=None)

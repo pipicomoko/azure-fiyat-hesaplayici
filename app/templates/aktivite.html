@@ -1,0 +1,46 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('nav_aktivite', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<section class="hero-panel mb-4">
+  <div class="hero-panel-body">
+    <div>
+      <span class="hero-eyebrow">Admin</span>
+      <h1 class="hero-title mb-2">{{ t('aktivite_baslik', dil) }}</h1>
+      <p class="hero-text mb-0">{{ t('aktivite_aciklama', dil) }}</p>
+    </div>
+  </div>
+</section>
+
+<section class="section-card">
+  <div class="section-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0">
+        <thead>
+          <tr>
+            <th>{{ t('tarih', dil) }}</th>
+            <th>{{ t('aktor', dil) }}</th>
+            <th>{{ t('islem', dil) }}</th>
+            <th>ID</th>
+            <th>{{ t('detay', dil) }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for k in kayitlar %}
+          <tr>
+            <td>{{ (k.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>{{ k.aktor_kullanici_adi }}</td>
+            <td>{{ k.islem }}</td>
+            <td>{% if k.hesaplama_id %}<a href="/gecmis/{{ k.hesaplama_id }}">{{ k.hesaplama_id }}</a>{% endif %}</td>
+            <td>{{ k.detay or "" }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-muted p-3">{{ t('aktivite_bos', dil) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}

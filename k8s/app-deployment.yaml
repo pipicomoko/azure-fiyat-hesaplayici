@@ -1,0 +1,49 @@
+# AFH uygulama imaji (GitOps iskeleti — urun stabil olduktan sonra genisletilir)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: afh-app
+  labels:
+    app: afh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: afh
+  template:
+    metadata:
+      labels:
+        app: afh
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/OWNER/azure-fiyat-hesaplayici:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: APP_ENV
+              value: production
+            - name: LDAP_TLS_MODU
+              value: ldaps
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: afh-secrets
+                  key: database-url
+          readinessProbe:
+            httpGet:
+              path: /saglik
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: afh-app
+spec:
+  selector:
+    app: afh
+  ports:
+    - port: 80
+      targetPort: 8000

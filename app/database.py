@@ -10,37 +10,47 @@ DATABASE_URL = os.getenv(
 engine = create_engine(DATABASE_URL, echo=False)
 
 
-def veritabanini_olustur() -> None:
-    """Tablolari (yoksa) olusturur. Uygulama baslangicinda cagrilir."""
-    SQLModel.metadata.create_all(engine)
+def _pg() -> bool:
+    return engine.dialect.name == "postgresql"
+
+
+def _ekle_sutun(tablo: str, sutun: str, tip_pg: str, tip_diger: str = "TEXT") -> None:
     denetleyici = inspect(engine)
-    sutunlar = {sutun["name"] for sutun in denetleyici.get_columns("hesaplamalar")}
-    if "olusturan_gruplar" not in sutunlar:
-        with engine.begin() as baglanti:
-            baglanti.execute(
-                text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_gruplar JSON DEFAULT '[]'::json")
-            )
-    sutunlar = {sutun["name"] for sutun in denetleyici.get_columns("hesaplamalar")}
-    if "olusturan_departman" not in sutunlar:
-        with engine.begin() as baglanti:
-            if engine.dialect.name == "postgresql":
-                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_departman VARCHAR"))
-            else:
-                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_departman TEXT"))
-    sutunlar = {sutun["name"] for sutun in denetleyici.get_columns("hesaplamalar")}
-    if "olusturan_unvan" not in sutunlar:
-        with engine.begin() as baglanti:
-            if engine.dialect.name == "postgresql":
-                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_unvan VARCHAR"))
-            else:
-                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_unvan TEXT"))
-    sutunlar = {sutun["name"] for sutun in denetleyici.get_columns("hesaplamalar")}
-    if "olusturan_ad_soyad" not in sutunlar:
-        with engine.begin() as baglanti:
-            if engine.dialect.name == "postgresql":
-                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_ad_soyad VARCHAR"))
-            else:
-                baglanti.execute(text("ALTER TABLE hesaplamalar ADD COLUMN olusturan_ad_soyad TEXT"))
+    if tablo not in denetleyici.get_table_names():
+        return
+    mevcut = {s["name"] for s in denetleyici.get_columns(tablo)}
+    if sutun in mevcut:
+        return
+    tip = tip_pg if _pg() else tip_diger
+    with engine.begin() as baglanti:
+        baglanti.execute(text(f"ALTER TABLE {tablo} ADD COLUMN {sutun} {tip}"))
+
+
+def veritabanini_olustur() -> None:
+    """Tablolari (yoksa) olusturur; eksik sutunlari ekler."""
+    import app.models  # noqa: F401 — metadata kaydi
+
+    SQLModel.metadata.create_all(engine)
+
+    _ekle_sutun("hesaplamalar", "olusturan_gruplar", "JSON DEFAULT '[]'::json", "TEXT DEFAULT '[]'")
+    _ekle_sutun("hesaplamalar", "olusturan_departman", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "olusturan_unvan", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "olusturan_ad_soyad", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "durum", "VARCHAR DEFAULT 'taslak'", "TEXT DEFAULT 'taslak'")
+    _ekle_sutun("hesaplamalar", "revizyon", "INTEGER DEFAULT 1", "INTEGER DEFAULT 1")
+    _ekle_sutun("hesaplamalar", "onay_hedefi", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "onaylayan_kullanici_adi", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "onay_tarihi", "TIMESTAMP")
+    _ekle_sutun("hesaplamalar", "red_gerekce", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "iptal_gerekce", "VARCHAR")
+    _ekle_sutun(
+        "hesaplamalar",
+        "olusturan_manager_zinciri",
+        "JSON DEFAULT '[]'::json",
+        "TEXT DEFAULT '[]'",
+    )
+    _ekle_sutun("hesaplama_kalemleri", "indirim_yuzdesi", "DOUBLE PRECISION", "REAL")
+    _ekle_sutun("hesaplama_kalemleri", "indirimli_aylik_maliyet", "DOUBLE PRECISION", "REAL")
 
 
 def _eksik_departmanlari_doldur() -> None:
@@ -62,7 +72,6 @@ def _eksik_departmanlari_doldur() -> None:
             guncellendi = True
         if guncellendi:
             oturum.commit()
-    _eksik_departmanlari_doldur()
 
 
 def oturum_al():

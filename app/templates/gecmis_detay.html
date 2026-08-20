@@ -12,15 +12,31 @@
         {{ t('gecmis_detay_aciklama', dil) }}
         <span class="d-block mt-2">
           {{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}
-          {% if hesaplama.olusturan_kullanici_adi and gecmis_gorunumu in ('yonetici', 'departman') %}
+          {% if hesaplama.olusturan_kullanici_adi and gecmis_gorunumu in ('yonetici', 'direktor', 'admin', 'departman') %}
           &middot; {{ t('olusturan', dil) }}: {{ hesaplama.olusturan_kullanici_adi }}
           {% endif %}
+          &middot; {{ t('durum', dil) }}: {{ t('durum_' + gorunen_durum, dil) if gorunen_durum else (hesaplama.durum or 'taslak') }}
+          {% if hesaplama.revizyon %}&middot; Rev {{ hesaplama.revizyon }}{% endif %}
         </span>
+        {% if hesaplama.red_gerekce %}
+        <span class="d-block mt-1 text-danger">{{ t('red_gerekce', dil) }}: {{ hesaplama.red_gerekce }}</span>
+        {% endif %}
       </p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       <a href="/gecmis" class="btn btn-outline-secondary btn-sm">{{ t('geri', dil) }}</a>
+      {% if duzenleyebilir %}
+      <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-primary btn-sm">
+        {{ t('duzenle_tekrar_gonder', dil) if gorunen_durum == 'reddedildi' else t('duzenle', dil) }}
+      </a>
+      {% endif %}
       <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-outline-secondary btn-sm">↓ Excel</a>
+      {% if iptal_edebilir %}
+      <form action="/gecmis/{{ hesaplama.id }}/iptal" method="post" class="d-inline-flex gap-1">
+        <input type="text" name="gerekce" class="form-control form-control-sm" placeholder="{{ t('gerekce', dil) }}">
+        <button type="submit" class="btn btn-outline-warning btn-sm">{{ t('iptal_et', dil) }}</button>
+      </form>
+      {% endif %}
       {% if (hesaplama.olusturan_kullanici_adi or '')|lower == (kullanici.kullanici_adi or '')|lower %}
       <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
             onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
@@ -49,9 +65,19 @@
         </ul>
       </div>
       <div class="text-end">
-        <div class="fw-bold">{{ kalem.aylik_maliyet | para(hesaplama.para_birimi) }}</div>
+        <div class="fw-bold">
+          {% if kalem.indirimli_aylik_maliyet is not none %}
+          {{ kalem.indirimli_aylik_maliyet | para(hesaplama.para_birimi) }}
+          <div class="small text-muted text-decoration-line-through">{{ kalem.aylik_maliyet | para(hesaplama.para_birimi) }}</div>
+          {% else %}
+          {{ kalem.aylik_maliyet | para(hesaplama.para_birimi) }}
+          {% endif %}
+        </div>
         <small class="text-muted">{{ t('tahmin_aylik_maliyet', dil) | lower }}</small>
-        <div class="text-muted small">{{ kalem.aylik_maliyet | yillik | para(hesaplama.para_birimi) }} / {{ t('yillik_maliyet', dil) | lower }}</div>
+        {% if kalem.indirim_yuzdesi is not none %}
+        <div class="small">−{{ kalem.indirim_yuzdesi }}%</div>
+        {% endif %}
+        <div class="text-muted small">{{ (kalem.indirimli_aylik_maliyet if kalem.indirimli_aylik_maliyet is not none else kalem.aylik_maliyet) | yillik | para(hesaplama.para_birimi) }} / {{ t('yillik_maliyet', dil) | lower }}</div>
       </div>
     </div>
 

@@ -24,7 +24,6 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.database import oturum_al
@@ -46,12 +45,13 @@ from app.yetkilendirme import (
     IZIN_HESAPLAMA_KULLAN,
     departman_etiketi,
     gecmis_erisim_kapsami,
+    gecmis_goruntule_gerekli,
     gruplardan_departman_belirle,
     hesaplama_departmani,
+    hesaplama_gorunen_durum,
     hesaplamaya_erisebilir_mi,
+    hesaplamayi_duzenleyebilir_mi,
     hesaplamayi_silebilir_mi,
-    kullanicinin_departmanlari,
-    kullanicinin_yonettigi_departmanlar,
     yetki_gerekli,
 )
 
@@ -77,6 +77,8 @@ async def _fiyatla_guvenli(urun: UrunModulu, yapilandirma: dict, para_birimi: st
         return None, t("fiyat_bulunamadi", dil)
     except FiyatApiHatasi:
         return None, t("fiyat_servisi_erisilemez", dil)
+    except (TypeError, ValueError):
+        return None, t("fiyat_bulunamadi", dil)
 
 
 async def _kalemi_coz(kalem_id: str, ham_yapilandirma: dict, para_birimi: str, dil: Dil) -> _KalemSonucu | None:
@@ -122,15 +124,60 @@ def _kalem_baglami(kalem_id: str, sonuc: _KalemSonucu, para_birimi: str, dil: Di
 
 
 @router.get("")
-async def tahmin_sayfasi(request: Request, kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN))):
+async def tahmin_sayfasi(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+):
+    dil = istekten_dil_al(request)
+    para_birimi = VARSAYILAN_PARA_BIRIMI
+    kalem_sonuclari: list[tuple[str, _KalemSonucu]] = []
+    hesaplama_adi = ""
+    duzenlenen_id: int | None = None
+    red_gerekce = None
+
+    ham_id = request.query_params.get("hesaplama_id")
+    if ham_id:
+        try:
+            hesaplama_id = int(ham_id)
+        except ValueError:
+            hesaplama_id = None
+        if hesaplama_id is not None:
+            hesaplama = oturum.get(Hesaplama, hesaplama_id)
+            if hesaplama is None or not hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama):
+                return HTMLResponse(t("gecmis_yalnizca_sahibi_erisebilir", dil), status_code=403)
+            duzenlenen_id = hesaplama.id
+            hesaplama_adi = hesaplama.ad or ""
+            para_birimi = guvenli_para_birimi(hesaplama.para_birimi)
+            red_gerekce = hesaplama.red_gerekce
+            for kayitli in hesaplama.kalemler or []:
+                kalem_id = uuid.uuid4().hex
+                ham = dict(kayitli.yapilandirma or {})
+                ham["urun_tipi"] = kayitli.urun_tipi
+                if kayitli.indirim_yuzdesi is not None:
+                    ham["indirim_yuzdesi"] = kayitli.indirim_yuzdesi
+                sonuc = await _kalemi_coz(kalem_id, ham, para_birimi, dil)
+                if sonuc is None:
+                    continue
+                if kayitli.indirim_yuzdesi is not None:
+                    sonuc.yapilandirma = {
+                        **sonuc.yapilandirma,
+                        "indirim_yuzdesi": kayitli.indirim_yuzdesi,
+                    }
+                kalem_sonuclari.append((kalem_id, sonuc))
+
     return render(
         request,
         "tahmin.html",
         {
             "urunler": list(KAYITLI_URUNLER.values()),
             "para_birimleri": PARA_BIRIMLERI,
-            "para_birimi": VARSAYILAN_PARA_BIRIMI,
+            "para_birimi": para_birimi,
             "tahmin_modu": True,
+            "kalem_sonuclari": kalem_sonuclari,
+            "hesaplama_adi": hesaplama_adi,
+            "duzenlenen_hesaplama_id": duzenlenen_id,
+            "red_gerekce": red_gerekce,
         },
     )
 
@@ -225,8 +272,16 @@ async def tahmin_kaydet(
     if not kalem_sonuclari or any(k.hata for k in kalem_sonuclari):
         return HTMLResponse(f'<div class="alert alert-danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
 
+    onaya_gonder = (genel.get("onaya_gonder") or "").lower() in {"1", "true", "evet", "on"}
+    onay_hedefi = (genel.get("onay_hedefi") or "").strip().lower() or None
+
+    if onaya_gonder and not onay_hedefi:
+        return HTMLResponse(
+            f'<div class="alert alert-danger">{t("onay_hedefi_gerekli", dil)}</div>',
+            status_code=400,
+        )
+
     departman_anahtari = kullanici.get("departman")
-    # "diger" veya None ise unvandan türetmeyi dene
     if (not departman_anahtari or departman_anahtari == "diger") and kullanici.get("unvan"):
         from app.yetkilendirme import _departman_anahtari_etiketten_turetilir as _dep_turet
         turetilen = _dep_turet(kullanici["unvan"])
@@ -234,27 +289,88 @@ async def tahmin_kaydet(
             departman_anahtari = turetilen
     if not departman_anahtari or departman_anahtari == "diger":
         departman_anahtari, _ = gruplardan_departman_belirle(kullanici.get("gruplar"))
-    hesaplama = Hesaplama(
-        ad=hesaplama_adi,
-        para_birimi=para_birimi,
-        toplam_aylik_maliyet=0.0,
-        olusturan_kullanici_adi=kullanici["kullanici_adi"],
-        olusturan_gruplar=list(kullanici.get("gruplar", [])),
-        olusturan_departman=departman_anahtari,
-        olusturan_unvan=kullanici.get("unvan") or "",
-        olusturan_ad_soyad=kullanici.get("ad_soyad") or kullanici.get("kullanici_adi") or "",
-    )
-    oturum.add(hesaplama)
-    oturum.flush()
+
+    from app.models import DURUM_ONAY_BEKLIYOR, DURUM_TASLAK
+    from app.yetkilendirme import oturum_manager_zincirini_genislet
+
+    zincir = oturum_manager_zincirini_genislet(kullanici)
+    if onaya_gonder and onay_hedefi and onay_hedefi not in zincir:
+        zincir = [onay_hedefi] + [z for z in zincir if z != onay_hedefi]
+
+    durum = DURUM_ONAY_BEKLIYOR if (onaya_gonder and onay_hedefi) else DURUM_TASLAK
+
+    duzenlenen_id = None
+    ham_id = (genel.get("hesaplama_id") or "").strip()
+    if ham_id:
+        try:
+            duzenlenen_id = int(ham_id)
+        except ValueError:
+            duzenlenen_id = None
+
+    hesaplama: Hesaplama | None = None
+    if duzenlenen_id is not None:
+        hesaplama = oturum.get(Hesaplama, duzenlenen_id)
+        if hesaplama is None or not hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama):
+            return HTMLResponse(
+                f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>',
+                status_code=403,
+            )
+        # Eski kalemleri sil, ust kaydi guncelle
+        for eski in list(hesaplama.kalemler or []):
+            oturum.delete(eski)
+        hesaplama.ad = hesaplama_adi
+        hesaplama.para_birimi = para_birimi
+        hesaplama.olusturan_gruplar = list(kullanici.get("gruplar", []))
+        hesaplama.olusturan_departman = departman_anahtari
+        hesaplama.olusturan_unvan = kullanici.get("unvan") or ""
+        hesaplama.olusturan_ad_soyad = kullanici.get("ad_soyad") or kullanici.get("kullanici_adi") or ""
+        hesaplama.durum = durum
+        hesaplama.onay_hedefi = onay_hedefi if durum == DURUM_ONAY_BEKLIYOR else None
+        hesaplama.olusturan_manager_zinciri = zincir
+        hesaplama.red_gerekce = None
+        if durum == DURUM_ONAY_BEKLIYOR:
+            hesaplama.onaylayan_kullanici_adi = None
+            hesaplama.onay_tarihi = None
+    else:
+        hesaplama = Hesaplama(
+            ad=hesaplama_adi,
+            para_birimi=para_birimi,
+            toplam_aylik_maliyet=0.0,
+            olusturan_kullanici_adi=kullanici["kullanici_adi"],
+            olusturan_gruplar=list(kullanici.get("gruplar", [])),
+            olusturan_departman=departman_anahtari,
+            olusturan_unvan=kullanici.get("unvan") or "",
+            olusturan_ad_soyad=kullanici.get("ad_soyad") or kullanici.get("kullanici_adi") or "",
+            durum=durum,
+            revizyon=1,
+            onay_hedefi=onay_hedefi if durum == DURUM_ONAY_BEKLIYOR else None,
+            olusturan_manager_zinciri=zincir,
+        )
+        oturum.add(hesaplama)
+        oturum.flush()
 
     toplam = 0.0
     for k in kalem_sonuclari:
-        toplam += k.fiyat.aylik_toplam
+        ham = kalemler_ham.get(k.kalem_id) or {}
+        indirim = None
+        try:
+            raw = ham.get("indirim_yuzdesi")
+            if raw not in (None, ""):
+                indirim = max(0.0, min(100.0, float(raw)))
+        except (TypeError, ValueError):
+            indirim = None
+
+        aylik = float(k.fiyat.aylik_toplam)
+        indirimli = round(aylik * (1 - indirim / 100.0), 4) if indirim is not None else None
+        katilan = indirimli if indirimli is not None else aylik
+        toplam += katilan
         kalem = HesaplamaKalemi(
             hesaplama_id=hesaplama.id,
             urun_tipi=k.urun_tipi,
             ozet=k.urun.ozet(k.yapilandirma, dil),
-            aylik_maliyet=k.fiyat.aylik_toplam,
+            aylik_maliyet=aylik,
+            indirim_yuzdesi=indirim,
+            indirimli_aylik_maliyet=indirimli,
             yapilandirma=k.yapilandirma,
             fiyat_kalemleri=[vars(kalem_kaydi) for kalem_kaydi in k.fiyat.kalemler],
         )
@@ -264,12 +380,15 @@ async def tahmin_kaydet(
     oturum.add(hesaplama)
     oturum.commit()
 
-    return HTMLResponse(
+    # HTMX: basarili kayittan sonra gecmise yonlendir (kaydin gorundugunu dogrula)
+    yanit = HTMLResponse(
         f'<a href="/gecmis" class="kaydet-basari-banner">'
         f'<span class="kaydet-basari-icon">✓</span>'
         f'<span>"{hesaplama_adi}" {t("kaydet_basarili", dil)}</span>'
         f'</a>'
     )
+    yanit.headers["HX-Redirect"] = "/gecmis"
+    return yanit
 
 
 @router.post("/disa-aktar")
@@ -312,46 +431,35 @@ gecmis_router = APIRouter()
 async def gecmis_listesi(
     request: Request,
     oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
 ):
-    sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
     kapsam = gecmis_erisim_kapsami(kullanici)
-    if kapsam == "kendi":
-        sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
-        hesaplamalar = oturum.exec(sorgu).all()
-    elif kapsam == "departman":
-        departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
-        if departmanlar:
-            sorgu = sorgu.where(
-                or_(
-                    Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
-                    Hesaplama.olusturan_departman.in_(departmanlar),
-                )
-            )
-        else:
-            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
-        hesaplamalar = [
-            hesaplama
-            for hesaplama in oturum.exec(sorgu).all()
-            if hesaplamaya_erisebilir_mi(kullanici, hesaplama)
-        ]
-    else:
-        # yonetici — tum kayitlar
-        hesaplamalar = oturum.exec(sorgu).all()
+    tum = oturum.exec(select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())).all()
+    hesaplamalar = [h for h in tum if hesaplamaya_erisebilir_mi(kullanici, h)]
 
     kullanici_adi_lower = (kullanici.get("kullanici_adi") or "").lower()
     personal_hesaplamalar = [
         h for h in hesaplamalar
         if (h.olusturan_kullanici_adi or "").lower() == kullanici_adi_lower
     ]
+    # Taslak: hic onaya gitmemis (red gerekcesi yok)
+    taslak_hesaplamalar = [
+        h for h in personal_hesaplamalar
+        if hesaplama_gorunen_durum(h) == "taslak"
+    ]
+    # Gonderilenler: onay surecinde / bitmis / reddedilmis
+    gonderilen_hesaplamalar = [
+        h for h in personal_hesaplamalar
+        if hesaplama_gorunen_durum(h) != "taslak"
+    ]
     arama_hesaplamalari = [
         h for h in hesaplamalar
         if (h.olusturan_kullanici_adi or "").lower() != kullanici_adi_lower
     ]
 
-    # Yonetici icin departman listesi dropdown icin
+    # Yonetici/direktor/admin icin departman listesi dropdown
     departman_listesi: list[dict] = []
-    if kapsam == "yonetici":
+    if kapsam in ("yonetici", "direktor", "admin"):
         dep_anahtarlari: set[str] = set()
         for h in arama_hesaplamalari:
             dep = hesaplama_departmani(h.olusturan_gruplar, h.olusturan_departman)
@@ -368,6 +476,8 @@ async def gecmis_listesi(
         {
             "hesaplamalar": hesaplamalar,
             "personal_hesaplamalar": personal_hesaplamalar,
+            "taslak_hesaplamalar": taslak_hesaplamalar,
+            "gonderilen_hesaplamalar": gonderilen_hesaplamalar,
             "arama_hesaplamalari": arama_hesaplamalari,
             "departman_listesi": departman_listesi,
             "gecmis_gorunumu": kapsam,
@@ -380,7 +490,7 @@ async def gecmis_detay(
     hesaplama_id: int,
     request: Request,
     oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
 ):
     dil = istekten_dil_al(request)
     hesaplama = oturum.get(Hesaplama, hesaplama_id)
@@ -391,10 +501,18 @@ async def gecmis_detay(
             f'<div class="alert alert-danger">{t("gecmis_yalnizca_sahibi_erisebilir", dil)}</div>', status_code=403
         )
 
+    from app.yetkilendirme import hesaplamayi_iptal_edebilir_mi
+
     return render(
         request,
         "gecmis_detay.html",
-        {"hesaplama": hesaplama, "gecmis_gorunumu": gecmis_erisim_kapsami(kullanici)},
+        {
+            "hesaplama": hesaplama,
+            "gecmis_gorunumu": gecmis_erisim_kapsami(kullanici),
+            "iptal_edebilir": hesaplamayi_iptal_edebilir_mi(kullanici, hesaplama),
+            "duzenleyebilir": hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama),
+            "gorunen_durum": hesaplama_gorunen_durum(hesaplama),
+        },
     )
 
 
@@ -408,15 +526,23 @@ async def gecmis_detay_excel(
     hesaplama_id: int,
     request: Request,
     oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
 ):
     dil = istekten_dil_al(request)
     hesaplama = oturum.get(Hesaplama, hesaplama_id)
     if hesaplama is None or not hesaplamaya_erisebilir_mi(kullanici, hesaplama):
         return HTMLResponse(f'<div class="alert alert-danger">{t("gecmis_bulunamadi", dil)}</div>', status_code=404)
     satirlar, toplam = _hesaplamadan_satirlar(hesaplama, dil)
+    from app.disa_aktar import hesaplama_meta_olustur
+
     try:
-        icerik = calisma_kitabi_olustur(satirlar, toplam, hesaplama.para_birimi, dil)
+        icerik = calisma_kitabi_olustur(
+            satirlar,
+            toplam,
+            hesaplama.para_birimi,
+            dil,
+            meta=hesaplama_meta_olustur(hesaplama),
+        )
     except TahminBosHatasi:
         return HTMLResponse(f'<div class="alert alert-danger">{t("disa_aktar_bos_hata", dil)}</div>', status_code=400)
     dosya_adi = f"azure-tahmin-{hesaplama.ad}-{hesaplama.olusturulma_tarihi.strftime('%Y%m%d')}.xlsx"
@@ -431,42 +557,28 @@ async def gecmis_detay_excel(
 async def gecmis_tumu_excel(
     request: Request,
     oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
 ):
     """Kullanicinin gorebilecegi tum hesaplamalari tek bir Excel dosyasina aktarir."""
     dil = istekten_dil_al(request)
-    from sqlalchemy import or_
-    from app.yetkilendirme import gecmis_erisim_kapsami, kullanicinin_yonettigi_departmanlar
-
-    kapsam = gecmis_erisim_kapsami(kullanici)
-    sorgu = select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())
-    if kapsam == "kendi":
-        sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
-        hesaplamalar = oturum.exec(sorgu).all()
-    elif kapsam == "departman":
-        departmanlar = list(kullanicinin_yonettigi_departmanlar(kullanici))
-        if departmanlar:
-            sorgu = sorgu.where(or_(
-                Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"],
-                Hesaplama.olusturan_departman.in_(departmanlar),
-            ))
-        else:
-            sorgu = sorgu.where(Hesaplama.olusturan_kullanici_adi == kullanici["kullanici_adi"])
-        hesaplamalar = [h for h in oturum.exec(sorgu).all() if hesaplamaya_erisebilir_mi(kullanici, h)]
-    else:
-        hesaplamalar = oturum.exec(sorgu).all()
-
+    from app.disa_aktar import hesaplama_meta_olustur
     from openpyxl import load_workbook
-    from openpyxl.styles import Font
-    from openpyxl.utils import get_column_letter
 
-    # Her hesaplama için Azure formatında ayrı sayfa
+    tum = oturum.exec(select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())).all()
+    hesaplamalar = [h for h in tum if hesaplamaya_erisebilir_mi(kullanici, h)]
+
     kitap = None
     for hesaplama in hesaplamalar:
         satirlar, toplam = _hesaplamadan_satirlar(hesaplama, dil)
         if not satirlar:
             continue
-        icerik = calisma_kitabi_olustur(satirlar, toplam, hesaplama.para_birimi, dil)
+        icerik = calisma_kitabi_olustur(
+            satirlar,
+            toplam,
+            hesaplama.para_birimi,
+            dil,
+            meta=hesaplama_meta_olustur(hesaplama),
+        )
         tek_kitap = load_workbook(io.BytesIO(icerik))
         if kitap is None:
             kitap = tek_kitap
@@ -474,7 +586,6 @@ async def gecmis_tumu_excel(
             kitap.active.title = sayfa_adi
         else:
             sayfa_adi = (hesaplama.ad or str(hesaplama.id))[:31]
-            # Sayfa adı çakışmasını önle
             mevcut = set(kitap.sheetnames)
             temel = sayfa_adi
             i = 2
@@ -496,10 +607,6 @@ async def gecmis_tumu_excel(
         kitap = Workbook()
         kitap.active.title = "Bos"
 
-    # Eski kod değişken kullanımını uyumlu kıl
-    if not kitap.sheetnames:
-        kitap.create_sheet("Bos")
-
     arabellek = io.BytesIO()
     kitap.save(arabellek)
     dosya_adi = f"azure-tahminler-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
@@ -515,7 +622,7 @@ async def gecmis_sil(
     hesaplama_id: int,
     request: Request,
     oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
 ):
     dil = istekten_dil_al(request)
     hesaplama = oturum.get(Hesaplama, hesaplama_id)

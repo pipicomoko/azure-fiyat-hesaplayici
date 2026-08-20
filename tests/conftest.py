@@ -11,7 +11,10 @@ _TEST_KULLANICISI = {
     "kullanici_adi": "test.kullanici",
     "ad_soyad": "Test Kullanici",
     "unvan": "Test Unvani",
-    "gruplar": ["Calisanlar"],
+    "gruplar": ["AFH-Calisanlar"],
+    "manager": "onur.simsek",
+    "manager_zinciri": ["onur.simsek", "emre.turan", "baris.kocak"],
+    "rol": "calisan",
 }
 
 

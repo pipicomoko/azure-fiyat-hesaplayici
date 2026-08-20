@@ -13,7 +13,7 @@
       <span class="badge bg-secondary ms-1" id="personalSekmeSayac">{{ personal_hesaplamalar|length }}</span>
     </button>
   </li>
-  {% if gecmis_gorunumu in ('yonetici', 'departman') %}
+  {% if gecmis_gorunumu in ('yonetici', 'direktor', 'admin', 'departman') %}
   <li class="nav-item" role="presentation">
     <button class="nav-link" id="search-tab" data-bs-toggle="tab"
             data-bs-target="#search-panel" type="button" role="tab"
@@ -31,7 +31,6 @@
   <div class="tab-pane fade show active" id="personal-panel" role="tabpanel" aria-labelledby="personal-tab">
     {% if personal_hesaplamalar %}
 
-    {# Tarih araligi filtresi #}
     <div class="gecmis-search-toolbar mb-3">
       <label class="gecmis-tarih-alani">
         <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
@@ -46,18 +45,20 @@
       </button>
     </div>
 
-    <section class="section-card">
+    {# Taslaklar #}
+    <section class="section-card mb-4">
       <div class="section-card-header">
         <div class="d-flex align-items-center gap-2">
-          <span class="gecmis-grup-badge gecmis-grup-badge-personal">Personal</span>
+          <span class="gecmis-grup-badge gecmis-grup-badge-personal">{{ t('gecmis_taslaklar', dil) }}</span>
           <span class="section-subtitle mb-0">
-            <span id="personalSayac">{{ personal_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
+            <span id="taslakSayac">{{ taslak_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
           </span>
         </div>
       </div>
       <div class="section-card-body p-0">
+        {% if taslak_hesaplamalar %}
         <div class="table-responsive">
-          <table class="table table-sm align-middle app-table mb-0" id="gecmisPersonalTablosu">
+          <table class="table table-sm align-middle app-table mb-0" id="gecmisTaslakTablosu">
             <thead>
               <tr>
                 <th>{{ t('ad', dil) }}</th>
@@ -69,7 +70,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for hesaplama in personal_hesaplamalar %}
+              {% for hesaplama in taslak_hesaplamalar %}
               <tr data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
                 <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
                 <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
@@ -78,6 +79,7 @@
                 <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
                 <td>
                   <div class="d-flex gap-1 justify-content-end">
+                    <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">{{ t('duzenle', dil) }}</a>
                     <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
                     <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
                           onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
@@ -90,6 +92,93 @@
             </tbody>
           </table>
         </div>
+        {% else %}
+        <p class="empty-state mb-0 p-3">{{ t('gecmis_taslak_bos', dil) }}</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {# Gonderilenler #}
+    <section class="section-card">
+      <div class="section-card-header">
+        <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between w-100">
+          <div class="d-flex align-items-center gap-2">
+            <span class="gecmis-grup-badge">{{ t('gecmis_gonderilenler', dil) }}</span>
+            <span class="section-subtitle mb-0">
+              <span id="gonderilenSayac">{{ gonderilen_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
+            </span>
+          </div>
+          <select id="gonderilenDurumFiltre" class="form-select form-select-sm" style="max-width:12rem">
+            <option value="">{{ t('gecmis_tum_durumlar', dil) }}</option>
+            <option value="onay_bekliyor">{{ t('durum_onay_bekliyor', dil) }}</option>
+            <option value="onaylandi">{{ t('durum_onaylandi', dil) }}</option>
+            <option value="reddedildi">{{ t('durum_reddedildi', dil) }}</option>
+            <option value="iptal_edildi">{{ t('durum_iptal_edildi', dil) }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="section-card-body p-0">
+        {% if gonderilen_hesaplamalar %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle app-table mb-0" id="gecmisGonderilenTablosu">
+            <thead>
+              <tr>
+                <th>{{ t('ad', dil) }}</th>
+                <th>{{ t('durum', dil) }}</th>
+                <th>{{ t('tarih', dil) }}</th>
+                <th>{{ t('kalem_sayisi', dil) }}</th>
+                <th>{{ t('toplam_aylik', dil) }}</th>
+                <th>{{ t('toplam_yillik', dil) }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for hesaplama in gonderilen_hesaplamalar %}
+              {% set gd = hesaplama|gorunen_durum %}
+              <tr data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}"
+                  data-durum="{{ gd }}">
+                <td>
+                  <a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a>
+                  {% if hesaplama.red_gerekce %}
+                  <div class="small text-danger">{{ hesaplama.red_gerekce }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge {% if gd == 'onaylandi' %}bg-success{% elif gd == 'reddedildi' %}bg-danger{% elif gd == 'onay_bekliyor' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                    {{ t('durum_' + gd, dil) if gd else gd }}
+                  </span>
+                </td>
+                <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+                <td>{{ hesaplama.kalemler|length }}</td>
+                <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
+                <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
+                <td>
+                  <div class="d-flex gap-1 justify-content-end">
+                    {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
+                    <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">
+                      {{ t('duzenle_tekrar_gonder', dil) if gd == 'reddedildi' else t('duzenle', dil) }}
+                    </a>
+                    {% endif %}
+                    <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+                    {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
+                    <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
+                          onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p id="gecmisGonderilenSonucYok" class="empty-state mt-0 p-3" style="display:none;">
+          {{ t('gecmis_filtre_sonuc_yok', dil) }}
+        </p>
+        {% else %}
+        <p class="empty-state mb-0 p-3">{{ t('gecmis_gonderilen_bos', dil) }}</p>
+        {% endif %}
       </div>
     </section>
     <p id="gecmisPersonalSonucYok" class="empty-state mt-3" style="display:none;">
@@ -105,7 +194,7 @@
   </div>
 
   {# ── Search sekmesi (yönetici ve müdür) ── #}
-  {% if gecmis_gorunumu in ('yonetici', 'departman') %}
+  {% if gecmis_gorunumu in ('yonetici', 'direktor', 'admin', 'departman') %}
   <div class="tab-pane fade" id="search-panel" role="tabpanel" aria-labelledby="search-tab">
 
     {# Filtre araçları #}
@@ -141,6 +230,7 @@
             <thead>
               <tr>
                 <th>{{ t('ad', dil) }}</th>
+                <th>{{ t('durum', dil) }}</th>
                 <th>{{ t('tarih', dil) }}</th>
                 <th>{{ t('olusturan', dil) }}</th>
                 <th>{{ t('gecmis_unvan', dil) }}</th>
@@ -158,6 +248,7 @@
                   data-ad-soyad="{{ (hesaplama.olusturan_ad_soyad or '')|lower }}"
                   data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
                 <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+                <td><span class="badge bg-secondary">{{ t('durum_' + (hesaplama|gorunen_durum), dil) }}</span></td>
                 <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
                 <td class="text-muted small">{{ hesaplama.olusturan_ad_soyad or hesaplama.olusturan_kullanici_adi or '-' }}</td>
                 <td class="text-muted small">{{ hesaplama.olusturan_unvan or '-' }}</td>
@@ -191,14 +282,12 @@
 
 <script>
 (function () {
-  // Tarihler data-tarih icinde YYYY-MM-DD olarak durur; <input type="date">
-  // de ayni bicimi verdigi icin metin karsilastirmasi kronolojik siralamayla
-  // ayni sonucu verir.
   function filtreKur(ayar) {
     var tablo = document.getElementById(ayar.tablo);
     if (!tablo) return;
     var dep = document.getElementById(ayar.departman);
     var isim = document.getElementById(ayar.isim);
+    var durum = document.getElementById(ayar.durum);
     var baslangic = document.getElementById(ayar.baslangic);
     var bitis = document.getElementById(ayar.bitis);
     var temizle = document.getElementById(ayar.temizle);
@@ -210,6 +299,7 @@
     function filtrele() {
       var depDeger = dep ? dep.value.toLowerCase() : '';
       var isimDeger = isim ? isim.value.toLowerCase().trim() : '';
+      var durumDeger = durum ? durum.value : '';
       var baslangicDeger = baslangic ? baslangic.value : '';
       var bitisDeger = bitis ? bitis.value : '';
       var gorunen = 0;
@@ -217,12 +307,14 @@
       tablo.querySelectorAll('tbody tr').forEach(function (satir) {
         var satirDep = (satir.dataset.dep || '').toLowerCase();
         var satirTarih = satir.dataset.tarih || '';
+        var satirDurum = satir.dataset.durum || '';
         var kimlik = [satir.dataset.kullanici, satir.dataset.adSoyad]
           .filter(Boolean).join(' ').toLowerCase();
 
         var goster =
           (!depDeger || satirDep === depDeger) &&
           (!isimDeger || kimlik.indexOf(isimDeger) !== -1) &&
+          (!durumDeger || satirDurum === durumDeger) &&
           (!baslangicDeger || satirTarih >= baslangicDeger) &&
           (!bitisDeger || satirTarih <= bitisDeger);
 
@@ -232,30 +324,82 @@
 
       if (bosMesaj) bosMesaj.style.display = gorunen === 0 ? '' : 'none';
       sayaclar.forEach(function (alan) { alan.textContent = gorunen; });
+      if (typeof ayar.onFiltre === 'function') ayar.onFiltre();
     }
 
     if (dep) dep.addEventListener('change', filtrele);
     if (isim) isim.addEventListener('input', filtrele);
+    if (durum) durum.addEventListener('change', filtrele);
     if (baslangic) baslangic.addEventListener('change', filtrele);
     if (bitis) bitis.addEventListener('change', filtrele);
     if (temizle) {
       temizle.addEventListener('click', function () {
-        [dep, isim, baslangic, bitis].forEach(function (alan) {
+        [dep, isim, durum, baslangic, bitis].forEach(function (alan) {
           if (alan) alan.value = '';
         });
         filtrele();
       });
     }
+    return filtrele;
   }
 
-  filtreKur({
-    tablo: 'gecmisPersonalTablosu',
-    baslangic: 'personalTarihBaslangic',
-    bitis: 'personalTarihBitis',
-    temizle: 'personalFiltreTemizle',
-    bosMesaj: 'gecmisPersonalSonucYok',
-    sayaclar: ['personalSayac', 'personalSekmeSayac'],
-  });
+  function personalFiltreKur() {
+    var taslak = document.getElementById('gecmisTaslakTablosu');
+    var gonder = document.getElementById('gecmisGonderilenTablosu');
+    if (!taslak && !gonder) return;
+    var durum = document.getElementById('gonderilenDurumFiltre');
+    var baslangic = document.getElementById('personalTarihBaslangic');
+    var bitis = document.getElementById('personalTarihBitis');
+    var temizle = document.getElementById('personalFiltreTemizle');
+
+    function satirSay(tablo, durumFiltre) {
+      var n = 0;
+      if (!tablo) return 0;
+      var bas = baslangic ? baslangic.value : '';
+      var bit = bitis ? bitis.value : '';
+      tablo.querySelectorAll('tbody tr').forEach(function (satir) {
+        var tarih = satir.dataset.tarih || '';
+        var sd = satir.dataset.durum || '';
+        var goster =
+          (!durumFiltre || sd === durumFiltre) &&
+          (!bas || tarih >= bas) &&
+          (!bit || tarih <= bit);
+        satir.style.display = goster ? '' : 'none';
+        if (goster) n++;
+      });
+      return n;
+    }
+
+    function filtrele() {
+      var durumDeger = durum ? durum.value : '';
+      var t1 = satirSay(taslak, '');
+      var t2 = satirSay(gonder, durumDeger);
+      var taslakSayac = document.getElementById('taslakSayac');
+      var gonderilenSayac = document.getElementById('gonderilenSayac');
+      var sekme = document.getElementById('personalSekmeSayac');
+      if (taslakSayac) taslakSayac.textContent = t1;
+      if (gonderilenSayac) gonderilenSayac.textContent = t2;
+      if (sekme) sekme.textContent = t1 + t2;
+      var gBos = document.getElementById('gecmisGonderilenSonucYok');
+      if (gBos && gonder) gBos.style.display = t2 === 0 ? '' : 'none';
+      var pBos = document.getElementById('gecmisPersonalSonucYok');
+      if (pBos) pBos.style.display = (t1 + t2) === 0 ? '' : 'none';
+    }
+
+    if (durum) durum.addEventListener('change', filtrele);
+    if (baslangic) baslangic.addEventListener('change', filtrele);
+    if (bitis) bitis.addEventListener('change', filtrele);
+    if (temizle) {
+      temizle.addEventListener('click', function () {
+        if (durum) durum.value = '';
+        if (baslangic) baslangic.value = '';
+        if (bitis) bitis.value = '';
+        filtrele();
+      });
+    }
+  }
+
+  personalFiltreKur();
 
   filtreKur({
     tablo: 'gecmisAramaTablosu',

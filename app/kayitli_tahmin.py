@@ -65,28 +65,37 @@ def kalem_satirlari(
     Urun modulu bulunamazsa kayitli ozete dayanan tek satirla geri duser.
     """
     urun = urun_al(kalem.urun_tipi or "")
+    satirlar: list[DisaAktarimSatiri] = []
     if urun is not None:
         try:
-            return urun.disa_aktarim_satirlari(
+            satirlar = urun.disa_aktarim_satirlari(
                 kalem.yapilandirma or {}, fiyat_sonucu(kalem, para_birimi), dil
             )
         except Exception:
-            pass
-    aylik = float(kalem.aylik_maliyet or 0)
-    return [
-        DisaAktarimSatiri(
-            servis_kategori="Other",
-            urun=kalem.urun_tipi or "",
-            ozel_ad="",
-            bolge=(kalem.yapilandirma or {}).get("bolge", ""),
-            yapilandirma_ozeti=kalem.ozet or "",
-            miktar=aylik,
-            birim="month",
-            birim_fiyat=aylik,
-            ara_toplam=aylik,
-            on_odeme=0.0,
-        )
-    ]
+            satirlar = []
+    if not satirlar:
+        aylik = float(kalem.aylik_maliyet or 0)
+        satirlar = [
+            DisaAktarimSatiri(
+                servis_kategori="Other",
+                urun=kalem.urun_tipi or "",
+                ozel_ad="",
+                bolge=(kalem.yapilandirma or {}).get("bolge", ""),
+                yapilandirma_ozeti=kalem.ozet or "",
+                miktar=aylik,
+                birim="month",
+                birim_fiyat=aylik,
+                ara_toplam=aylik,
+                on_odeme=0.0,
+            )
+        ]
+    indirim = getattr(kalem, "indirim_yuzdesi", None)
+    indirimli = getattr(kalem, "indirimli_aylik_maliyet", None)
+    if indirim is not None:
+        for s in satirlar:
+            s.indirim_yuzdesi = float(indirim)
+            s.indirimli_aylik = float(indirimli) if indirimli is not None else None
+    return satirlar
 
 
 def kalem_aciklamasi(kalem, para_birimi: str = "USD", dil: Dil = "en") -> str:

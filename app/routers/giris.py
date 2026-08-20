@@ -4,15 +4,16 @@ from starlette.concurrency import run_in_threadpool
 
 from app.i18n import DIL_COOKIE_ADI, form_alanindan_dil_al, istekten_dil_al, t
 from app.sablonlar import render
-from app.yetkilendirme import LdapTlsHatasi, giris_dogrula
+from app.yetkilendirme import LdapTlsHatasi, giris_dogrula, giris_sonrasi_yol
 
 router = APIRouter()
 
 
 @router.get("/giris")
 async def giris_ekrani(request: Request):
-    if request.session.get("kullanici"):
-        return RedirectResponse("/tahmin", status_code=303)
+    kullanici = request.session.get("kullanici")
+    if kullanici:
+        return RedirectResponse(giris_sonrasi_yol(kullanici), status_code=303)
     return render(request, "giris.html", {"hata": None})
 
 
@@ -40,7 +41,7 @@ async def giris_yap(
         )
 
     request.session["kullanici"] = sonuc
-    return RedirectResponse("/tahmin", status_code=303)
+    return RedirectResponse(giris_sonrasi_yol(sonuc), status_code=303)
 
 
 @router.get("/cikis")

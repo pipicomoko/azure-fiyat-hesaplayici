@@ -7,8 +7,21 @@
     </div>
     {% if kullanici %}
     <div class="app-nav-main">
+      {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') %}
       <a class="btn btn-sm app-nav-link" href="/tahmin">{{ t('nav_tahmin', dil) }}</a>
+      {% endif %}
+      {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') or kullanici_izinli_mi(kullanici, 'gecmis.admin_gor') %}
       <a class="btn btn-sm app-nav-link" href="/gecmis">{{ t('nav_gecmis', dil) }}</a>
+      {% endif %}
+      {% if kullanici_izinli_mi(kullanici, 'onay.islem') %}
+      <a class="btn btn-sm app-nav-link" href="/onay-kuyrugu">{{ t('nav_onay', dil) }}</a>
+      {% endif %}
+      {% if kullanici_izinli_mi(kullanici, 'rapor.gor') %}
+      <a class="btn btn-sm app-nav-link" href="/raporlar">{{ t('nav_raporlar', dil) }}</a>
+      {% endif %}
+      {% if kullanici_izinli_mi(kullanici, 'audit.gor') %}
+      <a class="btn btn-sm app-nav-link" href="/admin/aktivite">{{ t('nav_aktivite', dil) }}</a>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -61,7 +74,7 @@
             <div class="app-user-avatar app-user-avatar-large">{{ ns.initials or 'U' }}</div>
             <div>
               <div class="app-user-name">{{ kullanici.ad_soyad }}</div>
-              <div class="app-user-meta">{{ kullanici.kullanici_adi }}</div>
+              <div class="app-user-meta">{{ kullanici.kullanici_adi }}{% if kullanici.rol %} · {{ kullanici.rol }}{% endif %}</div>
             </div>
           </div>
           <a class="btn btn-sm app-nav-link w-100 justify-content-center" href="/cikis">{{ t('nav_cikis', dil) }}</a>

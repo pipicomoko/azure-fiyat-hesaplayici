@@ -7,8 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import veritabanini_olustur
-from app.routers import giris, tahmin, yonetim
-from app.yetkilendirme import GirisGerekli
+from app.routers import giris, onay, tahmin, yonetim
+from app.yetkilendirme import GirisGerekli, giris_sonrasi_yol
 
 
 @asynccontextmanager
@@ -30,6 +30,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(giris.router)
 app.include_router(tahmin.router)
 app.include_router(tahmin.gecmis_router)
+app.include_router(onay.router)
 app.include_router(yonetim.router)
 
 
@@ -47,6 +48,7 @@ def saglik_kontrolu() -> dict:
 
 @app.get("/")
 async def anasayfa(request: Request):
-    if request.session.get("kullanici"):
-        return RedirectResponse("/tahmin", status_code=303)
+    kullanici = request.session.get("kullanici")
+    if kullanici:
+        return RedirectResponse(giris_sonrasi_yol(kullanici), status_code=303)
     return RedirectResponse("/giris", status_code=303)

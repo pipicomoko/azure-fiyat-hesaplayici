@@ -13,13 +13,20 @@ from fastapi.templating import Jinja2Templates
 
 from app.i18n import istekten_dil_al, t
 from app.kayitli_tahmin import birim_etiketi, kalem_aciklamasi, kalem_bolgesi
-from app.yetkilendirme import hesaplama_departmani, kullanici_izinli_mi
+from app.yetkilendirme import (
+    hesaplama_departmani,
+    hesaplama_gorunen_durum,
+    hesaplamayi_duzenleyebilir_mi,
+    kullanici_izinli_mi,
+)
 from app.zaman import yerel_saate_cevir
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["t"] = t
 templates.env.globals["kullanici_izinli_mi"] = kullanici_izinli_mi
 templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
+templates.env.globals["hesaplama_gorunen_durum"] = hesaplama_gorunen_durum
+templates.env.globals["hesaplamayi_duzenleyebilir_mi"] = hesaplamayi_duzenleyebilir_mi
 templates.env.globals["kalem_aciklamasi"] = kalem_aciklamasi
 templates.env.globals["kalem_bolgesi"] = kalem_bolgesi
 
@@ -63,10 +70,16 @@ templates.env.filters["birim_fiyat"] = _birim_fiyat_bicimlendir
 templates.env.filters["birim"] = birim_etiketi
 templates.env.filters["yillik"] = _yillik
 templates.env.filters["yerel_saat"] = yerel_saate_cevir
+templates.env.filters["gorunen_durum"] = hesaplama_gorunen_durum
 
 
 def render(request: Request, sablon_adi: str, baglam: dict | None = None, durum_kodu: int = 200):
     tam_baglam = dict(baglam or {})
     tam_baglam.setdefault("dil", istekten_dil_al(request))
     tam_baglam.setdefault("kullanici", request.session.get("kullanici"))
+    # Sablon yardimcilari: reload/eski worker senaryolarinda global kaybolmasin
+    tam_baglam.setdefault("hesaplama_gorunen_durum", hesaplama_gorunen_durum)
+    tam_baglam.setdefault("hesaplamayi_duzenleyebilir_mi", hesaplamayi_duzenleyebilir_mi)
+    tam_baglam.setdefault("hesaplama_departmani", hesaplama_departmani)
+    tam_baglam.setdefault("kullanici_izinli_mi", kullanici_izinli_mi)
     return templates.TemplateResponse(request, sablon_adi, tam_baglam, status_code=durum_kodu)

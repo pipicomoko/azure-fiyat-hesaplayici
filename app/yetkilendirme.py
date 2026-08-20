@@ -58,7 +58,20 @@ DEPARTMAN_HARITASI_DOSYASI = Path(os.getenv("DEPARTMAN_HARITASI_DOSYASI") or _VA
 
 IZIN_HESAPLAMA_KULLAN = "hesaplama.kullan"
 IZIN_YONETICI_ERISIM = "gecmis.yonetici_gor"
+IZIN_DIREKTOR_ERISIM = "gecmis.direktor_gor"
+IZIN_ADMIN_ERISIM = "gecmis.admin_gor"
+IZIN_ONAY_ISLEM = "onay.islem"
+IZIN_RAPOR_GOR = "rapor.gor"
+IZIN_AUDIT_GOR = "audit.gor"
+# Eski anahtar (geriye donuk); artik kullanilmiyor ama testler import edebilir
 IZIN_GECMIS_DEPARTMAN = "gecmis.departman_gor"
+
+GENEL_MUDUR_SAM = os.getenv("GENEL_MUDUR_SAM", "ahmet.yildirim").lower()
+
+ROL_ADMIN = "admin"
+ROL_DIREKTOR = "direktor"
+ROL_YONETICI = "yonetici"
+ROL_CALISAN = "calisan"
 
 
 class LdapTlsHatasi(Exception):
@@ -213,32 +226,74 @@ def _departman_anahtari_etiketten_turetilir(deger: str | None) -> str | None:
     return anahtar
 
 
+def _manager_sam_from_dn(manager_dn: str | None) -> str | None:
+    """CN=Ad Soyad,OU=... veya CN=sam.account,... -> sAMAccountName tahmini.
+    Prefer CN when it looks like user.principal; else return None and resolve later."""
+    if not manager_dn:
+        return None
+    ilk = str(manager_dn).split(",")[0]
+    if "=" not in ilk:
+        return None
+    cn = ilk.split("=", 1)[1].strip()
+    if "." in cn and " " not in cn:
+        return cn.lower()
+    # Ad Soyad formundaysa seed --use-username-as-cn kullandiysa CN=sam olur;
+    # aksi halde manager DN'den sam cozumlemesi aramada yapilir.
+    return None
+
+
 def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
     oznitelikler = kayit.entry_attributes_as_dict
     grup_dns = oznitelikler.get("memberOf") or []
     if isinstance(grup_dns, str):
         grup_dns = [grup_dns]
     gruplar = [_grup_adini_cikar(str(dn)) for dn in grup_dns if dn]
-    ad_soyad = kayit.cn.value if getattr(kayit, "cn", None) and kayit.cn.value else kullanici_adi
+    display = None
+    if getattr(kayit, "displayName", None) and kayit.displayName.value:
+        display = kayit.displayName.value
+    ad_soyad = display or (
+        kayit.cn.value if getattr(kayit, "cn", None) and kayit.cn.value else kullanici_adi
+    )
     unvan = kayit.title.value if getattr(kayit, "title", None) and kayit.title.value else ""
+    manager_dn = ""
+    if getattr(kayit, "manager", None) and kayit.manager.value:
+        manager_dn = str(kayit.manager.value)
+    manager_sam = _manager_sam_from_dn(manager_dn)
+    if manager_dn and not manager_sam:
+        # CN=Ad Soyad — sAMAccountName icin CN'deki bosluklari noktali forma cevirmeye calisma;
+        # seed kullanicilari --use-username-as-cn ile olusturulur (CN=sam).
+        manager_sam = _grup_adini_cikar(manager_dn).lower().replace(" ", ".")
     dn = getattr(kayit, "entry_dn", "") or ""
     departman: str | None = None
-    if dn:
-        for parc in str(dn).split(","):
-            if parc.upper().startswith("OU="):
-                ou_adi = parc.split("=", 1)[1].strip()
-                aday = _departman_anahtari_etiketten_turetilir(ou_adi)
-                if aday is not None and aday != "diger":
-                    departman = aday
-                    break
+    # DEPT-* gruplarindan once oku
+    anahtar, _ = gruplardan_departman_belirle(gruplar)
+    if anahtar and anahtar != "diger":
+        departman = anahtar
+    if not departman and dn:
+        # En derin (ilk) anlamli OU — IT alt birimleri once
+        ou_parcalar = [
+            parc.split("=", 1)[1].strip()
+            for parc in str(dn).split(",")
+            if parc.upper().startswith("OU=")
+        ]
+        for ou_adi in ou_parcalar:
+            if ou_adi.lower() in {"kullanicilar", "gruplar", "bagimsizhesaplar", "servishesaplari"}:
+                continue
+            aday = _departman_anahtari_etiketten_turetilir(ou_adi)
+            if aday and aday != "diger":
+                departman = aday
+                break
     if not departman and unvan:
         departman = _departman_anahtari_etiketten_turetilir(unvan)
     return {
-        "kullanici_adi": kullanici_adi,
+        "kullanici_adi": kullanici_adi.lower(),
         "ad_soyad": ad_soyad,
         "unvan": unvan,
         "gruplar": gruplar,
         "departman": departman,
+        "manager": (manager_sam or "").lower() or None,
+        "manager_dn": manager_dn or None,
+        "rol": kullanici_rolu({"gruplar": gruplar}),
     }
 
 
@@ -273,12 +328,30 @@ def _yanittan_kullanici(yanit: list | None, kullanici_adi: str) -> dict | None:
                         break
         if not departman and title:
             departman = _departman_anahtari_etiketten_turetilir(str(title))
+        display = nitelikler.get("displayName") or cn
+        if isinstance(display, list):
+            display = display[0] if display else cn
+        manager_raw = nitelikler.get("manager") or ""
+        if isinstance(manager_raw, list):
+            manager_raw = manager_raw[0] if manager_raw else ""
+        manager_dn = str(manager_raw) if manager_raw else ""
+        manager_sam = _manager_sam_from_dn(manager_dn)
+        if manager_dn and not manager_sam:
+            manager_sam = _grup_adini_cikar(manager_dn).lower().replace(" ", ".")
+        gruplar = [_grup_adini_cikar(str(g)) for g in grup_dns if g]
+        if not departman:
+            anahtar, _ = gruplardan_departman_belirle(gruplar)
+            if anahtar and anahtar != "diger":
+                departman = anahtar
         return {
-            "kullanici_adi": kullanici_adi,
-            "ad_soyad": cn or kullanici_adi,
+            "kullanici_adi": kullanici_adi.lower(),
+            "ad_soyad": display or kullanici_adi,
             "unvan": title or "",
-            "gruplar": [_grup_adini_cikar(str(dn)) for dn in grup_dns if dn],
+            "gruplar": gruplar,
             "departman": departman,
+            "manager": (manager_sam or "").lower() or None,
+            "manager_dn": manager_dn or None,
+            "rol": kullanici_rolu({"gruplar": gruplar}),
         }
     return None
 
@@ -330,14 +403,17 @@ def giris_dogrula(kullanici_adi: str, sifre: str) -> dict | None:
                 f"(userPrincipalName={guvenli_ad}))"
             ),
             search_scope=SUBTREE,
-            attributes=["cn", "title", "memberOf", "sAMAccountName"],
+            attributes=["cn", "displayName", "title", "memberOf", "sAMAccountName", "manager", "department"],
         )
         if baglanti.entries:
-            return _kayittan_kullanici(baglanti.entries[0], kullanici_adi)
+            kullanici = _kayittan_kullanici(baglanti.entries[0], kullanici_adi)
+            kullanici["manager_zinciri"] = _manager_zinciri_yukle(baglanti, kullanici.get("manager"))
+            return kullanici
 
         yanit = arama_sonucu[2] if isinstance(arama_sonucu, tuple) and len(arama_sonucu) >= 3 else None
         kullanici = _yanittan_kullanici(yanit, kullanici_adi)
         if kullanici:
+            kullanici["manager_zinciri"] = _manager_zinciri_yukle(baglanti, kullanici.get("manager"))
             return kullanici
 
         logger.warning("LDAP bind oldu ama kullanici kaydi bulunamadi")
@@ -382,6 +458,19 @@ def kullanicinin_izinleri(kullanici: dict | None) -> set[str]:
 
 def kullanici_izinli_mi(kullanici: dict | None, izin: str) -> bool:
     return izin in kullanicinin_izinleri(kullanici)
+
+
+def giris_sonrasi_yol(kullanici: dict | None) -> str:
+    """Oturum acildiktan sonra kullanicinin yetkisine uygun ilk sayfa."""
+    if kullanici_izinli_mi(kullanici, IZIN_HESAPLAMA_KULLAN):
+        return "/tahmin"
+    if kullanici_izinli_mi(kullanici, IZIN_AUDIT_GOR):
+        return "/admin/aktivite"
+    if kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM):
+        return "/gecmis"
+    if kullanici_izinli_mi(kullanici, IZIN_RAPOR_GOR):
+        return "/raporlar"
+    return "/gecmis"
 
 
 def departman_haritasini_yukle() -> dict:
@@ -485,67 +574,160 @@ def hesaplama_departmani(olusturan_gruplar: list[str] | None, olusturan_departma
     return anahtar
 
 
+def kullanici_rolu(kullanici: dict | None) -> str:
+    """En yuksek yetkiden asagi: admin > direktor > yonetici > calisan."""
+    if kullanici is None:
+        return ROL_CALISAN
+    gruplar = set(kullanici.get("gruplar") or [])
+    if "AFH-Adminler" in gruplar:
+        return ROL_ADMIN
+    if "AFH-Direktorler" in gruplar:
+        return ROL_DIREKTOR
+    if "AFH-Yoneticiler" in gruplar:
+        return ROL_YONETICI
+    # Izin haritasindan da turet (eski grup adlari icin)
+    if kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM):
+        return ROL_ADMIN
+    if kullanici_izinli_mi(kullanici, IZIN_DIREKTOR_ERISIM):
+        return ROL_DIREKTOR
+    if kullanici_izinli_mi(kullanici, IZIN_YONETICI_ERISIM):
+        return ROL_YONETICI
+    return ROL_CALISAN
+
+
+def _manager_zinciri_yukle(baglanti: Connection, baslangic_manager: str | None, max_derinlik: int = 12) -> list[str]:
+    """Acik LDAP baglantisi uzerinden manager zincirini yukari dogru cozer."""
+    zincir: list[str] = []
+    guncel = (baslangic_manager or "").lower().strip()
+    gorulen: set[str] = set()
+    while guncel and guncel not in gorulen and len(zincir) < max_derinlik:
+        gorulen.add(guncel)
+        zincir.append(guncel)
+        guvenli = escape_filter_chars(guncel)
+        try:
+            baglanti.search(
+                search_base=LDAP_ARAMA_TABANI,
+                search_filter=f"(sAMAccountName={guvenli})",
+                search_scope=SUBTREE,
+                attributes=["manager", "sAMAccountName"],
+            )
+        except LDAPException:
+            break
+        if not baglanti.entries:
+            break
+        kayit = baglanti.entries[0]
+        manager_dn = ""
+        if getattr(kayit, "manager", None) and kayit.manager.value:
+            manager_dn = str(kayit.manager.value)
+        guncel = (_manager_sam_from_dn(manager_dn) or "").lower()
+        if manager_dn and not guncel:
+            guncel = _grup_adini_cikar(manager_dn).lower().replace(" ", ".")
+    return zincir
+
+
+def oturum_manager_zincirini_genislet(kullanici: dict) -> list[str]:
+    """Oturumdaki dogrudan manager + bilinen ust zincir (session'da biriktirilir)."""
+    zincir = [str(z).lower() for z in (kullanici.get("manager_zinciri") or []) if z]
+    dogrudan = (kullanici.get("manager") or "").lower()
+    if dogrudan and dogrudan not in zincir:
+        zincir.insert(0, dogrudan)
+    return zincir
+
+
+def departman_basi_mi(kullanici: dict | None) -> bool:
+    """Manager zincirinde dogrudan Genel Mudur'e bagli kisi (spesifikasyon 1.7)."""
+    if kullanici is None:
+        return False
+    return (kullanici.get("manager") or "").lower() == GENEL_MUDUR_SAM
+
+
 def gecmis_erisim_kapsami(kullanici: dict | None) -> str:
-    """yonetici: tum kayitlar | departman: kendi + departman | kendi: yalnizca kendi."""
+    """admin | direktor | yonetici | kendi"""
     if kullanici is None:
         return "kendi"
-    if kullanici_izinli_mi(kullanici, IZIN_YONETICI_ERISIM):
+    rol = kullanici.get("rol") or kullanici_rolu(kullanici)
+    if rol == ROL_ADMIN or kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM):
+        return "admin"
+    if rol == ROL_DIREKTOR or kullanici_izinli_mi(kullanici, IZIN_DIREKTOR_ERISIM):
+        return "direktor"
+    if rol == ROL_YONETICI or kullanici_izinli_mi(kullanici, IZIN_YONETICI_ERISIM):
         return "yonetici"
-    if kullanici_izinli_mi(kullanici, IZIN_GECMIS_DEPARTMAN) and kullanicinin_yonettigi_departmanlar(kullanici):
-        return "departman"
     return "kendi"
 
 
 def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
-    """Gecmis kaydina erisim: yonetici tumunu, mudur departmanini, calisan kendininkini."""
+    """Gorunurluk: sahip her zaman; admin surecte olanlari; yonetici/direktor manager zinciri."""
+    from app.models import DURUM_TASLAK
+
     if kullanici is None:
         return False
 
     kayit_sahibi = (hesaplama.olusturan_kullanici_adi or "").lower()
-    oturum_kullanicisi = (kullanici.get("kullanici_adi") or "").lower()
-    sahip = kayit_sahibi == oturum_kullanicisi
-    if sahip:
+    oturum = (kullanici.get("kullanici_adi") or "").lower()
+    if kayit_sahibi == oturum:
         return True
 
     kapsam = gecmis_erisim_kapsami(kullanici)
-    if kapsam == "yonetici":
-        return True
+    durum = getattr(hesaplama, "durum", None) or DURUM_TASLAK
 
-    if hesaplama.olusturan_kullanici_adi is None:
+    if kapsam == "admin":
+        # Admin taslaklari gormez (kararlar.md)
+        return durum != DURUM_TASLAK
+
+    if kapsam in ("yonetici", "direktor"):
+        # Onaylanmis / iptal / onay bekleyen — taslak degil (altindaki kisilerin)
+        if durum == DURUM_TASLAK:
+            return False
+        zincir = [z.lower() for z in (getattr(hesaplama, "olusturan_manager_zinciri", None) or [])]
+        # Kayit sahibi manager zincirinde oturum kullanicisi var mi?
+        if oturum in zincir:
+            return True
+        # Alternatif: olusturan'in manager'i dogrudan bu kullanici (snapshot yoksa)
         return False
 
-    if kapsam != "departman":
-        return False
+    return False
 
-    kayit_departmani = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman)
-    if kayit_departmani is None:
-        return False
-    if kayit_departmani not in kullanicinin_yonettigi_departmanlar(kullanici):
-        return False
 
-    # Mudur sadece calisanlarin kayitlarini gorebilir; baskalarinin (mudur/yonetici) kayitlarina erisemez.
-    # olusturan_gruplar bos veya bilinmiyorsa guvenli tarafa gec: erisimi reddet.
-    kayit_sahibi_gruplari = set(hesaplama.olusturan_gruplar or [])
-    if not kayit_sahibi_gruplari:
+def hesaplama_gorunen_durum(hesaplama) -> str:
+    """UI durumu: reddedilmis taslaklar 'reddedildi' olarak gosterilir."""
+    from app.models import DURUM_TASLAK
+
+    durum = getattr(hesaplama, "durum", None) or DURUM_TASLAK
+    if durum == DURUM_TASLAK and getattr(hesaplama, "red_gerekce", None):
+        return "reddedildi"
+    return durum
+
+
+def hesaplamayi_duzenleyebilir_mi(kullanici: dict | None, hesaplama) -> bool:
+    """Sahibi, taslak (veya reddedilip taslaga donmus) kaydi duzenleyebilir."""
+    from app.models import DURUM_TASLAK
+
+    if kullanici is None:
         return False
-    harita = yetki_haritasini_yukle()
-    yetkili_gruplar = {
-        grup
-        for grup, izinler in harita.items()
-        if not grup.startswith("_") and (
-            IZIN_YONETICI_ERISIM in izinler or IZIN_GECMIS_DEPARTMAN in izinler
-        )
-    }
-    if kayit_sahibi_gruplari.intersection(yetkili_gruplar):
+    if (hesaplama.olusturan_kullanici_adi or "").lower() != (kullanici.get("kullanici_adi") or "").lower():
         return False
-    return True
+    return (getattr(hesaplama, "durum", DURUM_TASLAK) or DURUM_TASLAK) == DURUM_TASLAK
 
 
 def hesaplamayi_silebilir_mi(kullanici: dict | None, hesaplama) -> bool:
-    """Silme: yalnizca kaydin sahibi silebilir. Hicbir yonetici/admin baskasinin kaydini silemez."""
-    if kullanici is None:
+    """Silme: yalnizca sahibi ve yalnizca taslak/reddedilmis (taslak) kayitlar."""
+    return hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama)
+
+
+def hesaplamayi_iptal_edebilir_mi(kullanici: dict | None, hesaplama) -> bool:
+    """Sadece kaydin departman basi onaylanmis kaydi iptal edebilir."""
+    from app.models import DURUM_ONAYLANDI
+
+    if kullanici is None or not departman_basi_mi(kullanici):
         return False
-    return (hesaplama.olusturan_kullanici_adi or "").lower() == (kullanici.get("kullanici_adi") or "").lower()
+    if getattr(hesaplama, "durum", None) != DURUM_ONAYLANDI:
+        return False
+    # Ayni departman
+    kayit_dep = hesaplama_departmani(
+        getattr(hesaplama, "olusturan_gruplar", None),
+        getattr(hesaplama, "olusturan_departman", None),
+    )
+    return bool(kayit_dep) and kayit_dep in kullanicinin_departmanlari(kullanici)
 
 
 class GirisGerekli(Exception):
@@ -560,16 +742,27 @@ def aktif_kullanici(request: Request) -> dict:
     if kullanici is None:
         raise GirisGerekli()
     guncellendi = False
-    # Kullanıcı adını küçük harfe normalize et (DB'deki kayıtlarla eşleşmesi için)
     if kullanici.get("kullanici_adi") and kullanici["kullanici_adi"] != kullanici["kullanici_adi"].lower():
         kullanici["kullanici_adi"] = kullanici["kullanici_adi"].lower()
         guncellendi = True
-    # Departman eksik veya "diger" ise unvandan türetmeyi dene
     mevcut_dep = kullanici.get("departman")
     if (not mevcut_dep or mevcut_dep == "diger") and kullanici.get("unvan"):
         departman = _departman_anahtari_etiketten_turetilir(kullanici["unvan"])
         if departman and departman != "diger":
             kullanici["departman"] = departman
+            guncellendi = True
+    rol = kullanici_rolu(kullanici)
+    if kullanici.get("rol") != rol:
+        kullanici["rol"] = rol
+        guncellendi = True
+    if not kullanici.get("manager_zinciri"):
+        kullanici["manager_zinciri"] = oturum_manager_zincirini_genislet(kullanici)
+        guncellendi = True
+    else:
+        # Manager alani sonradan geldiyse zinciri tamamla
+        birlesik = oturum_manager_zincirini_genislet(kullanici)
+        if birlesik != list(kullanici.get("manager_zinciri") or []):
+            kullanici["manager_zinciri"] = birlesik
             guncellendi = True
     if guncellendi:
         request.session["kullanici"] = kullanici
@@ -588,3 +781,12 @@ def yetki_gerekli(izin: str):
         return kullanici
 
     return _bagimlilik
+
+
+def gecmis_goruntule_gerekli(kullanici: dict = Depends(aktif_kullanici)) -> dict:
+    """Hesaplama kullanicisi veya admin (salt okunur gecmis) erisebilir."""
+    if kullanici_izinli_mi(kullanici, IZIN_HESAPLAMA_KULLAN) or kullanici_izinli_mi(
+        kullanici, IZIN_ADMIN_ERISIM
+    ):
+        return kullanici
+    raise HTTPException(status_code=403, detail="Bu islem icin yetkiniz yok.")

@@ -1,0 +1,70 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('nav_raporlar', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<section class="hero-panel mb-4">
+  <div class="hero-panel-body">
+    <div>
+      <span class="hero-eyebrow">USD</span>
+      <h1 class="hero-title mb-2">{{ t('rapor_baslik', dil) }}</h1>
+      <p class="hero-text mb-0">{{ t('rapor_aciklama', dil) }}</p>
+    </div>
+    <div>
+      <a class="btn btn-outline-primary btn-sm"
+         href="/raporlar/excel?kisi={{ filtre_kisi }}&birim={{ filtre_birim }}&baslangic={{ filtre_baslangic }}&bitis={{ filtre_bitis }}">
+        {{ t('excel_aktar', dil) }} (B)
+      </a>
+    </div>
+  </div>
+</section>
+
+<form method="get" action="/raporlar" class="gecmis-search-toolbar mb-3">
+  <input type="text" name="kisi" value="{{ filtre_kisi }}" class="form-control form-control-sm" placeholder="{{ t('gecmis_isim_ara', dil) }}">
+  <input type="text" name="birim" value="{{ filtre_birim }}" class="form-control form-control-sm" placeholder="{{ t('birim', dil) }}">
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
+    <input type="date" name="baslangic" value="{{ filtre_baslangic }}" class="form-control form-control-sm">
+  </label>
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
+    <input type="date" name="bitis" value="{{ filtre_bitis }}" class="form-control form-control-sm">
+  </label>
+  <button type="submit" class="btn btn-sm btn-primary">{{ t('ara', dil) }}</button>
+</form>
+
+{% if hesaplamalar %}
+<section class="section-card">
+  <div class="section-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0">
+        <thead>
+          <tr>
+            <th>{{ t('ad', dil) }}</th>
+            <th>{{ t('olusturan', dil) }}</th>
+            <th>{{ t('birim', dil) }}</th>
+            <th>{{ t('toplam_aylik', dil) }}</th>
+            <th>{{ t('onaylayan', dil) }}</th>
+            <th>{{ t('onay_tarihi', dil) }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in hesaplamalar %}
+          <tr>
+            <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
+            <td>{{ h.olusturan_ad_soyad or h.olusturan_kullanici_adi }}</td>
+            <td>{{ h.olusturan_departman or "" }}</td>
+            <td>{{ h.toplam_aylik_maliyet | para('USD') }}</td>
+            <td>{{ h.onaylayan_kullanici_adi or "" }}</td>
+            <td>{% if h.onay_tarihi %}{{ (h.onay_tarihi | yerel_saat).strftime("%d.%m.%Y") }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% else %}
+<p class="text-muted">{{ t('rapor_bos', dil) }}</p>
+{% endif %}
+{% endblock %}
