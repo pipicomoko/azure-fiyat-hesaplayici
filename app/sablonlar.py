@@ -6,6 +6,8 @@ tek yerden kayitli olur -- sablonlardaki gorunurluk kontrolleri ile backend
 bagimliliklari ayni fonksiyonu cagirir (bkz. app/yetkilendirme.py).
 """
 
+from pathlib import Path
+
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
@@ -20,6 +22,25 @@ templates.env.globals["kullanici_izinli_mi"] = kullanici_izinli_mi
 templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
 templates.env.globals["kalem_aciklamasi"] = kalem_aciklamasi
 templates.env.globals["kalem_bolgesi"] = kalem_bolgesi
+
+
+_STATIK_DIZIN = Path("app/static")
+
+
+def statik_surum(dosya_adi: str) -> str:
+    """Statik dosyanin son degisiklik zamanini surum etiketi olarak dondurur.
+
+    Sablonlarda `/static/app.js?v={{ statik_surum('app.js') }}` seklinde
+    kullanilir: dosya degistiginde URL de degisir, boylece tarayici eski
+    kopyayi onbellekten sunmaya devam etmez.
+    """
+    try:
+        return str(int((_STATIK_DIZIN / dosya_adi).stat().st_mtime))
+    except OSError:
+        return "0"
+
+
+templates.env.globals["statik_surum"] = statik_surum
 
 
 def _para_bicimlendir(deger: float, para_birimi: str = "USD") -> str:

@@ -146,6 +146,44 @@ function vmComboSec(comboId, li) {
   combo.querySelector(".vm-combo-dropdown").style.display = "none";
 }
 
+// Arama kutusunun change olayi kartin hx-trigger="change" dinleyicisine
+// ULASMAMALI: metin girisi odagini kaybettiginde tarayici change firlatir,
+// bu da kartin yeniden cizilmesine ve tiklanan secenegin ortadan kalkmasina
+// yol acar (yani arama yapip tiklayinca secim gerceklesmez). Arama kutusunun
+// name'i olmadigi icin form verisine de hicbir katkisi yoktur.
+document.addEventListener(
+  "change",
+  (e) => {
+    if (e.target.classList?.contains("vm-combo-search")) {
+      e.stopPropagation();
+    }
+  },
+  true,
+);
+
+// Arama kutusunda klavye: Enter ilk eslesmeyi secer, Escape kapatir
+document.addEventListener("keydown", (e) => {
+  if (!e.target.classList?.contains("vm-combo-search")) return;
+  const combo = e.target.closest(".vm-combo");
+  if (!combo) return;
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    const dropdown = combo.querySelector(".vm-combo-dropdown");
+    if (dropdown) dropdown.style.display = "none";
+    return;
+  }
+
+  if (e.key === "Enter") {
+    // Formun gonderilmesini engelle
+    e.preventDefault();
+    const ilkEslesme = Array.from(combo.querySelectorAll(".vm-combo-list li")).find(
+      (li) => li.style.display !== "none",
+    );
+    if (ilkEslesme) vmComboSec(combo.id, ilkEslesme);
+  }
+});
+
 // Dışarı tıklayınca combo'ları kapat
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".vm-combo")) {
