@@ -16,11 +16,17 @@ _ORNEK_KAYIT = {
 
 
 class _SahteYanit:
-    def __init__(self, veri):
+    def __init__(self, veri, status_code: int = 200):
         self._veri = veri
+        self.status_code = status_code
 
     def raise_for_status(self):
-        pass
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"HTTP {self.status_code}",
+                request=httpx.Request("GET", "https://prices.azure.com/api/retail/prices"),
+                response=httpx.Response(self.status_code),
+            )
 
     def json(self):
         return self._veri
@@ -107,7 +113,11 @@ def test_kayitlari_getir_429_sonra_yeniden_dener(monkeypatch):
     onbellek_temizle()
     _429SonraOkIstemci.cagri_sayisi = 0
     monkeypatch.setattr(modul.httpx, "AsyncClient", _429SonraOkIstemci)
-    monkeypatch.setattr(modul.asyncio, "sleep", lambda *_a, **_k: asyncio.sleep(0))
+
+    async def _hemen(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(modul.asyncio, "sleep", _hemen)
 
     sonuclar = asyncio.run(kayitlari_getir("serviceName eq 'Virtual Machines'", onbellek_kullan=False))
 

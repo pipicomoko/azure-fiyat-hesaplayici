@@ -24,7 +24,7 @@ _ORNEK_ADMIN = {
 def test_giris_formu_acilir():
     yanit = client.get("/giris")
     assert yanit.status_code == 200
-    assert "Giris Yap" in yanit.text
+    assert "Giriş Yap" in yanit.text or "Sign in" in yanit.text
 
 
 def test_giris_yapmadan_tahmine_giris_sayfasina_yonlendirir():
@@ -77,7 +77,8 @@ def test_yanlis_bilgilerle_giris_reddedilir(monkeypatch):
     )
 
     assert yanit.status_code == 401
-    assert "hatali" in yanit.text
+    metin = yanit.text.casefold()
+    assert "hatal" in metin or "incorrect" in metin
 
 
 def test_ldap_tls_hatasi_yanlis_sifre_gibi_gosterilmez(monkeypatch):

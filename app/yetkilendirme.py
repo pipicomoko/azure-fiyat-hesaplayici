@@ -466,7 +466,9 @@ def kullanici_izinli_mi(kullanici: dict | None, izin: str) -> bool:
 
 def giris_sonrasi_yol(kullanici: dict | None) -> str:
     """Oturum acildiktan sonra kullanicinin yetkisine uygun ilk sayfa."""
-    # Genel mudur / ustu olmayan: ana is onay/arama/rapor
+    if kullanici_izinli_mi(kullanici, IZIN_AUDIT_GOR):
+        return "/admin/aktivite"
+    # Genel mudur / ustu olmayan tahmin kullanicisi: onay/arama/rapor
     if kullanici is not None and ustu_olmayan_mi(kullanici):
         if kullanici_izinli_mi(kullanici, IZIN_ONAY_ISLEM):
             return "/onay-kuyrugu"
@@ -478,8 +480,6 @@ def giris_sonrasi_yol(kullanici: dict | None) -> str:
             return "/raporlar"
     if kullanici_izinli_mi(kullanici, IZIN_HESAPLAMA_KULLAN):
         return "/"
-    if kullanici_izinli_mi(kullanici, IZIN_AUDIT_GOR):
-        return "/admin/aktivite"
     if kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM):
         return "/gecmis/arama"
     if kullanici_izinli_mi(kullanici, IZIN_RAPOR_GOR):
@@ -675,8 +675,13 @@ def oturum_manager_zincirini_genislet(kullanici: dict) -> list[str]:
 
 
 def ustu_olmayan_mi(kullanici: dict | None) -> bool:
-    """Hiyerarside ustu olmayan (or. Genel Mudur): onay akisina gondermez."""
+    """Hiyerarside ustu olmayan tahmin kullanicisi (or. Genel Mudur).
+
+    Admin gibi bagimsiz hesaplar (hesaplama.kullan yok) bu kurala girmez.
+    """
     if kullanici is None:
+        return False
+    if not kullanici_izinli_mi(kullanici, IZIN_HESAPLAMA_KULLAN):
         return False
     sam = (kullanici.get("kullanici_adi") or "").lower()
     if sam and sam == GENEL_MUDUR_SAM:

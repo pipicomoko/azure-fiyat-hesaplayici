@@ -134,7 +134,8 @@ def test_onaya_gonder_hedefsiz_reddedilir(client):
     }
     yanit = client.post("/tahmin/kaydet", data=veri)
     assert yanit.status_code == 400
-    assert "yonetici" in yanit.text.lower() or "approver" in yanit.text.lower() or "sec" in yanit.text.lower()
+    metin = yanit.text.casefold()
+    assert "yonetici" in metin or "yönetici" in metin or "approver" in metin or "seç" in metin or "select" in metin
 
 
 def test_genel_mudur_onaya_gonderemez_sadece_kaydeder(client, veritabani):
