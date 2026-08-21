@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from app.i18n import istekten_dil_al, t
 from app.kayitli_tahmin import birim_etiketi, kalem_aciklamasi, kalem_bolgesi
 from app.yetkilendirme import (
+    departman_basi_mi,
     gecmis_erisim_kapsami,
     genel_mudur_mu,
     hesaplama_departmani,
@@ -30,6 +31,7 @@ templates.env.globals["t"] = t
 templates.env.globals["kullanici_izinli_mi"] = kullanici_izinli_mi
 templates.env.globals["gecmis_erisim_kapsami"] = gecmis_erisim_kapsami
 templates.env.globals["genel_mudur_mu"] = genel_mudur_mu
+templates.env.globals["departman_basi_mi"] = departman_basi_mi
 templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
 templates.env.globals["hesaplama_gorunen_durum"] = hesaplama_gorunen_durum
 templates.env.globals["hesaplamayi_duzenleyebilir_mi"] = hesaplamayi_duzenleyebilir_mi
