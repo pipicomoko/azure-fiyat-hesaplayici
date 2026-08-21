@@ -1,51 +1,50 @@
 function applyTheme(theme) {
-  const resolvedTheme = theme === "dark" ? "dark" : theme === "pink" ? "pink" : "light";
+  const resolvedTheme = theme === "dark" ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", resolvedTheme);
   document.documentElement.setAttribute("data-bs-theme", resolvedTheme);
   localStorage.setItem("theme-preference", resolvedTheme);
 
-  const nextTheme =
-    resolvedTheme === "light" ? "dark" : resolvedTheme === "dark" ? "pink" : "light";
-
   document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
     const label = button.querySelector(".theme-toggle-label");
-    const icon = button.querySelector(".theme-toggle-icon");
     const darkLabel = button.dataset.themeLabelDark || "Dark";
     const lightLabel = button.dataset.themeLabelLight || "Light";
-    const pinkLabel = button.dataset.themeLabelPink || "Pink";
-
-    button.setAttribute("aria-pressed", String(resolvedTheme !== "light"));
+    button.setAttribute("aria-pressed", String(resolvedTheme === "dark"));
     if (label) {
-      label.textContent =
-        nextTheme === "dark"
-          ? darkLabel
-          : nextTheme === "pink"
-            ? pinkLabel
-            : lightLabel;
-    }
-    if (icon) {
-      icon.textContent = nextTheme === "pink" ? "●" : nextTheme === "light" ? "☀" : "◑";
+      label.textContent = resolvedTheme === "light" ? darkLabel : lightLabel;
     }
   });
 }
 
 function initializeThemeToggle() {
   const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
-  applyTheme(currentTheme);
+  applyTheme(currentTheme === "pink" ? "light" : currentTheme);
 
   document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
     if (button.dataset.themeReady === "true") {
       return;
     }
-
     button.addEventListener("click", () => {
       const activeTheme = document.documentElement.getAttribute("data-theme") || "light";
-      const nextTheme =
-        activeTheme === "light" ? "dark" : activeTheme === "dark" ? "pink" : "light";
-      applyTheme(nextTheme);
+      applyTheme(activeTheme === "light" ? "dark" : "light");
     });
     button.dataset.themeReady = "true";
   });
+}
+
+function formatCurrency(amount, currencyCode) {
+  const lang = (document.documentElement.lang || "tr").toLowerCase().startsWith("en")
+    ? "en-US"
+    : "tr-TR";
+  try {
+    return new Intl.NumberFormat(lang, {
+      style: "currency",
+      currency: currencyCode || "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch (_err) {
+    return `${amount.toFixed(2)} ${currencyCode || "USD"}`;
+  }
 }
 
 function syncSummaryTotals() {
@@ -67,20 +66,26 @@ function initializeDetailsState() {
     if (details.dataset.detailsReady === "true") {
       return;
     }
-
     details.addEventListener("toggle", () => {
       const key = details.dataset.detailsKey;
       const container = details.closest(".tahmin-kalemi");
       if (!key || !container) {
         return;
       }
-
       const input = container.querySelector(`[data-details-state-input="${key}"]`);
       if (input) {
         input.value = details.open ? "true" : "false";
       }
     });
     details.dataset.detailsReady = "true";
+  });
+}
+
+function filtreleUrunListesi(query) {
+  const q = (query || "").toLowerCase().trim();
+  document.querySelectorAll("#urun-listesi .product-picker__row").forEach((row) => {
+    const haystack = row.getAttribute("data-urun-adi") || "";
+    row.style.display = !q || haystack.includes(q) ? "" : "none";
   });
 }
 
@@ -98,21 +103,22 @@ document.body.addEventListener("htmx:afterSwap", () => {
 
 document.body.addEventListener("htmx:afterSettle", syncSummaryTotals);
 
-// ── VM Combo (tıklayınca açılan arama dropdown) ───────────────────────────────
 function vmComboToggle(comboId) {
   const combo = document.getElementById(comboId);
   if (!combo) return;
   const dropdown = combo.querySelector(".vm-combo-dropdown");
   const isOpen = dropdown.style.display !== "none";
-  // Diğer açık combo'ları kapat
   document.querySelectorAll(".vm-combo-dropdown").forEach((d) => {
     d.style.display = "none";
   });
   if (!isOpen) {
     dropdown.style.display = "block";
     const search = dropdown.querySelector(".vm-combo-search");
-    if (search) { search.value = ""; vmComboFiltrele(search); search.focus(); }
-    // Seçili öğeye scroll
+    if (search) {
+      search.value = "";
+      vmComboFiltrele(search);
+      search.focus();
+    }
     const secili = dropdown.querySelector("li.selected");
     if (secili) secili.scrollIntoView({ block: "nearest" });
   }
@@ -124,7 +130,7 @@ function vmComboFiltrele(input) {
   const aranan = input.value.toLowerCase().trim();
   dropdown.querySelectorAll("li").forEach((li) => {
     const metni = li.textContent.toLowerCase();
-    li.style.display = (!aranan || metni.includes(aranan)) ? "" : "none";
+    li.style.display = !aranan || metni.includes(aranan) ? "" : "none";
   });
 }
 
@@ -133,24 +139,15 @@ function vmComboSec(comboId, li) {
   if (!combo) return;
   const deger = li.dataset.value;
   const etiket = li.textContent;
-  // Label güncelle
   combo.querySelector(".vm-combo-label").textContent = etiket;
-  // Seçili class
   combo.querySelectorAll("li").forEach((el) => el.classList.remove("selected"));
   li.classList.add("selected");
-  // Hidden select güncelle ve HTMX change tetikle
   const hiddenSelect = combo.querySelector(".vm-combo-hidden");
   hiddenSelect.value = deger;
   hiddenSelect.dispatchEvent(new Event("change", { bubbles: true }));
-  // Dropdown kapat
   combo.querySelector(".vm-combo-dropdown").style.display = "none";
 }
 
-// Arama kutusunun change olayi kartin hx-trigger="change" dinleyicisine
-// ULASMAMALI: metin girisi odagini kaybettiginde tarayici change firlatir,
-// bu da kartin yeniden cizilmesine ve tiklanan secenegin ortadan kalkmasina
-// yol acar (yani arama yapip tiklayinca secim gerceklesmez). Arama kutusunun
-// name'i olmadigi icin form verisine de hicbir katkisi yoktur.
 document.addEventListener(
   "change",
   (e) => {
@@ -161,21 +158,17 @@ document.addEventListener(
   true,
 );
 
-// Arama kutusunda klavye: Enter ilk eslesmeyi secer, Escape kapatir
 document.addEventListener("keydown", (e) => {
   if (!e.target.classList?.contains("vm-combo-search")) return;
   const combo = e.target.closest(".vm-combo");
   if (!combo) return;
-
   if (e.key === "Escape") {
     e.preventDefault();
     const dropdown = combo.querySelector(".vm-combo-dropdown");
     if (dropdown) dropdown.style.display = "none";
     return;
   }
-
   if (e.key === "Enter") {
-    // Formun gonderilmesini engelle
     e.preventDefault();
     const ilkEslesme = Array.from(combo.querySelectorAll(".vm-combo-list li")).find(
       (li) => li.style.display !== "none",
@@ -184,7 +177,6 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// Dışarı tıklayınca combo'ları kapat
 document.addEventListener("click", (e) => {
   if (!e.target.closest(".vm-combo")) {
     document.querySelectorAll(".vm-combo-dropdown").forEach((d) => {

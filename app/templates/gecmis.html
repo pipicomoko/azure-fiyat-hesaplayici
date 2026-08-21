@@ -1,284 +1,276 @@
 {% extends "taban.html" %}
 
-{% block baslik %}{{ t('gecmis_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+{% block baslik %}
+{% if aktif_sekme == 'gonderilenler' %}{{ t('nav_gonderilenler', dil) }}
+{% elif aktif_sekme == 'arama' %}{{ t('nav_arama', dil) }}
+{% elif ustu_yok %}{{ t('nav_tahmin_gecmisi', dil) }}
+{% else %}{{ t('nav_taslaklar', dil) }}
+{% endif %} - {{ t('uygulama_adi', dil) }}
+{% endblock %}
 
 {% block icerik %}
-{# ── Sekme çubuğu ── #}
-<ul class="nav nav-tabs gecmis-tabs mb-4" id="gecmisTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="personal-tab" data-bs-toggle="tab"
-            data-bs-target="#personal-panel" type="button" role="tab"
-            aria-controls="personal-panel" aria-selected="true">
-      Personal
-      <span class="badge bg-secondary ms-1" id="personalSekmeSayac">{{ personal_hesaplamalar|length }}</span>
-    </button>
-  </li>
-  {% if gecmis_gorunumu in ('yonetici', 'direktor', 'admin', 'departman') %}
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="search-tab" data-bs-toggle="tab"
-            data-bs-target="#search-panel" type="button" role="tab"
-            aria-controls="search-panel" aria-selected="false">
-      {{ t('gecmis_arama', dil) }}
-      <span class="badge bg-secondary ms-1" id="aramaSekmeSayac">{{ arama_hesaplamalari|length }}</span>
-    </button>
-  </li>
-  {% endif %}
-</ul>
+{% if aktif_sekme == 'taslaklar' %}
 
-<div class="tab-content" id="gecmisTabsContent">
+<div class="gecmis-search-toolbar mb-3">
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
+    <input type="date" id="personalTarihBaslangic" class="form-control form-control-sm">
+  </label>
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
+    <input type="date" id="personalTarihBitis" class="form-control form-control-sm">
+  </label>
+  <button type="button" id="personalFiltreTemizle" class="btn btn-sm btn-outline-secondary">
+    {{ t('gecmis_filtre_temizle', dil) }}
+  </button>
+</div>
 
-  {# ── Personal sekmesi ── #}
-  <div class="tab-pane fade show active" id="personal-panel" role="tabpanel" aria-labelledby="personal-tab">
-    {% if personal_hesaplamalar %}
-
-    <div class="gecmis-search-toolbar mb-3">
-      <label class="gecmis-tarih-alani">
-        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
-        <input type="date" id="personalTarihBaslangic" class="form-control form-control-sm">
-      </label>
-      <label class="gecmis-tarih-alani">
-        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
-        <input type="date" id="personalTarihBitis" class="form-control form-control-sm">
-      </label>
-      <button type="button" id="personalFiltreTemizle" class="btn btn-sm btn-outline-secondary">
-        {{ t('gecmis_filtre_temizle', dil) }}
-      </button>
+<section class="section-card">
+  <div class="section-card-header">
+    <div class="d-flex align-items-center gap-2">
+      <span class="section-title mb-0">{{ t('gecmis_tahmin_gecmisi', dil) if ustu_yok else t('gecmis_taslaklar', dil) }}</span>
+      <span class="section-subtitle mb-0">
+        <span id="taslakSayac">{{ taslak_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
+      </span>
     </div>
-
-    {# Taslaklar #}
-    <section class="section-card mb-4">
-      <div class="section-card-header">
-        <div class="d-flex align-items-center gap-2">
-          <span class="gecmis-grup-badge gecmis-grup-badge-personal">{{ t('gecmis_taslaklar', dil) }}</span>
-          <span class="section-subtitle mb-0">
-            <span id="taslakSayac">{{ taslak_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
-          </span>
-        </div>
-      </div>
-      <div class="section-card-body p-0">
-        {% if taslak_hesaplamalar %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle app-table mb-0" id="gecmisTaslakTablosu">
-            <thead>
-              <tr>
-                <th>{{ t('ad', dil) }}</th>
-                <th>{{ t('tarih', dil) }}</th>
-                <th>{{ t('kalem_sayisi', dil) }}</th>
-                <th>{{ t('toplam_aylik', dil) }}</th>
-                <th>{{ t('toplam_yillik', dil) }}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for hesaplama in taslak_hesaplamalar %}
-              <tr data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
-                <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
-                <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-                <td>{{ hesaplama.kalemler|length }}</td>
-                <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
-                <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
-                <td>
-                  <div class="d-flex gap-1 justify-content-end">
-                    <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">{{ t('duzenle', dil) }}</a>
-                    <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
-                    <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
-                          onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
-                      <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <p class="empty-state mb-0 p-3">{{ t('gecmis_taslak_bos', dil) }}</p>
-        {% endif %}
-      </div>
-    </section>
-
-    {# Gonderilenler #}
-    <section class="section-card">
-      <div class="section-card-header">
-        <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between w-100">
-          <div class="d-flex align-items-center gap-2">
-            <span class="gecmis-grup-badge">{{ t('gecmis_gonderilenler', dil) }}</span>
-            <span class="section-subtitle mb-0">
-              <span id="gonderilenSayac">{{ gonderilen_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
-            </span>
-          </div>
-          <select id="gonderilenDurumFiltre" class="form-select form-select-sm" style="max-width:12rem">
-            <option value="">{{ t('gecmis_tum_durumlar', dil) }}</option>
-            <option value="onay_bekliyor">{{ t('durum_onay_bekliyor', dil) }}</option>
-            <option value="onaylandi">{{ t('durum_onaylandi', dil) }}</option>
-            <option value="reddedildi">{{ t('durum_reddedildi', dil) }}</option>
-            <option value="iptal_edildi">{{ t('durum_iptal_edildi', dil) }}</option>
-          </select>
-        </div>
-      </div>
-      <div class="section-card-body p-0">
-        {% if gonderilen_hesaplamalar %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle app-table mb-0" id="gecmisGonderilenTablosu">
-            <thead>
-              <tr>
-                <th>{{ t('ad', dil) }}</th>
-                <th>{{ t('durum', dil) }}</th>
-                <th>{{ t('tarih', dil) }}</th>
-                <th>{{ t('kalem_sayisi', dil) }}</th>
-                <th>{{ t('toplam_aylik', dil) }}</th>
-                <th>{{ t('toplam_yillik', dil) }}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for hesaplama in gonderilen_hesaplamalar %}
-              {% set gd = hesaplama|gorunen_durum %}
-              <tr data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}"
-                  data-durum="{{ gd }}">
-                <td>
-                  <a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a>
-                  {% if hesaplama.red_gerekce %}
-                  <div class="small text-danger">{{ hesaplama.red_gerekce }}</div>
-                  {% endif %}
-                </td>
-                <td>
-                  <span class="badge {% if gd == 'onaylandi' %}bg-success{% elif gd == 'reddedildi' %}bg-danger{% elif gd == 'onay_bekliyor' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
-                    {{ t('durum_' + gd, dil) if gd else gd }}
-                  </span>
-                </td>
-                <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-                <td>{{ hesaplama.kalemler|length }}</td>
-                <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
-                <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
-                <td>
-                  <div class="d-flex gap-1 justify-content-end">
-                    {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
-                    <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">
-                      {{ t('duzenle_tekrar_gonder', dil) if gd == 'reddedildi' else t('duzenle', dil) }}
-                    </a>
-                    {% endif %}
-                    <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
-                    {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
-                    <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
-                          onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
-                      <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
-                    </form>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <p id="gecmisGonderilenSonucYok" class="empty-state mt-0 p-3" style="display:none;">
-          {{ t('gecmis_filtre_sonuc_yok', dil) }}
-        </p>
-        {% else %}
-        <p class="empty-state mb-0 p-3">{{ t('gecmis_gonderilen_bos', dil) }}</p>
-        {% endif %}
-      </div>
-    </section>
-    <p id="gecmisPersonalSonucYok" class="empty-state mt-3" style="display:none;">
+  </div>
+  <div class="section-card-body p-0">
+    {% if taslak_hesaplamalar %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0" id="gecmisTaslakTablosu">
+        <thead>
+          <tr>
+            <th>{{ t('ad', dil) }}</th>
+            <th>{{ t('tarih', dil) }}</th>
+            <th>{{ t('kalem_sayisi', dil) }}</th>
+            <th class="num">{{ t('toplam_aylik', dil) }}</th>
+            <th class="num">{{ t('toplam_yillik', dil) }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for hesaplama in taslak_hesaplamalar %}
+          <tr data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
+            <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+            <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>{{ hesaplama.kalemler|length }}</td>
+            <td class="num">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi, dil) }}</td>
+            <td class="num">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi, dil) }}</td>
+            <td>
+              <div class="d-flex gap-1 justify-content-end">
+                <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">{{ t('duzenle', dil) }}</a>
+                <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+                <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
+                      onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p id="gecmisPersonalSonucYok" class="empty-state mt-0 p-3" style="display:none;">
       {{ t('gecmis_filtre_sonuc_yok', dil) }}
     </p>
     {% else %}
-    <div class="section-card">
-      <div class="section-card-body">
-        <p class="empty-state mb-0">{{ t('gecmis_bos', dil) }}</p>
-      </div>
-    </div>
+    <p class="empty-state mb-0 p-3">{{ t('gecmis_tahmin_gecmisi_bos', dil) if ustu_yok else t('gecmis_taslak_bos', dil) }}</p>
     {% endif %}
   </div>
+</section>
 
-  {# ── Search sekmesi (yönetici ve müdür) ── #}
-  {% if gecmis_gorunumu in ('yonetici', 'direktor', 'admin', 'departman') %}
-  <div class="tab-pane fade" id="search-panel" role="tabpanel" aria-labelledby="search-tab">
+{% elif aktif_sekme == 'gonderilenler' %}
 
-    {# Filtre araçları #}
-    <div class="gecmis-search-toolbar mb-3">
-      {% if gecmis_gorunumu == 'yonetici' %}
-      <select id="gecmisDepartmanFiltre" class="form-select form-select-sm gecmis-search-select">
-        <option value="">{{ t('gecmis_tum_departmanlar', dil) }}</option>
-        {% for dep in departman_listesi %}
-        <option value="{{ dep.anahtar }}">{{ dep.etiket }}</option>
-        {% endfor %}
-      </select>
-      {% endif %}
-      <input type="search" id="gecmisIsimFiltre" class="form-control form-control-sm gecmis-search-input"
-             placeholder="{{ t('gecmis_isim_ara', dil) }}" autocomplete="off">
-      <label class="gecmis-tarih-alani">
-        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
-        <input type="date" id="gecmisTarihBaslangic" class="form-control form-control-sm">
-      </label>
-      <label class="gecmis-tarih-alani">
-        <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
-        <input type="date" id="gecmisTarihBitis" class="form-control form-control-sm">
-      </label>
-      <button type="button" id="gecmisFiltreTemizle" class="btn btn-sm btn-outline-secondary">
-        {{ t('gecmis_filtre_temizle', dil) }}
-      </button>
+<div class="gecmis-search-toolbar mb-3">
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
+    <input type="date" id="personalTarihBaslangic" class="form-control form-control-sm">
+  </label>
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
+    <input type="date" id="personalTarihBitis" class="form-control form-control-sm">
+  </label>
+  <select id="gonderilenDurumFiltre" class="form-select form-select-sm" style="max-width:12rem">
+    <option value="">{{ t('gecmis_tum_durumlar', dil) }}</option>
+    <option value="onay_bekliyor">{{ t('durum_onay_bekliyor', dil) }}</option>
+    <option value="onaylandi">{{ t('durum_onaylandi', dil) }}</option>
+    <option value="reddedildi">{{ t('durum_reddedildi', dil) }}</option>
+    <option value="iptal_edildi">{{ t('durum_iptal_edildi', dil) }}</option>
+  </select>
+  <button type="button" id="personalFiltreTemizle" class="btn btn-sm btn-outline-secondary">
+    {{ t('gecmis_filtre_temizle', dil) }}
+  </button>
+</div>
+
+<section class="section-card">
+  <div class="section-card-header">
+    <div class="d-flex align-items-center gap-2">
+      <span class="section-title mb-0">{{ t('gecmis_gonderilenler', dil) }}</span>
+      <span class="section-subtitle mb-0">
+        <span id="gonderilenSayac">{{ gonderilen_hesaplamalar|length }}</span> {{ t('kayit', dil) }}
+      </span>
     </div>
-
-    {% if arama_hesaplamalari %}
-    <section class="section-card">
-      <div class="section-card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-sm align-middle app-table mb-0" id="gecmisAramaTablosu">
-            <thead>
-              <tr>
-                <th>{{ t('ad', dil) }}</th>
-                <th>{{ t('durum', dil) }}</th>
-                <th>{{ t('tarih', dil) }}</th>
-                <th>{{ t('olusturan', dil) }}</th>
-                <th>{{ t('gecmis_unvan', dil) }}</th>
-                <th>{{ t('kalem_sayisi', dil) }}</th>
-                <th>{{ t('toplam_aylik', dil) }}</th>
-                <th>{{ t('toplam_yillik', dil) }}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for hesaplama in arama_hesaplamalari %}
-              {% set dep_anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or 'diger' %}
-              <tr data-dep="{{ dep_anahtar }}"
-                  data-kullanici="{{ (hesaplama.olusturan_kullanici_adi or '')|lower }}"
-                  data-ad-soyad="{{ (hesaplama.olusturan_ad_soyad or '')|lower }}"
-                  data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
-                <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
-                <td><span class="badge bg-secondary">{{ t('durum_' + (hesaplama|gorunen_durum), dil) }}</span></td>
-                <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-                <td class="text-muted small">{{ hesaplama.olusturan_ad_soyad or hesaplama.olusturan_kullanici_adi or '-' }}</td>
-                <td class="text-muted small">{{ hesaplama.olusturan_unvan or '-' }}</td>
-                <td>{{ hesaplama.kalemler|length }}</td>
-                <td>{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi) }}</td>
-                <td>{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</td>
-                <td>
-                  <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-    <p id="gecmisAramaSonucYok" class="empty-state mt-3" style="display:none;">
-      {{ t('gecmis_bos', dil) }}
+  </div>
+  <div class="section-card-body p-0">
+    {% if gonderilen_hesaplamalar %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0" id="gecmisGonderilenTablosu">
+        <thead>
+          <tr>
+            <th>{{ t('ad', dil) }}</th>
+            <th>{{ t('durum', dil) }}</th>
+            <th>{{ t('tarih', dil) }}</th>
+            <th>{{ t('kalem_sayisi', dil) }}</th>
+            <th class="num">{{ t('toplam_aylik', dil) }}</th>
+            <th class="num">{{ t('toplam_yillik', dil) }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for hesaplama in gonderilen_hesaplamalar %}
+          {% set gd = hesaplama|gorunen_durum %}
+          <tr data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}"
+              data-durum="{{ gd }}">
+            <td>
+              <a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a>
+              {% if hesaplama.red_gerekce %}
+              <div class="small text-danger">{{ hesaplama.red_gerekce }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="ui-badge{% if gd == 'onaylandi' %} ui-badge--success{% elif gd == 'reddedildi' %} ui-badge--danger{% elif gd == 'onay_bekliyor' %} ui-badge--warning{% endif %}">
+                {{ t('durum_' + gd, dil) if gd else gd }}
+              </span>
+            </td>
+            <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>{{ hesaplama.kalemler|length }}</td>
+            <td class="num">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi, dil) }}</td>
+            <td class="num">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi, dil) }}</td>
+            <td>
+              <div class="d-flex gap-1 justify-content-end">
+                {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
+                <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">
+                  {{ t('duzenle_tekrar_gonder', dil) if gd == 'reddedildi' else t('duzenle', dil) }}
+                </a>
+                {% endif %}
+                <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+                {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
+                <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
+                      onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p id="gecmisGonderilenSonucYok" class="empty-state mt-0 p-3" style="display:none;">
+      {{ t('gecmis_filtre_sonuc_yok', dil) }}
     </p>
     {% else %}
-    <div class="section-card">
-      <div class="section-card-body">
-        <p class="empty-state mb-0">{{ t('gecmis_bos', dil) }}</p>
-      </div>
-    </div>
+    <p class="empty-state mb-0 p-3">{{ t('gecmis_gonderilen_bos', dil) }}</p>
     {% endif %}
   </div>
-  {% endif %}
+</section>
 
+{% elif aktif_sekme == 'arama' %}
+
+<div class="gecmis-search-toolbar mb-3">
+  {% if gecmis_gorunumu == 'yonetici' %}
+  <select id="gecmisDepartmanFiltre" class="form-select form-select-sm gecmis-search-select">
+    <option value="">{{ t('gecmis_tum_departmanlar', dil) }}</option>
+    {% for dep in departman_listesi %}
+    <option value="{{ dep.anahtar }}">{{ dep.etiket }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+  <input type="search" id="gecmisIsimFiltre" class="form-control form-control-sm gecmis-search-input"
+         placeholder="{{ t('gecmis_isim_ara', dil) }}" autocomplete="off">
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
+    <input type="date" id="gecmisTarihBaslangic" class="form-control form-control-sm">
+  </label>
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
+    <input type="date" id="gecmisTarihBitis" class="form-control form-control-sm">
+  </label>
+  <button type="button" id="gecmisFiltreTemizle" class="btn btn-sm btn-outline-secondary">
+    {{ t('gecmis_filtre_temizle', dil) }}
+  </button>
 </div>
+
+{% if arama_hesaplamalari %}
+<section class="section-card">
+  <div class="section-card-header">
+    <div class="d-flex align-items-center gap-2">
+      <span class="section-title mb-0">{{ t('gecmis_arama', dil) }}</span>
+      <span class="section-subtitle mb-0">
+        <span id="aramaSekmeSayac">{{ arama_hesaplamalari|length }}</span> {{ t('kayit', dil) }}
+      </span>
+    </div>
+  </div>
+  <div class="section-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0" id="gecmisAramaTablosu">
+        <thead>
+          <tr>
+            <th>{{ t('ad', dil) }}</th>
+            <th>{{ t('durum', dil) }}</th>
+            <th>{{ t('tarih', dil) }}</th>
+            <th>{{ t('olusturan', dil) }}</th>
+            <th>{{ t('gecmis_unvan', dil) }}</th>
+            <th>{{ t('kalem_sayisi', dil) }}</th>
+            <th class="num">{{ t('toplam_aylik', dil) }}</th>
+            <th class="num">{{ t('toplam_yillik', dil) }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for hesaplama in arama_hesaplamalari %}
+          {% set dep_anahtar = hesaplama_departmani(hesaplama.olusturan_gruplar, hesaplama.olusturan_departman) or 'diger' %}
+          {% set gd = hesaplama|gorunen_durum %}
+          <tr data-dep="{{ dep_anahtar }}"
+              data-kullanici="{{ (hesaplama.olusturan_kullanici_adi or '')|lower }}"
+              data-ad-soyad="{{ (hesaplama.olusturan_ad_soyad or '')|lower }}"
+              data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
+            <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+            <td>
+              <span class="ui-badge{% if gd == 'onaylandi' %} ui-badge--success{% elif gd == 'reddedildi' %} ui-badge--danger{% elif gd == 'onay_bekliyor' %} ui-badge--warning{% endif %}">
+                {{ t('durum_' + gd, dil) }}
+              </span>
+            </td>
+            <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+            <td class="text-muted small">{{ hesaplama.olusturan_ad_soyad or hesaplama.olusturan_kullanici_adi or '-' }}</td>
+            <td class="text-muted small">{{ hesaplama.olusturan_unvan or '-' }}</td>
+            <td>{{ hesaplama.kalemler|length }}</td>
+            <td class="num">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi, dil) }}</td>
+            <td class="num">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi, dil) }}</td>
+            <td>
+              <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+<p id="gecmisAramaSonucYok" class="empty-state mt-3" style="display:none;">
+  {{ t('gecmis_bos', dil) }}
+</p>
+{% else %}
+<div class="section-card">
+  <div class="section-card-body">
+    <p class="empty-state mb-0">{{ t('gecmis_bos', dil) }}</p>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
 
 <script>
 (function () {
@@ -324,7 +316,6 @@
 
       if (bosMesaj) bosMesaj.style.display = gorunen === 0 ? '' : 'none';
       sayaclar.forEach(function (alan) { alan.textContent = gorunen; });
-      if (typeof ayar.onFiltre === 'function') ayar.onFiltre();
     }
 
     if (dep) dep.addEventListener('change', filtrele);
@@ -340,7 +331,6 @@
         filtrele();
       });
     }
-    return filtrele;
   }
 
   function personalFiltreKur() {
@@ -376,14 +366,12 @@
       var t2 = satirSay(gonder, durumDeger);
       var taslakSayac = document.getElementById('taslakSayac');
       var gonderilenSayac = document.getElementById('gonderilenSayac');
-      var sekme = document.getElementById('personalSekmeSayac');
       if (taslakSayac) taslakSayac.textContent = t1;
       if (gonderilenSayac) gonderilenSayac.textContent = t2;
-      if (sekme) sekme.textContent = t1 + t2;
       var gBos = document.getElementById('gecmisGonderilenSonucYok');
       if (gBos && gonder) gBos.style.display = t2 === 0 ? '' : 'none';
       var pBos = document.getElementById('gecmisPersonalSonucYok');
-      if (pBos) pBos.style.display = (t1 + t2) === 0 ? '' : 'none';
+      if (pBos && taslak) pBos.style.display = t1 === 0 ? '' : 'none';
     }
 
     if (durum) durum.addEventListener('change', filtrele);

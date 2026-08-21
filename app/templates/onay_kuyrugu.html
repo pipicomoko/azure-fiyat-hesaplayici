@@ -3,54 +3,50 @@
 {% block baslik %}{{ t('nav_onay', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<section class="hero-panel mb-4">
-  <div class="hero-panel-body">
-    <div>
-      <span class="hero-eyebrow">{{ t('nav_onay', dil) }}</span>
-      <h1 class="hero-title mb-2">{{ t('onay_baslik', dil) }}</h1>
-      <p class="hero-text mb-0">{{ t('onay_aciklama', dil) }}</p>
-    </div>
+<section class="ui-card" style="margin-bottom: var(--space-4)">
+  <div class="ui-card__body">
+    <h1 class="ui-card__title">{{ t('onay_baslik', dil) }}</h1>
+    <p class="ui-card__subtitle">{{ t('onay_aciklama', dil) }}</p>
   </div>
 </section>
 
 {% if bekleyenler %}
-<section class="section-card">
-  <div class="section-card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-sm align-middle app-table mb-0">
-        <thead>
-          <tr>
-            <th>{{ t('ad', dil) }}</th>
-            <th>{{ t('olusturan', dil) }}</th>
-            <th>{{ t('tarih', dil) }}</th>
-            <th>{{ t('toplam_aylik', dil) }}</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for h in bekleyenler %}
-          <tr>
-            <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
-            <td>{{ h.olusturan_ad_soyad or h.olusturan_kullanici_adi }}</td>
-            <td>{{ (h.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
-            <td>{{ h.toplam_aylik_maliyet | para(h.para_birimi) }}</td>
-            <td class="text-end">
-              <form action="/onay/{{ h.id }}/onayla" method="post" class="d-inline">
-                <button type="submit" class="btn btn-sm btn-success">{{ t('onayla', dil) }}</button>
-              </form>
-              <form action="/onay/{{ h.id }}/reddet" method="post" class="d-inline-flex gap-1 align-items-center">
-                <input type="text" name="gerekce" class="form-control form-control-sm" placeholder="{{ t('gerekce', dil) }}" style="max-width:10rem">
-                <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('reddet', dil) }}</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
+<div class="ui-table-wrap">
+  <table class="ui-table">
+    <thead>
+      <tr>
+        <th scope="col">{{ t('ad', dil) }}</th>
+        <th scope="col">{{ t('olusturan', dil) }}</th>
+        <th scope="col">{{ t('tarih', dil) }}</th>
+        <th scope="col" class="num">{{ t('toplam_aylik', dil) }}</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in bekleyenler %}
+      <tr>
+        <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
+        <td>{{ h.olusturan_ad_soyad or h.olusturan_kullanici_adi }}</td>
+        <td>{{ (h.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+        <td class="num">{{ h.toplam_aylik_maliyet | para(h.para_birimi, dil) }}</td>
+        <td>
+          <div style="display:flex; gap: var(--space-2); justify-content:flex-end; flex-wrap:wrap; align-items:center">
+            <form action="/onay/{{ h.id }}/onayla" method="post">
+              <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm">{{ t('onayla', dil) }}</button>
+            </form>
+            <form action="/onay/{{ h.id }}/reddet" method="post" style="display:flex; gap: var(--space-2); align-items:center">
+              <label class="visually-hidden" for="gerekce-{{ h.id }}">{{ t('gerekce', dil) }}</label>
+              <input type="text" name="gerekce" id="gerekce-{{ h.id }}" class="ui-input" placeholder="{{ t('gerekce', dil) }}" style="width:12rem; height:28px">
+              <button type="submit" class="ui-btn ui-btn--danger ui-btn--sm">{{ t('reddet', dil) }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% else %}
-<p class="text-muted">{{ t('onay_bos', dil) }}</p>
+<p class="estimate-empty">{{ t('onay_bos', dil) }}</p>
 {% endif %}
 {% endblock %}

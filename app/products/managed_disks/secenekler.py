@@ -58,7 +58,7 @@ SURE_SECICI_KADEMELER = {"premiumssdv2", "ultrassd"}
 _SURE_BIRIM_KODLARI = ["saat", "gun", "ay"]
 _SURE_ETIKETLERI = {
     "saat": {"tr": "Saat", "en": "Hours"},
-    "gun": {"tr": "Gun", "en": "Days"},
+    "gun": {"tr": "Gün", "en": "Days"},
     "ay": {"tr": "Ay", "en": "Month"},
 }
 SAAT_CARPANLARI = {"saat": 1, "gun": 24, "ay": 730}
@@ -184,8 +184,8 @@ def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
 
     if kademe in REZERVASYON_DESTEKLEYEN_KADEMELER:
         secenekler["fiyatlandirma_modeli"] = [
-            ("payg", {"tr": "Kullandikca ode", "en": "Pay as you go"}[dil]),
-            ("reservation_1y", {"tr": "1 yillik rezervasyon", "en": "1 year reserved"}[dil]),
+            ("payg", {"tr": "Kullandıkça öde", "en": "Pay as you go"}[dil]),
+            ("reservation_1y", {"tr": "1 yıllık rezervasyon", "en": "1 year reserved"}[dil]),
         ]
         if yeni.get("fiyatlandirma_modeli") not in ("payg", "reservation_1y"):
             yeni["fiyatlandirma_modeli"] = "payg"

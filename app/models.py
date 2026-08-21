@@ -33,6 +33,7 @@ class Hesaplama(SQLModel, table=True):
     durum: str = Field(default=DURUM_TASLAK, index=True)
     revizyon: int = Field(default=1)
     onay_hedefi: Optional[str] = Field(default=None, index=True)
+    onay_hedefi_ad_soyad: Optional[str] = Field(default=None)
     onaylayan_kullanici_adi: Optional[str] = Field(default=None)
     onay_tarihi: Optional[datetime] = Field(default=None)
     red_gerekce: Optional[str] = Field(default=None)

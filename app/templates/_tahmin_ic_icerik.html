@@ -1,155 +1,174 @@
 {% set kalem_sonuclari = kalem_sonuclari | default([]) %}
 <div id="tahmin-icerik">
-  <div class="row g-4 app-dashboard-grid">
-    <div class="col-12 col-xl-8">
-      <div class="section-card mb-4">
-        <div class="section-card-header">
-          <div>
-            <h2 class="section-title mb-1">{{ t('ana_sayfa_giris', dil) }}</h2>
-            <p class="section-subtitle mb-0">{{ t('ana_sayfa_alt_metin', dil) }}</p>
+  <div class="estimate-layout">
+    <div class="estimate-main">
+      <section aria-labelledby="urun-ekle-baslik">
+        <h2 class="panel-title" id="urun-ekle-baslik">{{ t('urun_ekle_baslik', dil) }}</h2>
+        <div class="product-picker">
+          <div class="product-picker__search">
+            <svg class="product-picker__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M20 20l-3-3"></path>
+            </svg>
+            <input type="search" id="urun-ara" placeholder="{{ t('urun_ara', dil) }}"
+                   aria-label="{{ t('urun_ara', dil) }}"
+                   oninput="filtreleUrunListesi(this.value)">
+          </div>
+          <ul class="product-picker__list" id="urun-listesi">
+            {% for urun in urunler %}
+            <li class="product-picker__row" data-urun-adi="{{ urun.ad(dil)|lower }} {{ urun.aciklama(dil)|lower }}">
+              <span class="product-picker__icon" aria-hidden="true">{{ 'VM' if urun.anahtar == 'virtual_machines' else 'DS' }}</span>
+              <div>
+                <div class="product-picker__name">{{ urun.ad(dil) }}</div>
+                <div class="product-picker__desc">{{ urun.aciklama(dil) }}</div>
+              </div>
+              <button type="button" class="ui-btn ui-btn--tertiary"
+                      hx-post="/tahmin/kalem-ekle" hx-vals='{"urun_tipi": "{{ urun.anahtar }}"}'
+                      hx-include="#tahmin-globaller" hx-target="#tahmin-govdesi" hx-swap="beforeend"
+                      hx-on::after-request="tahminToplamiGuncelle()">
+                + {{ t('ekle', dil) }}
+              </button>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+
+      <section aria-labelledby="tahmin-kalemleri-baslik">
+        <h2 class="panel-title" id="tahmin-kalemleri-baslik">{{ t('tahmin_kalemleri', dil) }}</h2>
+        <div class="estimate-items" role="region" aria-live="polite">
+          <div class="estimate-items__head" aria-hidden="true">
+            <span>{{ t('xlsx_urun', dil) }}</span>
+            <span>{{ t('xlsx_ozet', dil) }}</span>
+            <span class="num">{{ t('adet_kisa', dil) }}</span>
+            <span class="num">{{ t('tahmin_aylik_maliyet', dil) }}</span>
+            <span></span>
+          </div>
+          <div id="tahmin-govdesi">
+            {% if not kalem_sonuclari %}
+            <p class="estimate-empty" id="tahmin-bos-mesaji">{{ t('tahmin_bos', dil) }}</p>
+            {% else %}
+            <p class="estimate-empty" id="tahmin-bos-mesaji" style="display:none">{{ t('tahmin_bos', dil) }}</p>
+            {% endif %}
+            {% for kalem_id, sonuc in kalem_sonuclari %}
+              {% set urun = sonuc.urun %}
+              {% set urun_tipi = sonuc.urun_tipi %}
+              {% set yapilandirma = sonuc.yapilandirma %}
+              {% set secenekler = sonuc.secenekler %}
+              {% set gorunur_alanlar = sonuc.gorunur_alanlar %}
+              {% set fiyat = sonuc.fiyat %}
+              {% set hata = sonuc.hata %}
+              {% include sonuc.urun.sablon_adi %}
+            {% endfor %}
+          </div>
+          <div class="estimate-foot">
+            <div>
+              <div class="estimate-foot__label">{{ t('tahmin_aylik_toplam', dil) }}</div>
+              <div class="estimate-foot__value" id="tahmin-toplam">0</div>
+            </div>
+            <div>
+              <div class="estimate-foot__label">{{ t('tahmin_yillik_maliyet', dil) }}</div>
+              <div class="estimate-foot__value" id="tahmin-yillik-toplam">0</div>
+            </div>
           </div>
         </div>
-        <div class="section-card-body">
-          <div class="row g-3">
-      {% for urun in urunler %}
-      <div class="col-md-6">
-        <div class="card h-100 app-card product-card">
-          <div class="card-body d-flex flex-column">
-            <div class="product-card-icon">{{ 'VM' if urun.anahtar == 'virtual_machines' else 'DS' }}</div>
-            <h3 class="h5 mb-2">{{ urun.ad(dil) }}</h3>
-            <p class="text-muted small flex-grow-1 mb-3">{{ urun.aciklama(dil) }}</p>
-            <button type="button" class="btn btn-primary btn-sm align-self-start"
-                    hx-post="/tahmin/kalem-ekle" hx-vals='{"urun_tipi": "{{ urun.anahtar }}"}'
-                    hx-include="#tahmin-globaller" hx-target="#tahmin-govdesi" hx-swap="beforeend">
-              {{ t('tahmine_ekle', dil) }}
+      </section>
+    </div>
+
+    <aside class="estimate-rail" aria-label="{{ t('ozet_baslik', dil) }}">
+      <div class="ui-card" id="tahmin-globaller">
+        <div class="ui-card__body">
+          <h2 class="panel-title" style="margin-bottom: var(--space-4)">{{ t('ozet_baslik', dil) }}</h2>
+          <div>
+            <label class="ui-label" for="para-birimi-secici">{{ t('para_birimi', dil) }}</label>
+            <select class="ui-select" name="para_birimi" id="para-birimi-secici">
+              {% for pb in para_birimleri %}
+              <option value="{{ pb.kod }}" {{ 'selected' if pb.kod == para_birimi }}>{{ pb.kod }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="rail-metrics">
+            <div class="rail-metric">
+              <span class="rail-metric__label">{{ t('kalem_sayisi', dil) }}</span>
+              <span class="rail-metric__value" id="sidebar-kalem-sayisi">{{ kalem_sonuclari|length }}</span>
+            </div>
+            <div class="rail-metric">
+              <span class="rail-metric__label">{{ t('tahmin_aylik_toplam', dil) }}</span>
+              <strong class="rail-metric__value" id="sidebar-aylik-toplam">0</strong>
+            </div>
+            <div class="rail-metric">
+              <span class="rail-metric__label">{{ t('tahmin_yillik_maliyet', dil) }}</span>
+              <strong class="rail-metric__value" id="sidebar-yillik-toplam">0</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ui-card">
+        <div class="ui-card__body rail-stack">
+          {% if duzenlenen_hesaplama_id %}
+          <input type="hidden" name="hesaplama_id" value="{{ duzenlenen_hesaplama_id }}">
+          {% endif %}
+          {% if red_gerekce %}
+          <div class="ui-alert ui-alert--warning">{{ t('red_gerekce', dil) }}: {{ red_gerekce }}</div>
+          {% endif %}
+          <div>
+            <label class="ui-label" for="hesaplama-adi">{{ t('hesaplama_adi', dil) }}</label>
+            <input type="text" class="ui-input" id="hesaplama-adi" name="hesaplama_adi"
+                   value="{{ hesaplama_adi | default('') }}">
+          </div>
+          {% set zincir = kullanici.manager_zinciri or ([kullanici.manager] if kullanici.manager else []) %}
+          {% set ustu_yok = ustu_olmayan_mi(kullanici) %}
+          {% if ustu_yok %}
+          <div class="ui-alert ui-alert--info">{{ t('ustu_olmayan_kayit_bilgi', dil) }}</div>
+          {% elif zincir %}
+          <div>
+            <label class="ui-label" for="onay-hedefi-secici">
+              {{ t('onay_hedefi', dil) }} <span class="req" aria-hidden="true">*</span>
+            </label>
+            <select class="ui-select" name="onay_hedefi" id="onay-hedefi-secici" required aria-required="true">
+              <option value="">{{ t('onay_hedefi_sec', dil) }}</option>
+              {% for m in zincir %}
+              <option value="{{ m }}">{{ sam_gorunen_adi(m, (kullanici.manager_adlari or {}).get(m)) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% else %}
+          <div class="ui-alert ui-alert--warning">{{ t('onay_zincir_yok', dil) }}</div>
+          {% endif %}
+          {# HTMX hx-vals guvenilir olmadigi icin gizli alan + buton name/value #}
+          <input type="hidden" name="onaya_gonder" id="onaya-gonder-alan" value="0">
+          <div class="rail-actions">
+            {% if not ustu_yok %}
+            <button type="button" class="ui-btn ui-btn--primary"
+                    name="onaya_gonder" value="1"
+                    onclick="document.getElementById('onaya-gonder-alan').value='1'"
+                    hx-post="/tahmin/kaydet"
+                    hx-include="#tahmin-formu"
+                    hx-target="#kaydet-sonuc"
+                    hx-swap="innerHTML"
+                    {% if not zincir %}disabled title="{{ t('onay_zincir_yok', dil) }}"{% endif %}>
+              {{ t('onaya_gonder', dil) }}
+            </button>
+            {% endif %}
+            <button type="button" class="ui-btn {% if ustu_yok %}ui-btn--primary{% else %}ui-btn--secondary{% endif %}"
+                    name="onaya_gonder" value="0"
+                    onclick="document.getElementById('onaya-gonder-alan').value='0'"
+                    hx-post="/tahmin/kaydet"
+                    hx-include="#tahmin-formu"
+                    hx-target="#kaydet-sonuc"
+                    hx-swap="innerHTML">
+              {{ t('tahmin_kaydet', dil) if ustu_yok else t('taslak_kaydet', dil) }}
+            </button>
+            <button type="submit" formaction="/tahmin/disa-aktar" formmethod="post"
+                    id="disa-aktar-butonu" class="ui-btn ui-btn--tertiary"
+                    {% if not kalem_sonuclari %}disabled{% endif %}>
+              {{ t('disa_aktar', dil) }}
             </button>
           </div>
+          <div id="kaydet-sonuc" aria-live="polite"></div>
         </div>
       </div>
-      {% endfor %}
-          </div>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-card-header">
-          <div>
-            <h2 class="section-title mb-1">{{ t('tahmin_baslik', dil) }}</h2>
-            <p class="section-subtitle mb-0">{{ t('tahmin_bos', dil) }}</p>
-          </div>
-        </div>
-        <div class="section-card-body">
-          <div id="tahmin-govdesi">
-      {% for kalem_id, sonuc in kalem_sonuclari %}
-        {% set urun = sonuc.urun %}
-        {% set urun_tipi = sonuc.urun_tipi %}
-        {% set yapilandirma = sonuc.yapilandirma %}
-        {% set secenekler = sonuc.secenekler %}
-        {% set gorunur_alanlar = sonuc.gorunur_alanlar %}
-        {% set fiyat = sonuc.fiyat %}
-        {% set hata = sonuc.hata %}
-        {% include sonuc.urun.sablon_adi %}
-      {% endfor %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-xl-4">
-      <div class="app-sidebar-stack">
-        <div id="tahmin-globaller" class="section-card">
-          <div class="section-card-header">
-            <div>
-              <h2 class="section-title mb-1">{{ t('para_birimi', dil) }}</h2>
-              <p class="section-subtitle mb-0">{{ t('tahmin_aylik_toplam', dil) }}</p>
-            </div>
-          </div>
-          <div class="section-card-body">
-            <div class="vstack gap-3">
-              <div class="field-inline">
-                <label class="form-label small mb-1">{{ t('para_birimi', dil) }}</label>
-                <select class="form-select form-select-sm" name="para_birimi" id="para-birimi-secici">
-                  {% for pb in para_birimleri %}
-                  <option value="{{ pb.kod }}" {{ 'selected' if pb.kod == para_birimi }}>{{ pb.kod }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="summary-surface">
-                <div>
-                  <div class="summary-chip">{{ kalem_sonuclari|length }} kalem</div>
-                </div>
-                <div class="summary-totals">
-                  <span>{{ t('tahmin_aylik_toplam', dil) }}</span>
-                  <strong id="sidebar-aylik-toplam">0.00 {{ para_birimi }}</strong>
-                </div>
-                <div class="summary-totals">
-                  <span>{{ t('tahmin_yillik_maliyet', dil) }}</span>
-                  <strong id="sidebar-yillik-toplam">0.00 {{ para_birimi }}</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="section-card">
-          <div class="section-card-header">
-            <div>
-              <h2 class="section-title mb-1">{{ t('kaydet', dil) }}</h2>
-              <p class="section-subtitle mb-0">{{ t('hesaplama_adi', dil) }}</p>
-            </div>
-          </div>
-          <div class="section-card-body">
-            <div class="vstack gap-3">
-              {% if duzenlenen_hesaplama_id %}
-              <input type="hidden" name="hesaplama_id" value="{{ duzenlenen_hesaplama_id }}">
-              {% endif %}
-              {% if red_gerekce %}
-              <div class="alert alert-warning py-2 small mb-0">
-                {{ t('red_gerekce', dil) }}: {{ red_gerekce }}
-              </div>
-              {% endif %}
-              <div>
-                <label class="form-label small mb-1">{{ t('hesaplama_adi', dil) }}</label>
-                <input type="text" class="form-control form-control-sm" name="hesaplama_adi"
-                       value="{{ hesaplama_adi | default('') }}">
-              </div>
-              {% set zincir = kullanici.manager_zinciri or ([kullanici.manager] if kullanici.manager else []) %}
-              {% if zincir %}
-              <div>
-                <label class="form-label small mb-1">{{ t('onay_hedefi', dil) }} <span class="text-danger">*</span></label>
-                <select class="form-select form-select-sm" name="onay_hedefi" id="onay-hedefi-secici" required>
-                  <option value="">{{ t('onay_hedefi_sec', dil) }}</option>
-                  {% for m in zincir %}
-                  <option value="{{ m }}">{{ m }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              {% else %}
-              <div class="alert alert-warning py-2 small mb-0">{{ t('onay_zincir_yok', dil) }}</div>
-              {% endif %}
-              <div class="d-grid gap-2">
-                <button type="button" class="btn btn-outline-success btn-sm"
-                        hx-post="/tahmin/kaydet" hx-include="#tahmin-formu" hx-target="#kaydet-sonuc" hx-swap="innerHTML"
-                        hx-vals='{"onaya_gonder": "0"}'>
-                  {{ t('taslak_kaydet', dil) }}
-                </button>
-                <button type="button" class="btn btn-success btn-sm"
-                        hx-post="/tahmin/kaydet" hx-include="#tahmin-formu" hx-target="#kaydet-sonuc" hx-swap="innerHTML"
-                        hx-vals='{"onaya_gonder": "1"}'
-                        {% if not zincir %}disabled title="{{ t('onay_zincir_yok', dil) }}"{% endif %}>
-                  {{ t('onaya_gonder', dil) }}
-                </button>
-                <button type="submit" formaction="/tahmin/disa-aktar" formmethod="post"
-                        id="disa-aktar-butonu" class="btn btn-outline-primary btn-sm"
-                        {% if not kalem_sonuclari %}disabled{% endif %}>
-                  {{ t('disa_aktar', dil) }}
-                </button>
-              </div>
-              <div id="kaydet-sonuc"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </aside>
   </div>
 </div>

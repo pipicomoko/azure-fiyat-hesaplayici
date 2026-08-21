@@ -7,8 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import veritabanini_olustur
-from app.routers import giris, onay, tahmin, yonetim
-from app.yetkilendirme import GirisGerekli, giris_sonrasi_yol
+from app.routers import dashboard, giris, onay, tahmin, yonetim
+from app.yetkilendirme import GirisGerekli
 
 
 @asynccontextmanager
@@ -27,6 +27,7 @@ app.add_middleware(
     https_only=False,
 )
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.include_router(dashboard.router)
 app.include_router(giris.router)
 app.include_router(tahmin.router)
 app.include_router(tahmin.gecmis_router)
@@ -44,11 +45,3 @@ def saglik_kontrolu() -> dict:
     """Basit saglik kontrolu ucu. Docker/CI'nin uygulamanin ayakta oldugunu
     dogrulamasi icin kullanilir."""
     return {"durum": "calisiyor"}
-
-
-@app.get("/")
-async def anasayfa(request: Request):
-    kullanici = request.session.get("kullanici")
-    if kullanici:
-        return RedirectResponse(giris_sonrasi_yol(kullanici), status_code=303)
-    return RedirectResponse("/giris", status_code=303)

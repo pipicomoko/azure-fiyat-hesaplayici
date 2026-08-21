@@ -51,11 +51,11 @@ def test_dogru_bilgilerle_giris_tahmine_yonlendirir(monkeypatch):
     )
 
     assert yanit.status_code == 303
-    assert yanit.headers["location"] == "/tahmin"
+    assert yanit.headers["location"] == "/"
 
 
 def test_admin_giris_aktiviteye_yonlendirir(monkeypatch):
-    """Admin hesaplama.kullan yetkisine sahip degildir; /tahmin yerine audit sayfasina gider."""
+    """Admin hesaplama.kullan yetkisine sahip degildir; / yerine audit sayfasina gider."""
     monkeypatch.setattr(giris_modulu, "giris_dogrula", lambda k, s: _ORNEK_ADMIN)
 
     yanit = client.post(

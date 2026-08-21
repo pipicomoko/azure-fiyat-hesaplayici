@@ -32,13 +32,13 @@ KATEGORILER = [
     "highperformancecompute",
 ]
 _KATEGORI_ETIKETLERI = {
-    "all": {"tr": "Tumu", "en": "All"},
-    "generalpurpose": {"tr": "Genel amacli", "en": "General purpose"},
-    "computeoptimized": {"tr": "Islem optimizasyonlu", "en": "Compute optimized"},
+    "all": {"tr": "Tümü", "en": "All"},
+    "generalpurpose": {"tr": "Genel amaçlı", "en": "General purpose"},
+    "computeoptimized": {"tr": "İşlem optimizasyonlu", "en": "Compute optimized"},
     "memoryoptimized": {"tr": "Bellek optimizasyonlu", "en": "Memory optimized"},
     "storageoptimized": {"tr": "Depolama optimizasyonlu", "en": "Storage optimized"},
     "gpu": {"tr": "GPU", "en": "GPU"},
-    "highperformancecompute": {"tr": "Yuksek performansli islem", "en": "High performance compute"},
+    "highperformancecompute": {"tr": "Yüksek performanslı işlem", "en": "High performance compute"},
 }
 
 _AILE_KATEGORI = {
@@ -65,7 +65,7 @@ _GOVDE_DESEN = re.compile(r"^(?:Standard|Basic)_[A-Za-z]+(\d+)([A-Za-z]*)")
 ISLETIM_SISTEMLERI = ["linux", "windows"]
 
 WINDOWS_YAZILIM_TIPLERI = [
-    ("os-only", {"tr": "(Yalnizca isletim sistemi)", "en": "(OS Only)"}, ["Windows"]),
+    ("os-only", {"tr": "(Yalnızca işletim sistemi)", "en": "(OS Only)"}, ["Windows"]),
     ("biztalk", {"tr": "BizTalk", "en": "BizTalk"}, ["Windows", "BizTalk"]),
     ("sql", {"tr": "SQL Server", "en": "SQL Server"}, ["Windows", "SQL"]),
 ]
@@ -93,18 +93,18 @@ _TIER_ETIKETLERI = {"standard": {"tr": "Standart", "en": "Standard"}, "basic": {
 SURE_BIRIMLERI = ["saat", "gun", "ay"]
 _SURE_ETIKETLERI = {
     "saat": {"tr": "Saat", "en": "Hours"},
-    "gun": {"tr": "Gun", "en": "Days"},
+    "gun": {"tr": "Gün", "en": "Days"},
     "ay": {"tr": "Ay", "en": "Month"},
 }
 SAAT_CARPANLARI = {"saat": 1, "gun": 24, "ay": 730}
 
 FIYATLANDIRMA_MODELLERI = ["payg", "savings_1y", "savings_3y", "reservation_1y", "reservation_3y"]
 _FIYATLANDIRMA_ETIKETLERI = {
-    "payg": {"tr": "Kullandikca ode", "en": "Pay as you go"},
-    "savings_1y": {"tr": "1 yillik tasarruf plani", "en": "1 year savings plan"},
-    "savings_3y": {"tr": "3 yillik tasarruf plani", "en": "3 year savings plan"},
-    "reservation_1y": {"tr": "1 yillik rezervasyon", "en": "1 year reserved"},
-    "reservation_3y": {"tr": "3 yillik rezervasyon", "en": "3 year reserved"},
+    "payg": {"tr": "Kullandıkça öde", "en": "Pay as you go"},
+    "savings_1y": {"tr": "1 yıllık tasarruf planı", "en": "1 year savings plan"},
+    "savings_3y": {"tr": "3 yıllık tasarruf planı", "en": "3 year savings plan"},
+    "reservation_1y": {"tr": "1 yıllık rezervasyon", "en": "1 year reserved"},
+    "reservation_3y": {"tr": "3 yıllık rezervasyon", "en": "3 year reserved"},
 }
 
 
@@ -179,9 +179,12 @@ def ahb_uygun_mu(yazilim_tipi: str) -> bool:
 
 async def bolge_katalogunu_getir(bolge: str, tier: str, para_birimi: str = "USD") -> BolgeKatalogu:
     onek = "Basic_" if tier == "basic" else "Standard_"
+    # endswith(productName,'Series'): yalnizca temel Linux serileri (Windows/SQL/RHEL
+    # ekli urunler 'Series' ile bitmez). Tum VM tuketim kayitlarini cekmek 30+
+    # sayfa ve sik 429 rate-limit uretir; bu daraltma ~4 sayfada kalir.
     filtre = (
         f"serviceName eq 'Virtual Machines' and armRegionName eq '{odata_metin_kacir(bolge)}' "
-        f"and priceType eq 'Consumption'"
+        f"and priceType eq 'Consumption' and endswith(productName, 'Series')"
     )
     kayitlar = await kayitlari_getir(filtre, para_birimi)
 
@@ -379,8 +382,8 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
         bant["kaynak_bolge"] = yeni["bolge"]
     secenekler["bant_genisligi_bolge"] = [(b.kod, b.ad) for b in BOLGELER]
     secenekler["bant_genisligi_tipi"] = [
-        ("interregion", {"tr": "Bolgeler arasi", "en": "Inter Region"}[dil]),
-        ("internetegress", {"tr": "Internet cikisi", "en": "Internet Egress"}[dil]),
+        ("interregion", {"tr": "Bölgeler arası", "en": "Inter Region"}[dil]),
+        ("internetegress", {"tr": "İnternet çıkışı", "en": "Internet Egress"}[dil]),
     ]
     if bant["veri_transfer_tipi"] != "interregion":
         bant["hedef_bolge"] = None

@@ -1,0 +1,193 @@
+/**
+ * Design token layer + base reset.
+ * Step 1 of the UI redesign — no component styles here.
+ *
+ * Token inventory (exact values from the redesign brief):
+ * Color: --bg-page, --bg-surface, --bg-subtle, --border, --border-strong,
+ *        --text-primary, --text-secondary, --text-muted, --accent,
+ *        --accent-hover, --accent-subtle, --success, --warning, --danger
+ * Type:  --font-sans; --text-xs..--text-2xl; --font-regular/medium/semibold;
+ *        --leading-body, --leading-heading
+ * Shape: --radius-sm (4px), --radius-md (6px)
+ * Space: --space-1..--space-8 (4..32)
+ * Elev.: --shadow-overlay (overlays only)
+ * Ctrl:  --control-h (32), --control-h-primary (36),
+ *        --control-px, --control-px-btn
+ */
+
+:root {
+  /* Color */
+  --bg-page: #f7f8fa;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f2f4f7;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --text-primary: #101828;
+  --text-secondary: #475467;
+  --text-muted: #98a2b3;
+  --accent: #0f6cbd;
+  --accent-hover: #0c589b;
+  --accent-subtle: #eff6fc;
+  --success: #0e7c41;
+  --success-subtle: #ecfdf3;
+  --warning: #b54708;
+  --warning-subtle: #fffaeb;
+  --danger: #b42318;
+  --danger-subtle: #fef3f2;
+
+  /* Typography */
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --leading-body: 1.5;
+  --leading-heading: 1.3;
+  --tracking-table-header: 0.04em;
+
+  /* Shape */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Elevation — overlays only */
+  --shadow-overlay: 0 4px 12px rgba(16, 24, 40, 0.08);
+
+  /* Controls */
+  --control-h: 32px;
+  --control-h-primary: 36px;
+  --control-px: 12px;
+  --control-px-btn: 16px;
+
+  /* Layout shell (referenced by later steps; unused by components yet) */
+  --app-bar-h: 48px;
+  --rail-w: 340px;
+  --content-max: 1440px;
+  --page-gutter: 24px;
+  --rail-sticky-top: 72px;
+}
+
+[data-theme="dark"] {
+  --bg-page: #0f1419;
+  --bg-surface: #1a222c;
+  --bg-subtle: #243040;
+  --border: #2f3b4a;
+  --border-strong: #3d4b5c;
+  --text-primary: #f2f4f7;
+  --text-secondary: #98a2b3;
+  --text-muted: #667085;
+  --accent: #3b8dd6;
+  --accent-hover: #62a7e0;
+  --accent-subtle: #16324a;
+  --success: #32d583;
+  --success-subtle: #12261e;
+  --warning: #fdb022;
+  --warning-subtle: #2a2112;
+  --danger: #f97066;
+  --danger-subtle: #2a1614;
+  --shadow-overlay: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: var(--text-base);
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-regular);
+  line-height: var(--leading-body);
+  color: var(--text-primary);
+  background-color: var(--bg-page);
+  background-image: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-heading);
+  color: var(--text-primary);
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Numeric columns in pricing UI */
+.tabular-nums,
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

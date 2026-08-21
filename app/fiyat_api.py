@@ -11,6 +11,7 @@ kayitlarina `savingsPlan` dizisini ekliyor (Tasarruf Plani fiyatlari icin
 gerekli). Canli API karsisinda dogrulanmistir.
 """
 
+import asyncio
 import time
 from dataclasses import dataclass
 
@@ -20,6 +21,7 @@ FIYAT_API_URL = "https://prices.azure.com/api/retail/prices"
 API_SURUMU = "2023-01-01-preview"
 ISTEK_ZAMAN_ASIMI = 20.0
 MAKS_SAYFA = 40  # asiri buyuk sonuc kumelerinde sonsuz sayfalamayi onler
+MAKS_429_DENEME = 6  # VM katalogu cok sayfa cektigi icin rate-limit'e dayanikli olmali
 
 # Fiyatlar Microsoft tarafinda gunde bir kez guncellenir; kisa sureli
 # onbellekleme sadece ayni formun art arda degistirilmesinde API'yi
@@ -47,6 +49,17 @@ def odata_metin_kacir(deger: str) -> str:
     fonksiyon savunma amacli her yerde kullanilir (OData injection'i onler).
     """
     return deger.replace("'", "''")
+
+
+def _429_bekleme_suresi(yanit: httpx.Response, deneme: int) -> float:
+    """Retry-After varsa onu kullan; yoksa ust sinirli ustel bekleme."""
+    ham = yanit.headers.get("Retry-After")
+    if ham:
+        try:
+            return max(1.0, float(ham))
+        except ValueError:
+            pass
+    return min(2.0 ** deneme, 30.0)
 
 
 async def kayitlari_getir(
@@ -78,8 +91,15 @@ async def kayitlari_getir(
         async with httpx.AsyncClient(timeout=ISTEK_ZAMAN_ASIMI) as istemci:
             sayfa = 0
             while url and sayfa < MAKS_SAYFA:
-                yanit = await istemci.get(url, params=parametreler)
-                yanit.raise_for_status()
+                deneme = 0
+                while True:
+                    yanit = await istemci.get(url, params=parametreler)
+                    if yanit.status_code == 429 and deneme < MAKS_429_DENEME:
+                        deneme += 1
+                        await asyncio.sleep(_429_bekleme_suresi(yanit, deneme))
+                        continue
+                    yanit.raise_for_status()
+                    break
                 veri = yanit.json()
                 kayitlar.extend(veri.get("Items", []))
                 url = veri.get("NextPageLink")

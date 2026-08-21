@@ -137,6 +137,44 @@ def test_onaya_gonder_hedefsiz_reddedilir(client):
     assert "yonetici" in yanit.text.lower() or "approver" in yanit.text.lower() or "sec" in yanit.text.lower()
 
 
+def test_genel_mudur_onaya_gonderemez_sadece_kaydeder(client, veritabani):
+    from app.main import app
+    from app.models import DURUM_TASLAK, Hesaplama
+    from app.yetkilendirme import GENEL_MUDUR_SAM, aktif_kullanici
+    from sqlmodel import select
+
+    app.dependency_overrides[aktif_kullanici] = lambda: {
+        "kullanici_adi": GENEL_MUDUR_SAM,
+        "ad_soyad": "Ahmet Yildirim",
+        "unvan": "Genel Mudur",
+        "gruplar": ["AFH-Calisanlar", "AFH-Direktorler"],
+        "rol": "direktor",
+        "manager": None,
+        "manager_zinciri": [],
+    }
+    ekleme = client.post("/tahmin/kalem-ekle", data={"urun_tipi": "managed_disks", "para_birimi": "USD"})
+    kalem_id = _kalem_id_cikar(ekleme.text)
+    veri = {
+        f"{kalem_id}.urun_tipi": "managed_disks", f"{kalem_id}.bolge": "eastus",
+        f"{kalem_id}.kademe": "standardhdd", f"{kalem_id}.sku": "S4", f"{kalem_id}.adet": "1",
+        "para_birimi": "USD", "hesaplama_adi": "GM Deneme", "onaya_gonder": "1",
+        "onay_hedefi": "kimse",
+    }
+    yanit = client.post("/tahmin/kaydet", data=veri)
+    assert yanit.status_code == 200
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.exec(select(Hesaplama).where(Hesaplama.ad == "GM Deneme")).one()
+        assert kayit.durum == DURUM_TASLAK
+        assert kayit.onay_hedefi is None
+
+    gecmis = client.get("/gecmis/taslaklar")
+    assert "GM Deneme" in gecmis.text
+    assert "Estimate History" in gecmis.text or "Tahmin ge" in gecmis.text
+
+    app.dependency_overrides.pop(aktif_kullanici, None)
+
+
 def test_kaydet_ve_gecmis_akisi(client, veritabani):
     ekleme = client.post("/tahmin/kalem-ekle", data={"urun_tipi": "managed_disks", "para_birimi": "USD"})
     kalem_id = _kalem_id_cikar(ekleme.text)
@@ -149,7 +187,7 @@ def test_kaydet_ve_gecmis_akisi(client, veritabani):
     assert kaydet_yaniti.status_code == 200
     assert "kaydedildi" in kaydet_yaniti.text
 
-    gecmis_yaniti = client.get("/gecmis")
+    gecmis_yaniti = client.get("/gecmis/taslaklar")
     assert "Test Senaryosu" in gecmis_yaniti.text
 
     with __import__("sqlmodel").Session(veritabani) as oturum:
@@ -215,7 +253,7 @@ def test_gecmis_sadece_sahibi_gorur_admin_taslak_gormez(client, veritabani):
         "gruplar": ["AFH-Adminler"],
         "rol": "admin",
     }
-    can_gecmis = client.get("/gecmis")
+    can_gecmis = client.get("/gecmis/arama")
     assert "Zeynep Tahmini" not in can_gecmis.text
 
     with __import__("sqlmodel").Session(veritabani) as oturum:
@@ -227,7 +265,7 @@ def test_gecmis_sadece_sahibi_gorur_admin_taslak_gormez(client, veritabani):
         oturum.commit()
         kayit_id = kayit.id
 
-    can_gecmis = client.get("/gecmis")
+    can_gecmis = client.get("/gecmis/arama")
     assert "Zeynep Tahmini" in can_gecmis.text
 
     app.dependency_overrides[aktif_kullanici] = lambda: {
@@ -236,7 +274,7 @@ def test_gecmis_sadece_sahibi_gorur_admin_taslak_gormez(client, veritabani):
         "unvan": "",
         "gruplar": ["AFH-Calisanlar"],
     }
-    deniz_gecmis = client.get("/gecmis")
+    deniz_gecmis = client.get("/gecmis/taslaklar")
     assert "Zeynep Tahmini" not in deniz_gecmis.text
 
     detay_yaniti = client.get(f"/gecmis/{kayit_id}")
@@ -301,7 +339,7 @@ def test_yonetici_manager_zincirindeki_kaydi_gorur(client, veritabani):
         "rol": "yonetici",
         "manager_zinciri": ["emre.turan"],
     }
-    mudur_gecmis = client.get("/gecmis")
+    mudur_gecmis = client.get("/gecmis/arama")
     assert "Kerem Tahmini" in mudur_gecmis.text
     assert "HR Calisan Tahmini" not in mudur_gecmis.text
 
@@ -332,7 +370,7 @@ def test_yonetici_zincirde_yoksa_baskasini_gormez(client, veritabani):
         "gruplar": ["AFH-Yoneticiler"],
         "rol": "yonetici",
     }
-    mudur_gecmis = client.get("/gecmis")
+    mudur_gecmis = client.get("/gecmis/arama")
     assert "Zeynep Tahmini" not in mudur_gecmis.text
 
     app.dependency_overrides.pop(aktif_kullanici, None)

@@ -3,33 +3,27 @@
 {% block baslik %}{{ t('giris_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<div class="row justify-content-center align-items-center min-vh-75">
-  <div class="col-lg-5 col-xl-4">
-    <section class="section-card h-100">
-      <div class="section-card-header">
-        <div>
-          <h2 class="section-title mb-1">{{ t('giris_baslik', dil) }}</h2>
-        </div>
-      </div>
-      <div class="section-card-body">
-        {% if hata %}
-        <div class="alert alert-danger">{{ hata }}</div>
-        {% endif %}
+<div class="login-wrap">
+  <section class="ui-card">
+    <div class="ui-card__body">
+      <h1 class="ui-card__title" style="margin-bottom: var(--space-4)">{{ t('giris_baslik', dil) }}</h1>
 
-        <form method="post" action="/giris" class="vstack gap-3">
-          <div>
-            <label for="kullanici_adi" class="form-label">{{ t('giris_kullanici_adi', dil) }}</label>
-            <input type="text" class="form-control" id="kullanici_adi" name="kullanici_adi"
-                   required autofocus>
-          </div>
-          <div>
-            <label for="sifre" class="form-label">{{ t('giris_sifre', dil) }}</label>
-            <input type="password" class="form-control" id="sifre" name="sifre" required>
-          </div>
-          <button type="submit" class="btn btn-primary">{{ t('giris_buton', dil) }}</button>
-        </form>
-      </div>
-    </section>
-  </div>
+      {% if hata %}
+      <div class="ui-alert ui-alert--danger" style="margin-bottom: var(--space-4)">{{ hata }}</div>
+      {% endif %}
+
+      <form method="post" action="/giris" class="rail-stack">
+        <div>
+          <label class="ui-label" for="kullanici_adi">{{ t('giris_kullanici_adi', dil) }}</label>
+          <input type="text" class="ui-input" id="kullanici_adi" name="kullanici_adi" required autofocus>
+        </div>
+        <div>
+          <label class="ui-label" for="sifre">{{ t('giris_sifre', dil) }}</label>
+          <input type="password" class="ui-input" id="sifre" name="sifre" required>
+        </div>
+        <button type="submit" class="ui-btn ui-btn--primary" style="width: 100%">{{ t('giris_buton', dil) }}</button>
+      </form>
+    </div>
+  </section>
 </div>
 {% endblock %}

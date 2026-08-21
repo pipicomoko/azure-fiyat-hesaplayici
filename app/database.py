@@ -39,6 +39,7 @@ def veritabanini_olustur() -> None:
     _ekle_sutun("hesaplamalar", "durum", "VARCHAR DEFAULT 'taslak'", "TEXT DEFAULT 'taslak'")
     _ekle_sutun("hesaplamalar", "revizyon", "INTEGER DEFAULT 1", "INTEGER DEFAULT 1")
     _ekle_sutun("hesaplamalar", "onay_hedefi", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "onay_hedefi_ad_soyad", "VARCHAR")
     _ekle_sutun("hesaplamalar", "onaylayan_kullanici_adi", "VARCHAR")
     _ekle_sutun("hesaplamalar", "onay_tarihi", "TIMESTAMP")
     _ekle_sutun("hesaplamalar", "red_gerekce", "VARCHAR")

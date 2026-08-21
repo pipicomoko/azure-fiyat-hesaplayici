@@ -3,47 +3,65 @@
 {% block baslik %}{{ hesaplama.ad }} - {{ t('gecmis_detay_baslik', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<section class="hero-panel mb-4">
-  <div class="hero-panel-body">
-    <div>
-      <span class="hero-eyebrow">Detail</span>
-      <h1 class="hero-title mb-2">{{ hesaplama.ad }}</h1>
-      <p class="hero-text mb-0">
-        {{ t('gecmis_detay_aciklama', dil) }}
-        <span class="d-block mt-2">
-          {{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}
-          {% if hesaplama.olusturan_kullanici_adi and gecmis_gorunumu in ('yonetici', 'direktor', 'admin', 'departman') %}
-          &middot; {{ t('olusturan', dil) }}: {{ hesaplama.olusturan_kullanici_adi }}
-          {% endif %}
-          &middot; {{ t('durum', dil) }}: {{ t('durum_' + gorunen_durum, dil) if gorunen_durum else (hesaplama.durum or 'taslak') }}
-          {% if hesaplama.revizyon %}&middot; Rev {{ hesaplama.revizyon }}{% endif %}
-        </span>
-        {% if hesaplama.red_gerekce %}
-        <span class="d-block mt-1 text-danger">{{ t('red_gerekce', dil) }}: {{ hesaplama.red_gerekce }}</span>
-        {% endif %}
-      </p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a href="/gecmis" class="btn btn-outline-secondary btn-sm">{{ t('geri', dil) }}</a>
+{% set geri_yol = '/gecmis/taslaklar' if gorunen_durum == 'taslak' else '/gecmis/gonderilenler' %}
+<section class="detail-header section-card mb-4">
+  <div class="detail-header__top">
+    <a href="{{ geri_yol }}" class="detail-header__back">← {{ t('geri', dil) }}</a>
+    <div class="detail-header__actions">
       {% if duzenleyebilir %}
-      <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-primary btn-sm">
+      <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="ui-btn ui-btn--primary ui-btn--sm">
         {{ t('duzenle_tekrar_gonder', dil) if gorunen_durum == 'reddedildi' else t('duzenle', dil) }}
       </a>
       {% endif %}
-      <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-outline-secondary btn-sm">↓ Excel</a>
+      <a href="/gecmis/{{ hesaplama.id }}/excel" class="ui-btn ui-btn--secondary ui-btn--sm" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
       {% if iptal_edebilir %}
-      <form action="/gecmis/{{ hesaplama.id }}/iptal" method="post" class="d-inline-flex gap-1">
-        <input type="text" name="gerekce" class="form-control form-control-sm" placeholder="{{ t('gerekce', dil) }}">
-        <button type="submit" class="btn btn-outline-warning btn-sm">{{ t('iptal_et', dil) }}</button>
+      <form action="/gecmis/{{ hesaplama.id }}/iptal" method="post" class="detail-header__cancel">
+        <input type="text" name="gerekce" class="ui-input" placeholder="{{ t('gerekce', dil) }}">
+        <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm">{{ t('iptal_et', dil) }}</button>
       </form>
       {% endif %}
       {% if (hesaplama.olusturan_kullanici_adi or '')|lower == (kullanici.kullanici_adi or '')|lower %}
       <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
             onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
-        <button type="submit" class="btn btn-outline-danger btn-sm">{{ t('sil', dil) }}</button>
+        <button type="submit" class="ui-btn ui-btn--danger ui-btn--sm">{{ t('sil', dil) }}</button>
       </form>
       {% endif %}
     </div>
+  </div>
+
+  <div class="detail-header__main">
+    <div class="detail-header__title-row">
+      <h1 class="detail-header__title">{{ hesaplama.ad }}</h1>
+      {% if gorunen_durum %}
+      <span class="ui-badge{% if gorunen_durum == 'onaylandi' %} ui-badge--success{% elif gorunen_durum == 'reddedildi' %} ui-badge--danger{% elif gorunen_durum == 'onay_bekliyor' %} ui-badge--warning{% elif gorunen_durum == 'taslak' %} ui-badge--info{% endif %}">
+        {{ t('durum_' + gorunen_durum, dil) }}
+      </span>
+      {% endif %}
+    </div>
+    <ul class="detail-header__meta">
+      <li>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</li>
+      {% if hesaplama.olusturan_ad_soyad or hesaplama.olusturan_kullanici_adi %}
+      <li>{{ t('olusturan', dil) }}: {{ hesaplama.olusturan_ad_soyad or hesaplama.olusturan_kullanici_adi }}</li>
+      {% endif %}
+      {% if gorunen_durum == 'onay_bekliyor' and hesaplama.onay_hedefi %}
+      <li>{{ t('onay_beklenen', dil) }}: {{ sam_gorunen_adi(hesaplama.onay_hedefi, hesaplama.onay_hedefi_ad_soyad) }}</li>
+      {% endif %}
+      {% if gorunen_durum == 'onaylandi' and hesaplama.onaylayan_kullanici_adi %}
+      <li>{{ t('onaylayan', dil) }}: {{ sam_gorunen_adi(hesaplama.onaylayan_kullanici_adi) }}</li>
+      {% endif %}
+      {% if hesaplama.onay_tarihi and gorunen_durum == 'onaylandi' %}
+      <li>{{ t('onay_tarihi', dil) }}: {{ (hesaplama.onay_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</li>
+      {% endif %}
+      {% if hesaplama.revizyon %}
+      <li>Rev {{ hesaplama.revizyon }}</li>
+      {% endif %}
+    </ul>
+    {% if hesaplama.red_gerekce %}
+    <p class="detail-header__reject">{{ t('red_gerekce', dil) }}: {{ hesaplama.red_gerekce }}</p>
+    {% endif %}
+    {% if hesaplama.iptal_gerekce %}
+    <p class="detail-header__reject">{{ t('iptal_gerekce', dil) }}: {{ hesaplama.iptal_gerekce }}</p>
+    {% endif %}
   </div>
 </section>
 

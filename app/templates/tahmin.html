@@ -14,24 +14,27 @@ function tahminToplamiGuncelle() {
   kalemler.forEach(function (kalem) {
     toplam += parseFloat(kalem.dataset.tutar || '0');
   });
+  const paraBirimiSecici = document.getElementById('para-birimi-secici');
+  const paraBirimi = paraBirimiSecici ? paraBirimiSecici.value : 'USD';
+  const aylikMetin = typeof formatCurrency === 'function'
+    ? formatCurrency(toplam, paraBirimi)
+    : (toplam.toFixed(2) + ' ' + paraBirimi);
+  const yillikMetin = typeof formatCurrency === 'function'
+    ? formatCurrency(toplam * 12, paraBirimi)
+    : ((toplam * 12).toFixed(2) + ' ' + paraBirimi);
+
   const toplamElemani = document.getElementById('tahmin-toplam');
   const yillikToplamElemani = document.getElementById('tahmin-yillik-toplam');
   const sidebarTotal = document.getElementById('sidebar-aylik-toplam');
   const sidebarYearly = document.getElementById('sidebar-yillik-toplam');
-  const paraBirimiSecici = document.getElementById('para-birimi-secici');
-  const paraBirimi = paraBirimiSecici ? paraBirimiSecici.value : 'USD';
-  if (toplamElemani) {
-    toplamElemani.textContent = toplam.toFixed(2) + ' ' + paraBirimi;
-  }
-  if (yillikToplamElemani) {
-    yillikToplamElemani.textContent = (toplam * 12).toFixed(2) + ' ' + paraBirimi;
-  }
-  if (sidebarTotal) {
-    sidebarTotal.textContent = toplam.toFixed(2) + ' ' + paraBirimi;
-  }
-  if (sidebarYearly) {
-    sidebarYearly.textContent = (toplam * 12).toFixed(2) + ' ' + paraBirimi;
-  }
+  const sidebarCount = document.getElementById('sidebar-kalem-sayisi');
+
+  if (toplamElemani) toplamElemani.textContent = aylikMetin;
+  if (yillikToplamElemani) yillikToplamElemani.textContent = yillikMetin;
+  if (sidebarTotal) sidebarTotal.textContent = aylikMetin;
+  if (sidebarYearly) sidebarYearly.textContent = yillikMetin;
+  if (sidebarCount) sidebarCount.textContent = String(kalemler.length);
+
   if (typeof syncSummaryTotals === 'function') {
     syncSummaryTotals();
   }

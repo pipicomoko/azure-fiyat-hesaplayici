@@ -1,0 +1,91 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('nav_ana_sayfa', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<section class="ui-card" style="margin-bottom: var(--space-4)">
+  <div class="ui-card__body" style="display:flex; justify-content:space-between; gap: var(--space-4); flex-wrap:wrap; align-items:flex-end">
+    <div>
+      <h1 class="ui-card__title">{{ t('pano_baslik', dil) }}</h1>
+      <p class="ui-card__subtitle">{{ t('pano_aciklama', dil) }}</p>
+    </div>
+    <div style="display:flex; gap: var(--space-2); flex-wrap:wrap">
+      <a class="ui-btn ui-btn--primary" href="/tahmin">{{ t('yeni_tahmin', dil) }}</a>
+      <a class="ui-btn ui-btn--secondary" href="/gecmis/taslaklar">{{ t('nav_taslaklar', dil) }}</a>
+      <a class="ui-btn ui-btn--secondary" href="/gecmis/gonderilenler">{{ t('nav_gonderilenler', dil) }}</a>
+    </div>
+  </div>
+</section>
+
+{% if bekleyen_onay_sayisi %}
+<div class="ui-alert ui-alert--info" style="margin-bottom: var(--space-4)" role="status">
+  {{ t('pano_bekleyen_onay', dil, adet=bekleyen_onay_sayisi) }}
+  — <a href="/onay-kuyrugu">{{ t('nav_onay', dil) }}</a>
+</div>
+{% endif %}
+
+<div class="dashboard-grid" style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6)">
+  {% for kart in kartlar %}
+  <a class="ui-card dashboard-stat" href="{% if kart.anahtar == 'taslak' %}/gecmis/taslaklar{% else %}/gecmis/gonderilenler{% endif %}" style="text-decoration:none; color: inherit">
+    <div class="ui-card__body">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-3)">
+        <span class="ui-badge{% if kart.rozet == 'info' %} ui-badge--info{% elif kart.rozet == 'success' %} ui-badge--success{% elif kart.rozet == 'warning' %} ui-badge--warning{% endif %}">
+          {{ t(kart.baslik_anahtar, dil) }}
+        </span>
+        <strong class="tabular-nums" style="font-size: var(--text-lg)">{{ kart.adet }}</strong>
+      </div>
+      <div class="rail-metric__label">{{ t('tahmin_aylik_toplam', dil) }}</div>
+      <div class="rail-metric__value tabular-nums">{{ kart.toplam | para('USD', dil) }}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="dashboard-lists" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4)">
+  {% for kart in kartlar %}
+  <section class="ui-card">
+    <div class="ui-card__header" style="display:flex; justify-content:space-between; align-items:center; padding-bottom: var(--space-3); border-bottom: 1px solid var(--border)">
+      <h2 class="ui-card__title" style="font-size: var(--text-base)">{{ t(kart.baslik_anahtar, dil) }}</h2>
+      <span class="ui-badge">{{ kart.adet }}</span>
+    </div>
+    <div class="ui-card__body" style="padding-top: var(--space-3)">
+      {% if kart.kayitlar %}
+      <div class="ui-table-wrap" style="border:none">
+        <table class="ui-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('ad', dil) }}</th>
+              <th scope="col">{{ t('tarih', dil) }}</th>
+              <th scope="col" class="num">{{ t('toplam_aylik', dil) }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in kart.kayitlar %}
+            <tr>
+              <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
+              <td>{{ (h.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y") }}</td>
+              <td class="num">{{ h.toplam_aylik_maliyet | para(h.para_birimi, dil) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="estimate-empty" style="padding: var(--space-2) 0">{{ t('pano_bos_grup', dil) }}</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+<style>
+@media (max-width: 1100px) {
+  .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .dashboard-lists { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 640px) {
+  .dashboard-grid { grid-template-columns: 1fr !important; }
+}
+.dashboard-stat:hover { background: var(--bg-subtle); }
+</style>
+{% endblock %}

@@ -14,19 +14,26 @@ from fastapi.templating import Jinja2Templates
 from app.i18n import istekten_dil_al, t
 from app.kayitli_tahmin import birim_etiketi, kalem_aciklamasi, kalem_bolgesi
 from app.yetkilendirme import (
+    gecmis_erisim_kapsami,
     hesaplama_departmani,
     hesaplama_gorunen_durum,
     hesaplamayi_duzenleyebilir_mi,
     kullanici_izinli_mi,
+    sam_gorunen_adi,
+    ustu_olmayan_mi,
 )
 from app.zaman import yerel_saate_cevir
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["t"] = t
 templates.env.globals["kullanici_izinli_mi"] = kullanici_izinli_mi
+templates.env.globals["gecmis_erisim_kapsami"] = gecmis_erisim_kapsami
 templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
 templates.env.globals["hesaplama_gorunen_durum"] = hesaplama_gorunen_durum
 templates.env.globals["hesaplamayi_duzenleyebilir_mi"] = hesaplamayi_duzenleyebilir_mi
+templates.env.globals["ustu_olmayan_mi"] = ustu_olmayan_mi
+templates.env.globals["kendinden_onaylayabilir_mi"] = ustu_olmayan_mi  # alias
+templates.env.globals["sam_gorunen_adi"] = sam_gorunen_adi
 templates.env.globals["kalem_aciklamasi"] = kalem_aciklamasi
 templates.env.globals["kalem_bolgesi"] = kalem_bolgesi
 
@@ -50,14 +57,40 @@ def statik_surum(dosya_adi: str) -> str:
 templates.env.globals["statik_surum"] = statik_surum
 
 
-def _para_bicimlendir(deger: float, para_birimi: str = "USD") -> str:
-    return f"{deger:,.2f} {para_birimi}"
+def _para_bicimlendir(deger: float, para_birimi: str = "USD", dil: str = "tr") -> str:
+    """Intl.NumberFormat benzeri para formatı (locale + currency code)."""
+    try:
+        tutar = float(deger)
+    except (TypeError, ValueError):
+        tutar = 0.0
+    locale = "tr_TR" if dil == "tr" else "en_US"
+    try:
+        import babel.numbers as bn
+
+        return bn.format_currency(tutar, para_birimi, locale=locale)
+    except Exception:
+        if dil == "tr":
+            govde = f"{tutar:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            return f"{govde} {para_birimi}"
+        return f"{tutar:,.2f} {para_birimi}"
 
 
-def _birim_fiyat_bicimlendir(deger: float, para_birimi: str = "USD") -> str:
-    if deger == 0:
-        return f"0 {para_birimi}"
-    metin = f"{deger:.6f}".rstrip("0").rstrip(".")
+def _birim_fiyat_bicimlendir(deger: float, para_birimi: str = "USD", dil: str = "tr") -> str:
+    try:
+        tutar = float(deger)
+    except (TypeError, ValueError):
+        tutar = 0.0
+    if tutar == 0:
+        return _para_bicimlendir(0, para_birimi, dil)
+    # Birim fiyat için daha fazla basamak; para filtresiyle aynı locale
+    if dil == "tr":
+        metin = f"{tutar:.6f}".rstrip("0").rstrip(".")
+        if "." in metin:
+            tam, kesir = metin.split(".", 1)
+            tam = f"{int(tam):,}".replace(",", ".")
+            return f"{tam},{kesir} {para_birimi}"
+        return f"{int(float(metin)):,}".replace(",", ".") + f" {para_birimi}"
+    metin = f"{tutar:.6f}".rstrip("0").rstrip(".")
     return f"{metin} {para_birimi}"
 
 

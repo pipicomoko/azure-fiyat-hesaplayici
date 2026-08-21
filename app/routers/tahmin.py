@@ -90,6 +90,8 @@ async def _kalemi_coz(kalem_id: str, ham_yapilandirma: dict, para_birimi: str, d
     if urun is None:
         return None
 
+    # Secenek cozumleme (ozellikle VM katalogu) API'ye baglidir; FiyatApiHatasi
+    # burada yukselir — kalem-ekle/hesapla yakalayip kullaniciya uyari gosterir.
     secenek_sonucu = await urun.secenekleri_getir(ham, dil)
     yapilandirma = secenek_sonucu.yapilandirma
     fiyat, hata = await _fiyatla_guvenli(urun, yapilandirma, para_birimi, dil)
@@ -97,6 +99,14 @@ async def _kalemi_coz(kalem_id: str, ham_yapilandirma: dict, para_birimi: str, d
         kalem_id, urun_tipi, urun, yapilandirma, secenek_sonucu.secenekler,
         secenek_sonucu.gorunur_alanlar, fiyat, hata,
     )
+
+
+def _fiyat_servisi_uyarisi(dil: Dil) -> HTMLResponse:
+    """kalem-ekle / kalem-hesapla basarisizliginda kullaniciya gorunur uyari."""
+    metin = t("fiyat_servisi_erisilemez", dil)
+    html = f'<div class="ui-alert ui-alert--warning" role="alert" style="margin: var(--space-3)">{metin}</div>'
+    return HTMLResponse(html, status_code=200)
+
 
 
 async def _tum_kalemleri_coz(kalemler_ham: dict[str, dict], para_birimi: str, dil: Dil) -> list[_KalemSonucu]:
@@ -194,7 +204,10 @@ async def kalem_ekle(request: Request, kullanici: dict = Depends(yetki_gerekli(I
         return HTMLResponse("", status_code=400)
 
     kalem_id = uuid.uuid4().hex
-    sonuc = await _kalemi_coz(kalem_id, {**urun.bos_yapilandirma(), "urun_tipi": urun_tipi}, para_birimi, dil)
+    try:
+        sonuc = await _kalemi_coz(kalem_id, {**urun.bos_yapilandirma(), "urun_tipi": urun_tipi}, para_birimi, dil)
+    except FiyatApiHatasi:
+        return _fiyat_servisi_uyarisi(dil)
     if sonuc is None:
         return HTMLResponse("", status_code=400)
 
@@ -214,7 +227,10 @@ async def kalem_hesapla(request: Request, kullanici: dict = Depends(yetki_gerekl
     para_birimi = guvenli_para_birimi(genel.get("para_birimi"))
     dil = form_alanindan_dil_al(genel.get("dil")) if genel.get("dil") in DESTEKLENEN_DILLER else istekten_dil_al(request)
 
-    sonuc = await _kalemi_coz(kalem_id, ham, para_birimi, dil)
+    try:
+        sonuc = await _kalemi_coz(kalem_id, ham, para_birimi, dil)
+    except FiyatApiHatasi:
+        return _fiyat_servisi_uyarisi(dil)
     if sonuc is None:
         return HTMLResponse("", status_code=400)
 
@@ -264,20 +280,33 @@ async def tahmin_kaydet(
     hesaplama_adi = (genel.get("hesaplama_adi") or "").strip()
 
     if not hesaplama_adi:
-        return HTMLResponse(f'<div class="alert alert-danger">{t("kaydet_ad_gerekli", dil)}</div>', status_code=400)
+        return HTMLResponse(f'<div class="ui-alert ui-alert--danger">{t("kaydet_ad_gerekli", dil)}</div>', status_code=400)
     if not kalemler_ham:
-        return HTMLResponse(f'<div class="alert alert-danger">{t("kaydet_bos_sepet", dil)}</div>', status_code=400)
+        return HTMLResponse(f'<div class="ui-alert ui-alert--danger">{t("kaydet_bos_sepet", dil)}</div>', status_code=400)
 
     kalem_sonuclari = await _tum_kalemleri_coz(kalemler_ham, para_birimi, dil)
     if not kalem_sonuclari or any(k.hata for k in kalem_sonuclari):
-        return HTMLResponse(f'<div class="alert alert-danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
+        return HTMLResponse(f'<div class="ui-alert ui-alert--danger">{t("fiyat_bulunamadi", dil)}</div>', status_code=400)
 
     onaya_gonder = (genel.get("onaya_gonder") or "").lower() in {"1", "true", "evet", "on"}
     onay_hedefi = (genel.get("onay_hedefi") or "").strip().lower() or None
 
+    from app.models import DURUM_ONAY_BEKLIYOR, DURUM_TASLAK
+    from app.yetkilendirme import (
+        oturum_manager_adi,
+        oturum_manager_zincirini_genislet,
+        ustu_olmayan_mi,
+    )
+
+    zincir = oturum_manager_zincirini_genislet(kullanici)
+    # Ustunde kimse yoksa onay akisina hicbir sekilde giremez
+    if ustu_olmayan_mi(kullanici):
+        onaya_gonder = False
+        onay_hedefi = None
+
     if onaya_gonder and not onay_hedefi:
         return HTMLResponse(
-            f'<div class="alert alert-danger">{t("onay_hedefi_gerekli", dil)}</div>',
+            f'<div class="ui-alert ui-alert--danger">{t("onay_hedefi_gerekli", dil)}</div>',
             status_code=400,
         )
 
@@ -290,12 +319,9 @@ async def tahmin_kaydet(
     if not departman_anahtari or departman_anahtari == "diger":
         departman_anahtari, _ = gruplardan_departman_belirle(kullanici.get("gruplar"))
 
-    from app.models import DURUM_ONAY_BEKLIYOR, DURUM_TASLAK
-    from app.yetkilendirme import oturum_manager_zincirini_genislet
-
-    zincir = oturum_manager_zincirini_genislet(kullanici)
     if onaya_gonder and onay_hedefi and onay_hedefi not in zincir:
         zincir = [onay_hedefi] + [z for z in zincir if z != onay_hedefi]
+    onay_hedefi_ad = oturum_manager_adi(kullanici, onay_hedefi) if onay_hedefi else None
 
     durum = DURUM_ONAY_BEKLIYOR if (onaya_gonder and onay_hedefi) else DURUM_TASLAK
 
@@ -326,6 +352,7 @@ async def tahmin_kaydet(
         hesaplama.olusturan_ad_soyad = kullanici.get("ad_soyad") or kullanici.get("kullanici_adi") or ""
         hesaplama.durum = durum
         hesaplama.onay_hedefi = onay_hedefi if durum == DURUM_ONAY_BEKLIYOR else None
+        hesaplama.onay_hedefi_ad_soyad = onay_hedefi_ad if durum == DURUM_ONAY_BEKLIYOR else None
         hesaplama.olusturan_manager_zinciri = zincir
         hesaplama.red_gerekce = None
         if durum == DURUM_ONAY_BEKLIYOR:
@@ -344,6 +371,7 @@ async def tahmin_kaydet(
             durum=durum,
             revizyon=1,
             onay_hedefi=onay_hedefi if durum == DURUM_ONAY_BEKLIYOR else None,
+            onay_hedefi_ad_soyad=onay_hedefi_ad if durum == DURUM_ONAY_BEKLIYOR else None,
             olusturan_manager_zinciri=zincir,
         )
         oturum.add(hesaplama)
@@ -380,14 +408,22 @@ async def tahmin_kaydet(
     oturum.add(hesaplama)
     oturum.commit()
 
-    # HTMX: basarili kayittan sonra gecmise yonlendir (kaydin gorundugunu dogrula)
+    # HTMX: basarili kayittan sonra ilgili listeye yonlendir
+    if durum == DURUM_ONAY_BEKLIYOR:
+        hedef = "/gecmis/gonderilenler"
+        nav_anahtar = "nav_gonderilenler"
+        basari_anahtar = "onaya_gonderildi"
+    else:
+        hedef = "/gecmis/taslaklar"
+        nav_anahtar = "nav_tahmin_gecmisi" if ustu_olmayan_mi(kullanici) else "nav_taslaklar"
+        basari_anahtar = "tahmin_kaydedildi" if ustu_olmayan_mi(kullanici) else "kaydet_basarili"
     yanit = HTMLResponse(
-        f'<a href="/gecmis" class="kaydet-basari-banner">'
-        f'<span class="kaydet-basari-icon">✓</span>'
-        f'<span>"{hesaplama_adi}" {t("kaydet_basarili", dil)}</span>'
-        f'</a>'
+        f'<div class="ui-alert ui-alert--info">'
+        f'"{hesaplama_adi}" {t(basari_anahtar, dil)}'
+        f' — <a href="{hedef}">{t(nav_anahtar, dil)}</a>'
+        f'</div>'
     )
-    yanit.headers["HX-Redirect"] = "/gecmis"
+    yanit.headers["HX-Redirect"] = hedef
     return yanit
 
 
@@ -427,12 +463,9 @@ async def tahmin_disa_aktar(request: Request, kullanici: dict = Depends(yetki_ge
 gecmis_router = APIRouter()
 
 
-@gecmis_router.get("/gecmis")
-async def gecmis_listesi(
-    request: Request,
-    oturum: Session = Depends(oturum_al),
-    kullanici: dict = Depends(gecmis_goruntule_gerekli),
-):
+def _gecmis_liste_baglami(oturum: Session, kullanici: dict, aktif_sekme: str) -> dict:
+    from app.yetkilendirme import ustu_olmayan_mi
+
     kapsam = gecmis_erisim_kapsami(kullanici)
     tum = oturum.exec(select(Hesaplama).order_by(Hesaplama.olusturulma_tarihi.desc())).all()
     hesaplamalar = [h for h in tum if hesaplamaya_erisebilir_mi(kullanici, h)]
@@ -442,22 +475,24 @@ async def gecmis_listesi(
         h for h in hesaplamalar
         if (h.olusturan_kullanici_adi or "").lower() == kullanici_adi_lower
     ]
-    # Taslak: hic onaya gitmemis (red gerekcesi yok)
-    taslak_hesaplamalar = [
-        h for h in personal_hesaplamalar
-        if hesaplama_gorunen_durum(h) == "taslak"
-    ]
-    # Gonderilenler: onay surecinde / bitmis / reddedilmis
-    gonderilen_hesaplamalar = [
-        h for h in personal_hesaplamalar
-        if hesaplama_gorunen_durum(h) != "taslak"
-    ]
+    # Ustunde kimse yoksa tum kisisel kayitlar "tahmin gecmisi" listesinde
+    if ustu_olmayan_mi(kullanici):
+        taslak_hesaplamalar = list(personal_hesaplamalar)
+        gonderilen_hesaplamalar = []
+    else:
+        taslak_hesaplamalar = [
+            h for h in personal_hesaplamalar
+            if hesaplama_gorunen_durum(h) == "taslak"
+        ]
+        gonderilen_hesaplamalar = [
+            h for h in personal_hesaplamalar
+            if hesaplama_gorunen_durum(h) != "taslak"
+        ]
     arama_hesaplamalari = [
         h for h in hesaplamalar
         if (h.olusturan_kullanici_adi or "").lower() != kullanici_adi_lower
     ]
 
-    # Yonetici/direktor/admin icin departman listesi dropdown
     departman_listesi: list[dict] = []
     if kapsam in ("yonetici", "direktor", "admin"):
         dep_anahtarlari: set[str] = set()
@@ -470,19 +505,63 @@ async def gecmis_listesi(
             key=lambda d: d["etiket"],
         )
 
-    return render(
-        request,
-        "gecmis.html",
-        {
-            "hesaplamalar": hesaplamalar,
-            "personal_hesaplamalar": personal_hesaplamalar,
-            "taslak_hesaplamalar": taslak_hesaplamalar,
-            "gonderilen_hesaplamalar": gonderilen_hesaplamalar,
-            "arama_hesaplamalari": arama_hesaplamalari,
-            "departman_listesi": departman_listesi,
-            "gecmis_gorunumu": kapsam,
-        },
-    )
+    return {
+        "hesaplamalar": hesaplamalar,
+        "personal_hesaplamalar": personal_hesaplamalar,
+        "taslak_hesaplamalar": taslak_hesaplamalar,
+        "gonderilen_hesaplamalar": gonderilen_hesaplamalar,
+        "arama_hesaplamalari": arama_hesaplamalari,
+        "departman_listesi": departman_listesi,
+        "gecmis_gorunumu": kapsam,
+        "aktif_sekme": aktif_sekme,
+        "ustu_yok": ustu_olmayan_mi(kullanici),
+    }
+
+
+@gecmis_router.get("/gecmis")
+async def gecmis_listesi(
+    request: Request,
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
+):
+    from app.yetkilendirme import IZIN_HESAPLAMA_KULLAN, kullanici_izinli_mi
+
+    if not kullanici_izinli_mi(kullanici, IZIN_HESAPLAMA_KULLAN):
+        return RedirectResponse("/gecmis/arama", status_code=303)
+    return RedirectResponse("/gecmis/taslaklar", status_code=303)
+
+
+@gecmis_router.get("/gecmis/taslaklar")
+async def gecmis_taslaklar(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
+):
+    return render(request, "gecmis.html", _gecmis_liste_baglami(oturum, kullanici, "taslaklar"))
+
+
+@gecmis_router.get("/gecmis/gonderilenler")
+async def gecmis_gonderilenler(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
+):
+    from app.yetkilendirme import ustu_olmayan_mi
+
+    if ustu_olmayan_mi(kullanici):
+        return RedirectResponse("/gecmis/taslaklar", status_code=303)
+    return render(request, "gecmis.html", _gecmis_liste_baglami(oturum, kullanici, "gonderilenler"))
+
+
+@gecmis_router.get("/gecmis/arama")
+async def gecmis_arama(
+    request: Request,
+    oturum: Session = Depends(oturum_al),
+    kullanici: dict = Depends(gecmis_goruntule_gerekli),
+):
+    kapsam = gecmis_erisim_kapsami(kullanici)
+    if kapsam not in ("yonetici", "direktor", "admin"):
+        return RedirectResponse("/gecmis/taslaklar", status_code=303)
+    return render(request, "gecmis.html", _gecmis_liste_baglami(oturum, kullanici, "arama"))
 
 
 @gecmis_router.get("/gecmis/{hesaplama_id}")
@@ -635,4 +714,4 @@ async def gecmis_sil(
 
     oturum.delete(hesaplama)
     oturum.commit()
-    return RedirectResponse("/gecmis", status_code=303)
+    return RedirectResponse("/gecmis/taslaklar", status_code=303)

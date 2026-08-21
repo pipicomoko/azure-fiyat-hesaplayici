@@ -1,5 +1,7 @@
 import asyncio
 
+import httpx
+
 from app.fiyat_api import kayitlari_getir, odata_metin_kacir, onbellek_temizle
 
 _ORNEK_KAYIT = {
@@ -75,3 +77,39 @@ def test_kayitlari_getir_onbellekler(monkeypatch):
 
 def test_odata_metin_kacir_tek_tirnagi_kacislar():
     assert odata_metin_kacir("O'Brien") == "O''Brien"
+
+
+class _429SonraOkIstemci:
+    """Ilk GET 429, sonraki basarili — yeniden deneme yolunu dogrular."""
+
+    cagri_sayisi = 0
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def get(self, url, params=None):
+        _429SonraOkIstemci.cagri_sayisi += 1
+        if _429SonraOkIstemci.cagri_sayisi == 1:
+            yanit = httpx.Response(429, headers={"Retry-After": "0"}, request=httpx.Request("GET", url))
+            return yanit
+        return _SahteYanit({"Items": [_ORNEK_KAYIT], "NextPageLink": None})
+
+
+def test_kayitlari_getir_429_sonra_yeniden_dener(monkeypatch):
+    import app.fiyat_api as modul
+
+    onbellek_temizle()
+    _429SonraOkIstemci.cagri_sayisi = 0
+    monkeypatch.setattr(modul.httpx, "AsyncClient", _429SonraOkIstemci)
+    monkeypatch.setattr(modul.asyncio, "sleep", lambda *_a, **_k: asyncio.sleep(0))
+
+    sonuclar = asyncio.run(kayitlari_getir("serviceName eq 'Virtual Machines'", onbellek_kullan=False))
+
+    assert len(sonuclar) == 1
+    assert _429SonraOkIstemci.cagri_sayisi == 2

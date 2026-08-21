@@ -1,44 +1,43 @@
-<div class="card app-card app-estimate-item mb-3 tahmin-kalemi" id="kalem-{{ kalem_id }}"
+<article class="tahmin-kalemi" id="kalem-{{ kalem_id }}"
      hx-post="/tahmin/kalem/hesapla?kalem_id={{ kalem_id }}"
      hx-trigger="change, change from:#para-birimi-secici"
      hx-target="this" hx-swap="outerHTML"
-     data-tutar="{{ (fiyat.aylik_toplam if fiyat else 0) | round(4) }}">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-start mb-2">
-      <div>
-        <span class="section-kicker">Virtual Machine</span>
-        <h3 class="h6 mb-1">{{ urun.ad(dil) }}</h3>
-        <small class="text-muted">{{ urun.ozet(yapilandirma, dil) }}</small>
-      </div>
-      <div class="text-end estimate-price-block">
-        <button type="button" class="btn btn-sm btn-outline-danger mb-1"
-                onclick="this.closest('.tahmin-kalemi').remove(); tahminToplamiGuncelle();">
-          {{ t('tahmin_kaldir', dil) }}
-        </button>
-        <div class="fw-bold">
-          {% if fiyat %}{{ fiyat.aylik_toplam | para(para_birimi) }}{% else %}&mdash;{% endif %}
-        </div>
-        <small class="text-muted">/ {{ t('tahmin_aylik_maliyet', dil) | lower }}</small>
-        {% if fiyat %}
-        <div class="text-muted small">{{ fiyat.aylik_toplam | yillik | para(para_birimi) }} / {{ t('yillik_maliyet', dil) | lower }}</div>
-        {% endif %}
-        <div class="mt-2 text-start">
-          <label class="form-label small mb-0">{{ t('indirim_yuzdesi', dil) }}</label>
-          <input type="number" min="0" max="100" step="0.1" class="form-control form-control-sm"
-                 name="{{ kalem_id }}.indirim_yuzdesi" placeholder="%"
-                 value="{{ yapilandirma.indirim_yuzdesi if yapilandirma.indirim_yuzdesi is defined and yapilandirma.indirim_yuzdesi is not none else '' }}"
-                 onchange="event.stopPropagation()">
-        </div>
-      </div>
+     data-tutar="{{ (fiyat.aylik_toplam if fiyat else 0) | round(4) }}"
+     data-adet="{{ yapilandirma.adet | default(1) }}">
+  <div class="estimate-item__summary">
+    <div class="estimate-item__product">{{ urun.ad(dil) }}</div>
+    <div class="estimate-item__config">{{ urun.ozet(yapilandirma, dil) }}</div>
+    <div class="num">{{ yapilandirma.adet | default(1) }}</div>
+    <div class="estimate-item__price num">
+      {% if fiyat %}{{ fiyat.aylik_toplam | para(para_birimi, dil) }}{% else %}—{% endif %}
     </div>
+    <div class="estimate-item__actions">
+      <button type="button" class="ui-btn ui-btn--danger ui-btn--sm"
+              aria-label="{{ t('tahmin_kaldir', dil) }}"
+              onclick="this.closest('.tahmin-kalemi').remove(); tahminToplamiGuncelle();">
+        {{ t('tahmin_kaldir', dil) }}
+      </button>
+    </div>
+  </div>
 
+  <div class="estimate-item__body">
     {% if hata %}
-    <div class="alert alert-warning py-1 px-2 small mb-2">{{ hata }}</div>
+    <div class="ui-alert ui-alert--warning mb-3">{{ hata }}</div>
     {% endif %}
 
     <input type="hidden" name="{{ kalem_id }}.urun_tipi" value="{{ urun_tipi }}">
 
-    <div class="row g-3 align-items-end">
+    <div class="estimate-item__fields">
+      <div>
+        <label class="ui-label" for="indirim-{{ kalem_id }}">{{ t('indirim_yuzdesi', dil) }}</label>
+        <input type="number" min="0" max="100" step="0.1" class="ui-input" id="indirim-{{ kalem_id }}"
+               name="{{ kalem_id }}.indirim_yuzdesi" placeholder="%"
+               value="{{ yapilandirma.indirim_yuzdesi if yapilandirma.indirim_yuzdesi is defined and yapilandirma.indirim_yuzdesi is not none else '' }}"
+               onchange="event.stopPropagation()">
+      </div>
+    </div>
+
+    <div class="row g-3 align-items-end mt-1">
       <div class="col-md-3">
         <label class="form-label small mb-0">{{ t('alan_bolge', dil) }}</label>
         <select class="form-select form-select-sm" name="{{ kalem_id }}.bolge">
@@ -349,4 +348,4 @@
     </table>
     {% endif %}
   </div>
-</div>
+</article>

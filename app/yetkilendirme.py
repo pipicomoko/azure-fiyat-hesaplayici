@@ -407,13 +407,17 @@ def giris_dogrula(kullanici_adi: str, sifre: str) -> dict | None:
         )
         if baglanti.entries:
             kullanici = _kayittan_kullanici(baglanti.entries[0], kullanici_adi)
-            kullanici["manager_zinciri"] = _manager_zinciri_yukle(baglanti, kullanici.get("manager"))
+            kullanici["manager_zinciri"], kullanici["manager_adlari"] = _manager_zinciri_yukle(
+                baglanti, kullanici.get("manager")
+            )
             return kullanici
 
         yanit = arama_sonucu[2] if isinstance(arama_sonucu, tuple) and len(arama_sonucu) >= 3 else None
         kullanici = _yanittan_kullanici(yanit, kullanici_adi)
         if kullanici:
-            kullanici["manager_zinciri"] = _manager_zinciri_yukle(baglanti, kullanici.get("manager"))
+            kullanici["manager_zinciri"], kullanici["manager_adlari"] = _manager_zinciri_yukle(
+                baglanti, kullanici.get("manager")
+            )
             return kullanici
 
         logger.warning("LDAP bind oldu ama kullanici kaydi bulunamadi")
@@ -462,15 +466,25 @@ def kullanici_izinli_mi(kullanici: dict | None, izin: str) -> bool:
 
 def giris_sonrasi_yol(kullanici: dict | None) -> str:
     """Oturum acildiktan sonra kullanicinin yetkisine uygun ilk sayfa."""
+    # Genel mudur / ustu olmayan: ana is onay/arama/rapor
+    if kullanici is not None and ustu_olmayan_mi(kullanici):
+        if kullanici_izinli_mi(kullanici, IZIN_ONAY_ISLEM):
+            return "/onay-kuyrugu"
+        if kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM) or kullanici_izinli_mi(
+            kullanici, IZIN_DIREKTOR_ERISIM
+        ) or kullanici_izinli_mi(kullanici, IZIN_YONETICI_ERISIM):
+            return "/gecmis/arama"
+        if kullanici_izinli_mi(kullanici, IZIN_RAPOR_GOR):
+            return "/raporlar"
     if kullanici_izinli_mi(kullanici, IZIN_HESAPLAMA_KULLAN):
-        return "/tahmin"
+        return "/"
     if kullanici_izinli_mi(kullanici, IZIN_AUDIT_GOR):
         return "/admin/aktivite"
     if kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM):
-        return "/gecmis"
+        return "/gecmis/arama"
     if kullanici_izinli_mi(kullanici, IZIN_RAPOR_GOR):
         return "/raporlar"
-    return "/gecmis"
+    return "/gecmis/taslaklar"
 
 
 def departman_haritasini_yukle() -> dict:
@@ -595,9 +609,12 @@ def kullanici_rolu(kullanici: dict | None) -> str:
     return ROL_CALISAN
 
 
-def _manager_zinciri_yukle(baglanti: Connection, baslangic_manager: str | None, max_derinlik: int = 12) -> list[str]:
-    """Acik LDAP baglantisi uzerinden manager zincirini yukari dogru cozer."""
+def _manager_zinciri_yukle(
+    baglanti: Connection, baslangic_manager: str | None, max_derinlik: int = 12
+) -> tuple[list[str], dict[str, str]]:
+    """Manager zincirini ve her sam icin gorunen adi (displayName) dondurur."""
     zincir: list[str] = []
+    adlar: dict[str, str] = {}
     guncel = (baslangic_manager or "").lower().strip()
     gorulen: set[str] = set()
     while guncel and guncel not in gorulen and len(zincir) < max_derinlik:
@@ -609,20 +626,43 @@ def _manager_zinciri_yukle(baglanti: Connection, baslangic_manager: str | None, 
                 search_base=LDAP_ARAMA_TABANI,
                 search_filter=f"(sAMAccountName={guvenli})",
                 search_scope=SUBTREE,
-                attributes=["manager", "sAMAccountName"],
+                attributes=["manager", "sAMAccountName", "displayName", "cn"],
             )
         except LDAPException:
+            adlar[guncel] = sam_gorunen_adi(guncel)
             break
         if not baglanti.entries:
+            adlar[guncel] = sam_gorunen_adi(guncel)
             break
         kayit = baglanti.entries[0]
+        display = None
+        if getattr(kayit, "displayName", None) and kayit.displayName.value:
+            display = str(kayit.displayName.value)
+        elif getattr(kayit, "cn", None) and kayit.cn.value:
+            cn = str(kayit.cn.value)
+            if " " in cn:
+                display = cn
+        adlar[guncel] = display or sam_gorunen_adi(guncel)
         manager_dn = ""
         if getattr(kayit, "manager", None) and kayit.manager.value:
             manager_dn = str(kayit.manager.value)
         guncel = (_manager_sam_from_dn(manager_dn) or "").lower()
         if manager_dn and not guncel:
             guncel = _grup_adini_cikar(manager_dn).lower().replace(" ", ".")
-    return zincir
+    return zincir, adlar
+
+
+def sam_gorunen_adi(sam: str | None, kayitli: str | None = None) -> str:
+    """sAMAccountName veya kayitli ad-soyadi gorunen metne cevirir."""
+    if (kayitli or "").strip():
+        return kayitli.strip()
+    ham = (sam or "").strip()
+    if not ham:
+        return ""
+    if " " in ham and "." not in ham.split()[0]:
+        return ham
+    parcalar = [p for p in ham.replace("_", ".").split(".") if p]
+    return " ".join(p[:1].upper() + p[1:].lower() for p in parcalar)
 
 
 def oturum_manager_zincirini_genislet(kullanici: dict) -> list[str]:
@@ -632,6 +672,29 @@ def oturum_manager_zincirini_genislet(kullanici: dict) -> list[str]:
     if dogrudan and dogrudan not in zincir:
         zincir.insert(0, dogrudan)
     return zincir
+
+
+def ustu_olmayan_mi(kullanici: dict | None) -> bool:
+    """Hiyerarside ustu olmayan (or. Genel Mudur): onay akisina gondermez."""
+    if kullanici is None:
+        return False
+    sam = (kullanici.get("kullanici_adi") or "").lower()
+    if sam and sam == GENEL_MUDUR_SAM:
+        return True
+    return not oturum_manager_zincirini_genislet(kullanici)
+
+
+# Geriye donuk alias
+kendinden_onaylayabilir_mi = ustu_olmayan_mi
+
+
+def oturum_manager_adi(kullanici: dict | None, sam: str | None) -> str:
+    """Oturumdaki manager_adlari haritasindan veya sam'dan gorunen ad."""
+    anahtar = (sam or "").lower().strip()
+    if not anahtar:
+        return ""
+    adlar = (kullanici or {}).get("manager_adlari") or {}
+    return sam_gorunen_adi(anahtar, adlar.get(anahtar))
 
 
 def departman_basi_mi(kullanici: dict | None) -> bool:
