@@ -719,6 +719,20 @@ def departman_basi_mi(kullanici: dict | None) -> bool:
     return (kullanici.get("manager") or "").lower() == GENEL_MUDUR_SAM
 
 
+def departman_basi_alt_kademe_mi(kullanici: dict | None) -> bool:
+    """Departman basina dogrudan bagli bir sonraki yonetim kademesi."""
+    if kullanici is None or departman_basi_mi(kullanici):
+        return False
+    dogrudan = (kullanici.get("manager") or "").lower()
+    zincir = oturum_manager_zincirini_genislet(kullanici)
+    return (
+        bool(dogrudan)
+        and len(zincir) >= 2
+        and zincir[0] == dogrudan
+        and zincir[1] == GENEL_MUDUR_SAM
+    )
+
+
 def gecmis_erisim_kapsami(kullanici: dict | None) -> str:
     """admin | direktor | yonetici | kendi"""
     if kullanici is None:

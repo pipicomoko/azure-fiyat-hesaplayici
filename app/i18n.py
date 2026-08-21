@@ -26,6 +26,18 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "nav_arama": {"tr": "Arama", "en": "Search"},
     "nav_sirket_kayitlari": {"tr": "Şirket Kayıtları", "en": "Company Records"},
     "nav_departman_kayitlari": {"tr": "Departman Kayıtları", "en": "Department Records"},
+    "nav_birim_kayitlari": {"tr": "Birim Kayıtları", "en": "Unit Records"},
+    "bs_etiket": {"tr": "Birim Yönetimi", "en": "Unit Management"},
+    "bs_baslik": {"tr": "Birim Yönetim Özeti", "en": "Unit Management Overview"},
+    "bs_aciklama": {
+        "tr": "Sorumlu olduğunuz organizasyonun maliyetlerini, ekip katkısını ve bekleyen onayları izleyin.",
+        "en": "Track costs, team contribution, and pending approvals for your organization.",
+    },
+    "bs_onayli_maliyet": {"tr": "Birim onaylı maliyeti", "en": "Unit approved cost"},
+    "bs_trend": {"tr": "Birim 12 Aylık Trendi", "en": "Unit 12-Month Trend"},
+    "bs_ekip_ozeti": {"tr": "Birim Ekip Özeti", "en": "Unit Team Summary"},
+    "bs_bana_bekleyen": {"tr": "Onayımı Bekleyenler", "en": "Waiting for My Approval"},
+    "bs_son_kayitlar": {"tr": "Son Birim Kayıtları", "en": "Recent Unit Records"},
     "db_etiket": {"tr": "Departman Yönetimi", "en": "Department Management"},
     "db_baslik": {"tr": "Yönetim Özeti", "en": "Management Overview"},
     "db_aciklama": {

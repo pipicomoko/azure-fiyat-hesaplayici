@@ -8,6 +8,7 @@
     {% set ustu_yok = ustu_olmayan_mi(kullanici) %}
     {% set genel_mudur = genel_mudur_mu(kullanici) %}
     {% set departman_basi = departman_basi_mi(kullanici) %}
+    {% set birim_sorumlusu = departman_basi_alt_kademe_mi(kullanici) %}
     <div class="app-nav-main" role="navigation" aria-label="{{ t('uygulama_adi', dil) }}">
       {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') %}
       <a class="app-nav-link{% if request.url.path == '/' %} is-active{% endif %}"
@@ -16,7 +17,7 @@
         {{ t('nav_ana_sayfa', dil) }}
       </a>
       {% endif %}
-      {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') and not ustu_yok and not departman_basi %}
+      {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') and not ustu_yok and not departman_basi and not birim_sorumlusu %}
       <a class="app-nav-link{% if request.url.path.startswith('/tahmin') %} is-active{% endif %}"
          href="/tahmin"
          {% if request.url.path.startswith('/tahmin') %}aria-current="page"{% endif %}>
@@ -37,7 +38,7 @@
       <a class="app-nav-link{% if request.url.path == '/gecmis/arama' %} is-active{% endif %}"
          href="/gecmis/arama"
          {% if request.url.path == '/gecmis/arama' %}aria-current="page"{% endif %}>
-        {{ t('nav_sirket_kayitlari', dil) if genel_mudur else (t('nav_departman_kayitlari', dil) if departman_basi else t('nav_arama', dil)) }}
+        {{ t('nav_sirket_kayitlari', dil) if genel_mudur else (t('nav_departman_kayitlari', dil) if departman_basi else (t('nav_birim_kayitlari', dil) if birim_sorumlusu else t('nav_arama', dil))) }}
       </a>
       {% endif %}
       {% if kullanici_izinli_mi(kullanici, 'onay.islem') %}
@@ -104,7 +105,7 @@
               <div class="app-user-meta">{{ kullanici.kullanici_adi }}{% if kullanici.rol %} · {{ kullanici.rol }}{% endif %}</div>
             </div>
           </div>
-          {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') and (ustu_yok or departman_basi) %}
+          {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') and (ustu_yok or departman_basi or birim_sorumlusu) %}
           <a class="app-user-menu-item" href="/tahmin">{{ t('nav_tahmin', dil) }}</a>
           <a class="app-user-menu-item" href="/gecmis/taslaklar">{{ t('nav_tahmin_gecmisi', dil) }}</a>
           {% endif %}

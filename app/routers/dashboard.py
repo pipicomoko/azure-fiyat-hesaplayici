@@ -22,6 +22,7 @@ from app.sablonlar import render
 from app.yetkilendirme import (
     IZIN_HESAPLAMA_KULLAN,
     IZIN_ONAY_ISLEM,
+    departman_basi_alt_kademe_mi,
     departman_basi_mi,
     departman_etiketi,
     hesaplama_gorunen_durum,
@@ -342,6 +343,14 @@ def _departman_basi_baglami(
         "ekip_ozeti": ekip_ozeti[:10],
         "dogrudan_bekleyenler": dogrudan_bekleyenler[:5],
         "son_kayitlar": son_kayitlar[:8],
+        "panel_etiket_anahtari": "db_etiket",
+        "panel_baslik_anahtari": "db_baslik",
+        "panel_aciklama_anahtari": "db_aciklama",
+        "panel_maliyet_anahtari": "db_onayli_maliyet",
+        "panel_trend_anahtari": "db_trend",
+        "panel_ekip_anahtari": "db_ekip_ozeti",
+        "panel_bekleyen_anahtari": "db_bana_bekleyen",
+        "panel_son_kayitlar_anahtari": "db_son_kayitlar",
     }
 
 
@@ -378,6 +387,25 @@ async def pano(
                 tum_departman, aktiviteler, kullanici, baslangic, bitis
             ),
         )
+    if departman_basi_alt_kademe_mi(kullanici):
+        tum_birim = list(oturum.exec(select(Hesaplama)).all())
+        aktiviteler = list(oturum.exec(select(AktiviteKaydi)).all())
+        baglam = _departman_basi_baglami(
+            tum_birim, aktiviteler, kullanici, baslangic, bitis
+        )
+        baglam.update(
+            {
+                "panel_etiket_anahtari": "bs_etiket",
+                "panel_baslik_anahtari": "bs_baslik",
+                "panel_aciklama_anahtari": "bs_aciklama",
+                "panel_maliyet_anahtari": "bs_onayli_maliyet",
+                "panel_trend_anahtari": "bs_trend",
+                "panel_ekip_anahtari": "bs_ekip_ozeti",
+                "panel_bekleyen_anahtari": "bs_bana_bekleyen",
+                "panel_son_kayitlar_anahtari": "bs_son_kayitlar",
+            }
+        )
+        return render(request, "departman_basi_pano.html", baglam)
 
     tum = oturum.exec(
         select(Hesaplama).where(Hesaplama.olusturan_kullanici_adi == sam)
