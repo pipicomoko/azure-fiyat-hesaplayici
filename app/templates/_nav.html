@@ -6,6 +6,7 @@
 
     {% if kullanici %}
     {% set ustu_yok = ustu_olmayan_mi(kullanici) %}
+    {% set genel_mudur = genel_mudur_mu(kullanici) %}
     <div class="app-nav-main" role="navigation" aria-label="{{ t('uygulama_adi', dil) }}">
       {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') %}
       <a class="app-nav-link{% if request.url.path == '/' %} is-active{% endif %}"
@@ -35,7 +36,7 @@
       <a class="app-nav-link{% if request.url.path == '/gecmis/arama' %} is-active{% endif %}"
          href="/gecmis/arama"
          {% if request.url.path == '/gecmis/arama' %}aria-current="page"{% endif %}>
-        {{ t('nav_arama', dil) }}
+        {{ t('nav_sirket_kayitlari', dil) if genel_mudur else t('nav_arama', dil) }}
       </a>
       {% endif %}
       {% if kullanici_izinli_mi(kullanici, 'onay.islem') %}

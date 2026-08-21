@@ -1,0 +1,5 @@
+{% if kayitlar %}
+<div class="ui-table-wrap"><table class="ui-table"><thead><tr><th>{{ t('ad', dil) }}</th><th>{{ t('birim', dil) }}</th><th>{{ t('durum', dil) }}</th><th class="num">{{ t('toplam_aylik', dil) }}</th></tr></thead><tbody>
+{% for h in kayitlar %}<tr><td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a><small class="table-subline">{{ h.olusturan_ad_soyad or h.olusturan_kullanici_adi }}</small></td><td>{{ h.olusturan_departman or '—' }}</td><td><span class="ui-badge">{{ t('durum_' + hesaplama_gorunen_durum(h), dil) }}</span></td><td class="num">{{ h.toplam_aylik_maliyet | para(h.para_birimi, dil) }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="estimate-empty">{{ t('gm_veri_yok', dil) }}</p>{% endif %}
