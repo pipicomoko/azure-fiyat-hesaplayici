@@ -382,7 +382,8 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "vm_alan_veri_transfer_tipi": {"tr": "Veri transfer tipi", "en": "Data Transfer Type"},
     "vm_alan_cikis_gb": {"tr": "Giden veri transferi (GB)", "en": "Outbound Data Transfer (GB)"},
     "vm_bilesen_compute": {"tr": "İşlem (Compute)", "en": "Compute"},
-    "vm_bilesen_os": {"tr": "İşletim sistemi / yazılım", "en": "Operating system / software"},
+    "vm_bilesen_os": {"tr": "İşletim sistemi (Windows)", "en": "Operating system (Windows)"},
+    "vm_bilesen_yazilim": {"tr": "Yazılım lisansı", "en": "Software license"},
     "vm_bilesen_bant_genisligi": {"tr": "Bant genişliği", "en": "Bandwidth"},
     # Excel disa aktarim basliklari
     "xlsx_sayfa_adi": {"tr": "Tahmin", "en": "Estimate"},

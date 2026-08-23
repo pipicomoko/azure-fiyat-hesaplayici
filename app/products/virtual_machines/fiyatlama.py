@@ -1,20 +1,17 @@
 """Sanal Makine fiyatlama.
 
 Tum fiyatlar Azure Retail Prices API'sinden CANLI cekilir; bu dosyada hicbir
-sayisal fiyat sabiti yoktur. Temel model, resmi hesaplayicinin kendi
-gosterdigi "Compute" + "OS" ayrimiyla canli API karsisinda dogrulanmistir:
+sayisal fiyat sabiti yoktur.
 
-  Compute = temel (Linux/Ubuntu, ek yazilimsiz) productName'in tuketim fiyati
-  OS/Yazilim bileseni = (secilen isletim sistemi/yazilimin tum-dahil fiyati)
-                         - (ayni SKU'nun Compute fiyati)
+Bilesen modeli (resmi Azure Pricing Calculator ile ayni mantik):
 
-Windows D2s v3 orneginde: 0.188 $/s - 0.096 $/s = 0.092 $/s = resmi
-hesaplayicinin gosterdigi "OS (Windows)" bileseniyle (67.16 $/ay) birebir
-eslesir. Tasarruf plani (savingsPlan dizisi) VE rezervasyon kayitlari SADECE
-temel (Linux) urun altinda bulunur -- yani bu indirimler yalnizca Compute
-bilesenine uygulanir, OS/yazilim farki her zaman kullandikca-ode oranindan
-hesaplanir (gercek Azure faturalama davranisiyla ayni: Compute tasarruf
-planlari/rezervasyonlari Windows/SQL lisans ucretini kapsamaz).
+  1) Compute = temel Linux Series tuketim fiyati (SKU + bolge)
+  2) Windows OS = (Series Windows) - Compute  — Windows secildiginde
+  3) Yazilim lisansi = Virtual Machines Licenses (SQL/BizTalk/RHEL/...)
+     vCPU bazli saatlik lisans — all-in SKU kaydi olmayan yazilimlar icin
+
+Tasarruf plani / rezervasyon yalnizca Compute'a uygulanir; OS ve lisans
+her zaman kullandikca-ode oranindan hesaplanir.
 """
 
 from __future__ import annotations
@@ -24,8 +21,15 @@ import re
 from app.fiyat_api import kayitlari_getir, odata_metin_kacir
 from app.products.base import FiyatBulunamadiHatasi, FiyatKalemi, FiyatSonucu
 from app.products.managed_disks import fiyatlama as disk_fiyatlama
+from app.products.virtual_machines.lisanslar import (
+    lisans_saatlik_fiyat,
+    lisansli_yazilim_mi,
+    windows_os_gerekli_mi,
+    yazilim_tipini_normallestir,
+)
 from app.products.virtual_machines.secenekler import (
     SAAT_CARPANLARI,
+    _govdeyi_ayristir,
     ahb_uygun_mu,
     yazilim_tipi_arama_anahtar_kelimeleri,
 )
@@ -85,16 +89,19 @@ def _temel_compute_kaydini_bul(kayitlar: list[dict]) -> dict | None:
     return adaylar[0] if adaylar else None
 
 
-def _yazilim_all_in_kaydini_bul(kayitlar: list[dict], isletim_sistemi: str, yazilim_tipi: str) -> dict | None:
-    if isletim_sistemi == "windows" and yazilim_tipi == "os-only":
-        adaylar = [
-            k
-            for k in kayitlar
-            if k.get("type") == "Consumption" and _temiz_mi(k)
-            and _WINDOWS_OS_ONLY_DESENI.match(k.get("productName", ""))
-        ]
-        return adaylar[0] if adaylar else None
+def _windows_os_kaydini_bul(kayitlar: list[dict]) -> dict | None:
+    adaylar = [
+        k
+        for k in kayitlar
+        if k.get("type") == "Consumption"
+        and _temiz_mi(k)
+        and _WINDOWS_OS_ONLY_DESENI.match(k.get("productName", ""))
+    ]
+    return adaylar[0] if adaylar else None
 
+
+def _yazilim_all_in_kaydini_bul(kayitlar: list[dict], yazilim_tipi: str) -> dict | None:
+    """Nadiren SKU'ya gomulu all-in urun (eski yol); lisans yoksa yedek."""
     anahtar_kelimeler = yazilim_tipi_arama_anahtar_kelimeleri(yazilim_tipi)
     if not anahtar_kelimeler:
         return None
@@ -134,6 +141,19 @@ def _pozitif_sayi(deger, varsayilan: float = 0.0) -> float:
         return varsayilan
 
 
+def _vcpu_coz(sku: str, yapilandirma: dict) -> int:
+    ham = yapilandirma.get("vcpu")
+    if ham is not None:
+        try:
+            n = int(float(ham))
+            if n > 0:
+                return n
+        except (TypeError, ValueError):
+            pass
+    vcpu, _ = _govdeyi_ayristir(sku or "")
+    return max(1, vcpu or 1)
+
+
 async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[FiyatKalemi]:
     bolge = yapilandirma["bolge"]
     sku = yapilandirma.get("sku")
@@ -145,7 +165,9 @@ async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[F
     toplam_saat = max(0.0, _pozitif_sayi(yapilandirma.get("sure_miktar", 730), 730)) * carpan
     fiyatlandirma_modeli = yapilandirma.get("fiyatlandirma_modeli", "payg")
     isletim_sistemi = yapilandirma.get("isletim_sistemi", "linux")
-    yazilim_tipi = yapilandirma.get("yazilim_tipi", "ubuntu")
+    yazilim_tipi = yazilim_tipini_normallestir(yapilandirma.get("yazilim_tipi", "ubuntu"))
+    hibrit = bool(yapilandirma.get("hibrit_fayda"))
+    vcpu = _vcpu_coz(sku, yapilandirma)
 
     kayitlar = await _sku_kayitlarini_al(bolge, sku, para_birimi)
     if not kayitlar:
@@ -154,10 +176,11 @@ async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[F
     compute_kaydi = _temel_compute_kaydini_bul(kayitlar)
     if compute_kaydi is None:
         raise FiyatBulunamadiHatasi()
-    compute_payg_fiyat = compute_kaydi["retailPrice"]
+    compute_payg_fiyat = float(compute_kaydi["retailPrice"])
 
     kalemler: list[FiyatKalemi] = []
 
+    # --- 1) Compute ---
     if fiyatlandirma_modeli in _TASARRUF_TERIM:
         oran = _tasarruf_orani_bul(compute_kaydi, _TASARRUF_TERIM[fiyatlandirma_modeli])
         if oran is None:
@@ -178,22 +201,51 @@ async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[F
             FiyatKalemi("vm_bilesen_compute", toplam_saat * adet, "saat", compute_payg_fiyat, compute_tutar)
         )
 
-    if yazilim_tipi != "ubuntu":
-        yazilim_kaydi = _yazilim_all_in_kaydini_bul(kayitlar, isletim_sistemi, yazilim_tipi)
-        if yazilim_kaydi is None:
+    # --- 2) Windows OS farki ---
+    if windows_os_gerekli_mi(isletim_sistemi, yazilim_tipi):
+        windows_kaydi = _windows_os_kaydini_bul(kayitlar)
+        if windows_kaydi is None:
             raise FiyatBulunamadiHatasi()
-        os_birim_farki = max(0.0, yazilim_kaydi["retailPrice"] - compute_payg_fiyat)
-
-        if yapilandirma.get("hibrit_fayda") and ahb_uygun_mu(yazilim_tipi):
-            os_tutar = 0.0
-            os_birim_farki = 0.0
-        else:
-            os_tutar = os_birim_farki * toplam_saat * adet
-
+        os_birim = max(0.0, float(windows_kaydi["retailPrice"]) - compute_payg_fiyat)
+        # AHB yalnizca "os-only" icin Windows lisansini sifirlar
+        if hibrit and yazilim_tipi == "os-only" and ahb_uygun_mu(yazilim_tipi):
+            os_birim = 0.0
+        os_tutar = os_birim * toplam_saat * adet
         kalemler.append(
-            FiyatKalemi("vm_bilesen_os", toplam_saat * adet, "saat", os_birim_farki, os_tutar)
+            FiyatKalemi("vm_bilesen_os", toplam_saat * adet, "saat", os_birim, os_tutar)
         )
 
+    # --- 3) Yazilim lisansi (SQL/BizTalk/RHEL/...) veya all-in yedek ---
+    if yazilim_tipi in ("ubuntu", "os-only"):
+        return kalemler
+
+    if lisansli_yazilim_mi(yazilim_tipi):
+        lisans_birim = await lisans_saatlik_fiyat(yazilim_tipi, vcpu, para_birimi)
+        if hibrit and ahb_uygun_mu(yazilim_tipi):
+            lisans_birim = 0.0
+        lisans_tutar = lisans_birim * toplam_saat * adet
+        kalemler.append(
+            FiyatKalemi("vm_bilesen_yazilim", toplam_saat * adet, "saat", lisans_birim, lisans_tutar)
+        )
+        return kalemler
+
+    # Yedek: SKU'ya gomulu all-in urun (varsa)
+    yazilim_kaydi = _yazilim_all_in_kaydini_bul(kayitlar, yazilim_tipi)
+    if yazilim_kaydi is None:
+        raise FiyatBulunamadiHatasi()
+    fark = max(0.0, float(yazilim_kaydi["retailPrice"]) - compute_payg_fiyat)
+    if hibrit and ahb_uygun_mu(yazilim_tipi):
+        fark = 0.0
+    # Windows OS zaten eklendiyse all-in farkini yazilim olarak ekleme (cift sayim);
+    # all-in genelde OS+yazilim. Windows gerekli degilse fark OS/yazilim toplamidir.
+    if windows_os_gerekli_mi(isletim_sistemi, yazilim_tipi):
+        windows_kaydi = _windows_os_kaydini_bul(kayitlar)
+        if windows_kaydi is not None:
+            windows_fark = max(0.0, float(windows_kaydi["retailPrice"]) - compute_payg_fiyat)
+            fark = max(0.0, fark - windows_fark)
+    kalemler.append(
+        FiyatKalemi("vm_bilesen_yazilim", toplam_saat * adet, "saat", fark, fark * toplam_saat * adet)
+    )
     return kalemler
 
 

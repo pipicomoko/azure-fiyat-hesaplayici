@@ -66,8 +66,11 @@ ISLETIM_SISTEMLERI = ["linux", "windows"]
 
 WINDOWS_YAZILIM_TIPLERI = [
     ("os-only", {"tr": "(Yalnızca işletim sistemi)", "en": "(OS Only)"}, ["Windows"]),
-    ("biztalk", {"tr": "BizTalk", "en": "BizTalk"}, ["Windows", "BizTalk"]),
-    ("sql", {"tr": "SQL Server", "en": "SQL Server"}, ["Windows", "SQL"]),
+    ("biztalk-standard", {"tr": "BizTalk Server Standard", "en": "BizTalk Server Standard"}, ["BizTalk", "Standard"]),
+    ("biztalk-enterprise", {"tr": "BizTalk Server Enterprise", "en": "BizTalk Server Enterprise"}, ["BizTalk", "Enterprise"]),
+    ("sql-web", {"tr": "SQL Server Web", "en": "SQL Server Web"}, ["SQL", "Web"]),
+    ("sql-standard", {"tr": "SQL Server Standard", "en": "SQL Server Standard"}, ["SQL", "Standard"]),
+    ("sql-enterprise", {"tr": "SQL Server Enterprise", "en": "SQL Server Enterprise"}, ["SQL", "Enterprise"]),
 ]
 LINUX_YAZILIM_TIPLERI = [
     ("ubuntu", {"tr": "Ubuntu", "en": "Ubuntu"}, []),
@@ -78,14 +81,34 @@ LINUX_YAZILIM_TIPLERI = [
     ("rhel-sap", {"tr": "RHEL for SAP Business Applications", "en": "RHEL for SAP Business Applications"}, ["RHEL", "SAP"]),
     ("suse", {"tr": "SUSE Linux Enterprise", "en": "SUSE Linux Enterprise"}, ["SUSE"]),
     ("suse-hpc", {"tr": "SUSE Linux Enterprise for HPC", "en": "SUSE Linux Enterprise for HPC"}, ["SUSE", "HPC"]),
-    ("sql-rhel", {"tr": "SQL Server (Red Hat Enterprise Linux)", "en": "SQL Server Red Hat Enterprise Linux"}, ["SQL", "RHEL"]),
-    ("sql-suse", {"tr": "SQL Server (SUSE)", "en": "SQL Server SUSE"}, ["SQL", "SUSE"]),
-    ("sql-ubuntu", {"tr": "SQL Server (Ubuntu)", "en": "SQL Server Ubuntu Linux"}, ["SQL", "Ubuntu"]),
+    ("sql-rhel-web", {"tr": "SQL Server Web (RHEL)", "en": "SQL Server Web Red Hat Enterprise Linux"}, ["SQL", "RHEL", "Web"]),
+    ("sql-rhel-standard", {"tr": "SQL Server Standard (RHEL)", "en": "SQL Server Standard Red Hat Enterprise Linux"}, ["SQL", "RHEL", "Standard"]),
+    ("sql-rhel-enterprise", {"tr": "SQL Server Enterprise (RHEL)", "en": "SQL Server Enterprise Red Hat Enterprise Linux"}, ["SQL", "RHEL", "Enterprise"]),
+    ("sql-suse-web", {"tr": "SQL Server Web (SUSE)", "en": "SQL Server Web SUSE"}, ["SQL", "SUSE", "Web"]),
+    ("sql-suse-standard", {"tr": "SQL Server Standard (SUSE)", "en": "SQL Server Standard SUSE"}, ["SQL", "SUSE", "Standard"]),
+    ("sql-suse-enterprise", {"tr": "SQL Server Enterprise (SUSE)", "en": "SQL Server Enterprise SUSE"}, ["SQL", "SUSE", "Enterprise"]),
+    ("sql-ubuntu-web", {"tr": "SQL Server Web (Ubuntu)", "en": "SQL Server Web Ubuntu"}, ["SQL", "Ubuntu", "Web"]),
+    ("sql-ubuntu-standard", {"tr": "SQL Server Standard (Ubuntu)", "en": "SQL Server Standard Ubuntu"}, ["SQL", "Ubuntu", "Standard"]),
+    ("sql-ubuntu-enterprise", {"tr": "SQL Server Enterprise (Ubuntu)", "en": "SQL Server Enterprise Ubuntu"}, ["SQL", "Ubuntu", "Enterprise"]),
 ]
 _YAZILIM_TIPI_ARAMA = {
     kod: arama for kod, _, arama in WINDOWS_YAZILIM_TIPLERI + LINUX_YAZILIM_TIPLERI
 }
-_AHB_UYGUN_TIPLER = {"os-only", "sql", "rhel", "rhel-ha", "rhel-sap", "suse", "suse-hpc", "sql-rhel", "sql-suse"}
+# Geriye donuk kodlar (eski kayitlar / formlar)
+_YAZILIM_TIPI_ARAMA["sql"] = ["SQL", "Standard"]
+_YAZILIM_TIPI_ARAMA["biztalk"] = ["BizTalk", "Standard"]
+_YAZILIM_TIPI_ARAMA["sql-rhel"] = ["SQL", "RHEL", "Standard"]
+_YAZILIM_TIPI_ARAMA["sql-suse"] = ["SQL", "SUSE", "Standard"]
+_YAZILIM_TIPI_ARAMA["sql-ubuntu"] = ["SQL", "Ubuntu", "Standard"]
+
+_AHB_UYGUN_TIPLER = {
+    "os-only",
+    "sql", "sql-web", "sql-standard", "sql-enterprise",
+    "rhel", "rhel-ha", "rhel-sap",
+    "suse", "suse-hpc",
+    "sql-rhel", "sql-rhel-web", "sql-rhel-standard", "sql-rhel-enterprise",
+    "sql-suse", "sql-suse-web", "sql-suse-standard", "sql-suse-enterprise",
+}
 
 TIERLER = ["standard", "basic"]
 _TIER_ETIKETLERI = {"standard": {"tr": "Standart", "en": "Standard"}, "basic": {"tr": "Temel", "en": "Basic"}}
@@ -170,11 +193,16 @@ def yazilim_tipleri(isletim_sistemi: str) -> list[tuple[str, dict, list[str]]]:
 
 
 def yazilim_tipi_arama_anahtar_kelimeleri(yazilim_tipi: str) -> list[str]:
-    return _YAZILIM_TIPI_ARAMA.get(yazilim_tipi, [])
+    from app.products.virtual_machines.lisanslar import yazilim_tipini_normallestir
+
+    kod = yazilim_tipini_normallestir(yazilim_tipi)
+    return _YAZILIM_TIPI_ARAMA.get(kod, _YAZILIM_TIPI_ARAMA.get(yazilim_tipi or "", []))
 
 
 def ahb_uygun_mu(yazilim_tipi: str) -> bool:
-    return yazilim_tipi in _AHB_UYGUN_TIPLER
+    from app.products.virtual_machines.lisanslar import yazilim_tipini_normallestir
+
+    return yazilim_tipini_normallestir(yazilim_tipi) in _AHB_UYGUN_TIPLER
 
 
 async def bolge_katalogunu_getir(bolge: str, tier: str, para_birimi: str = "USD") -> BolgeKatalogu:
@@ -314,8 +342,15 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     if yeni.get("fiyatlandirma_modeli") not in FIYATLANDIRMA_MODELLERI:
         yeni["fiyatlandirma_modeli"] = "payg"
 
+    from app.products.virtual_machines.lisanslar import (
+        bolgede_windows_skulari,
+        yazilim_tipini_normallestir,
+    )
+
+    yeni["yazilim_tipi"] = yazilim_tipini_normallestir(yeni.get("yazilim_tipi"))
     gecerli_yazilim_kodlari = [kod for kod, _, _ in yazilim_tipleri(yeni["isletim_sistemi"])]
     if yeni.get("yazilim_tipi") not in gecerli_yazilim_kodlari:
+        # Eski 'sql' -> sql-standard windows listesinde; linux'ta varsayilan ubuntu
         yeni["yazilim_tipi"] = gecerli_yazilim_kodlari[0]
     if not ahb_uygun_mu(yeni["yazilim_tipi"]):
         yeni["hibrit_fayda"] = False
@@ -332,20 +367,35 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
 
     katalog = await bolge_katalogunu_getir(yeni["bolge"], yeni["kademe"])
 
+    # Windows seciliyse yalnizca bu bolgede Windows fiyati olan SKU'lari goster
+    windows_skular: set[str] | None = None
+    if yeni["isletim_sistemi"] == "windows":
+        windows_skular = await bolgede_windows_skulari(yeni["bolge"])
+
     tum_seriler = sorted(katalog.seriler.keys())
     if yeni["kategori"] == "all":
         seri_havuzu = tum_seriler
     else:
         seri_havuzu = [s for s in tum_seriler if seri_kategorisi(s) == yeni["kategori"]]
 
+    def _seri_boyutlari(seri: str) -> list[BoyutBilgisi]:
+        liste = list(katalog.seriler.get(seri, []))
+        if windows_skular is not None:
+            liste = [b for b in liste if b.arm_sku_adi in windows_skular]
+        return liste
+
+    # Windows filtresi sonrasi bos serileri dusur
+    if windows_skular is not None:
+        seri_havuzu = [s for s in seri_havuzu if _seri_boyutlari(s)]
+
     secenekler["seri"] = [("all", kategori_adi("all", dil))] + [(s, s) for s in seri_havuzu]
     if yeni.get("seri") not in ["all", *seri_havuzu]:
         yeni["seri"] = "all"
 
     if yeni["seri"] == "all":
-        boyut_havuzu = [b for s in seri_havuzu for b in katalog.seriler.get(s, [])]
+        boyut_havuzu = [b for s in seri_havuzu for b in _seri_boyutlari(s)]
     else:
-        boyut_havuzu = list(katalog.seriler.get(yeni["seri"], []))
+        boyut_havuzu = _seri_boyutlari(yeni["seri"])
 
     secenekler["sku"] = [(b.arm_sku_adi, _boyut_etiketi(b, dil)) for b in boyut_havuzu]
     gecerli_skular = {b.arm_sku_adi for b in boyut_havuzu}
@@ -357,6 +407,9 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
         yeni["sku"] = secili_boyut.arm_sku_adi
     else:
         yeni["sku"] = None
+
+    if secili_boyut is not None and secili_boyut.vcpu:
+        yeni["vcpu"] = secili_boyut.vcpu
 
     # Gomulu Yonetilen Disk alt-blogu: sadece secili SKU premium depolamayi
     # destekliyorsa Premium SSD/v2/Ultra kademeleri sunulur.

@@ -9,7 +9,6 @@ faturalandirir. Bu modul o kayitlari cozer.
 from __future__ import annotations
 
 import re
-from functools import lru_cache
 
 from app.fiyat_api import kayitlari_getir, odata_metin_kacir
 from app.products.base import FiyatBulunamadiHatasi
@@ -215,11 +214,6 @@ async def lisans_saatlik_fiyat(
     if fiyat is None:
         raise FiyatBulunamadiHatasi()
     return fiyat
-
-
-@lru_cache(maxsize=64)
-def _windows_sku_onbellek_anahtari(bolge: str, para_birimi: str) -> str:
-    return f"{bolge}:{para_birimi}"
 
 
 _windows_sku_cache: dict[str, set[str]] = {}

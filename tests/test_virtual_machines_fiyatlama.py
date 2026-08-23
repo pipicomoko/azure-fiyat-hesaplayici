@@ -101,6 +101,99 @@ def test_tasarruf_plani_1_yil_saatlik_oran_kullanir():
     assert round(sonuc.aylik_toplam, 2) == round(0.0658368 * 730, 2)
 
 
+def test_windows_sql_standard_compute_os_ve_lisans(monkeypatch):
+    """SQL lisansi Virtual Machines Licenses API'den gelir (SKU all-in degil)."""
+    async def _sahte(filtre, para_birimi="USD", onbellek_kullan=True):
+        if "Virtual Machines Licenses" in filtre and "SQL Server Standard" in filtre:
+            return [
+                {
+                    "productName": "SQL Server Standard",
+                    "meterName": "1-4 vCPU VM License",
+                    "retailPrice": 0.4,
+                    "type": "Consumption",
+                    "unitOfMeasure": "1 Hour",
+                },
+                {
+                    "productName": "SQL Server Standard",
+                    "meterName": "1-4 vCPU VM License",
+                    "retailPrice": 0.0,
+                    "type": "Consumption",
+                    "unitOfMeasure": "1 Hour",
+                },
+            ]
+        if "armSkuName eq 'Standard_D2s_v5'" in filtre:
+            return _D2SV5_KAYITLARI
+        return []
+
+    monkeypatch.setattr("app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte)
+    monkeypatch.setattr("app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte)
+
+    cfg = _taban_yapilandirma(
+        isletim_sistemi="windows",
+        yazilim_tipi="sql-standard",
+        vcpu=2,
+    )
+    sonuc = asyncio.run(fiyatlama.fiyatla(cfg, "USD"))
+    # Compute 0.096*730 + OS 0.092*730 + SQL 0.4*730
+    assert round(sonuc.aylik_toplam, 2) == round((0.096 + 0.092 + 0.4) * 730, 2)
+    anahtarlar = {k.anahtar for k in sonuc.kalemler}
+    assert anahtarlar == {"vm_bilesen_compute", "vm_bilesen_os", "vm_bilesen_yazilim"}
+
+
+def test_eski_sql_kodu_sql_standard_olarak_calisir(monkeypatch):
+    async def _sahte(filtre, para_birimi="USD", onbellek_kullan=True):
+        if "Virtual Machines Licenses" in filtre:
+            return [
+                {
+                    "productName": "SQL Server Standard",
+                    "meterName": "1-4 vCPU VM License",
+                    "retailPrice": 0.4,
+                    "type": "Consumption",
+                    "unitOfMeasure": "1 Hour",
+                }
+            ]
+        if "armSkuName eq 'Standard_D2s_v5'" in filtre:
+            return _D2SV5_KAYITLARI
+        return []
+
+    monkeypatch.setattr("app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte)
+    monkeypatch.setattr("app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte)
+    cfg = _taban_yapilandirma(isletim_sistemi="windows", yazilim_tipi="sql", vcpu=2)
+    sonuc = asyncio.run(fiyatlama.fiyatla(cfg, "USD"))
+    assert any(k.anahtar == "vm_bilesen_yazilim" for k in sonuc.kalemler)
+    assert sonuc.aylik_toplam > 137.24
+
+
+def test_sql_hibrit_fayda_lisansi_sifirlar(monkeypatch):
+    async def _sahte(filtre, para_birimi="USD", onbellek_kullan=True):
+        if "Virtual Machines Licenses" in filtre:
+            return [
+                {
+                    "productName": "SQL Server Standard",
+                    "meterName": "1-4 vCPU VM License",
+                    "retailPrice": 0.4,
+                    "type": "Consumption",
+                    "unitOfMeasure": "1 Hour",
+                }
+            ]
+        if "armSkuName eq 'Standard_D2s_v5'" in filtre:
+            return _D2SV5_KAYITLARI
+        return []
+
+    monkeypatch.setattr("app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte)
+    monkeypatch.setattr("app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte)
+    cfg = _taban_yapilandirma(
+        isletim_sistemi="windows",
+        yazilim_tipi="sql-standard",
+        hibrit_fayda=True,
+        vcpu=2,
+    )
+    sonuc = asyncio.run(fiyatlama.fiyatla(cfg, "USD"))
+    yazilim = next(k for k in sonuc.kalemler if k.anahtar == "vm_bilesen_yazilim")
+    assert yazilim.aylik_tutar == 0.0
+    # Compute + Windows OS kalir
+    assert round(sonuc.aylik_toplam, 2) == 137.24
+
 def test_eslesen_sku_yoksa_hata_firlatir():
     cfg = _taban_yapilandirma(sku="Standard_Yok_v99")
     with pytest.raises(FiyatBulunamadiHatasi):
