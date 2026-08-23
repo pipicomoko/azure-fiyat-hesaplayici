@@ -468,6 +468,8 @@ def giris_sonrasi_yol(kullanici: dict | None) -> str:
     """Oturum acildiktan sonra kullanicinin yetkisine uygun ilk sayfa."""
     if kullanici_izinli_mi(kullanici, IZIN_AUDIT_GOR):
         return "/admin/aktivite"
+    if genel_mudur_mu(kullanici):
+        return "/"
     # Genel mudur / ustu olmayan tahmin kullanicisi: onay/arama/rapor
     if kullanici is not None and ustu_olmayan_mi(kullanici):
         if kullanici_izinli_mi(kullanici, IZIN_ONAY_ISLEM):
@@ -689,6 +691,14 @@ def ustu_olmayan_mi(kullanici: dict | None) -> bool:
     return not oturum_manager_zincirini_genislet(kullanici)
 
 
+def genel_mudur_mu(kullanici: dict | None) -> bool:
+    """Yalnizca yapilandirilmis, hiyerarsinin tepesindeki genel mudur."""
+    if kullanici is None:
+        return False
+    sam = (kullanici.get("kullanici_adi") or "").lower()
+    return sam == GENEL_MUDUR_SAM and ustu_olmayan_mi(kullanici)
+
+
 # Geriye donuk alias
 kendinden_onaylayabilir_mi = ustu_olmayan_mi
 
@@ -707,6 +717,20 @@ def departman_basi_mi(kullanici: dict | None) -> bool:
     if kullanici is None:
         return False
     return (kullanici.get("manager") or "").lower() == GENEL_MUDUR_SAM
+
+
+def departman_basi_alt_kademe_mi(kullanici: dict | None) -> bool:
+    """Departman basina dogrudan bagli bir sonraki yonetim kademesi."""
+    if kullanici is None or departman_basi_mi(kullanici):
+        return False
+    dogrudan = (kullanici.get("manager") or "").lower()
+    zincir = oturum_manager_zincirini_genislet(kullanici)
+    return (
+        bool(dogrudan)
+        and len(zincir) >= 2
+        and zincir[0] == dogrudan
+        and zincir[1] == GENEL_MUDUR_SAM
+    )
 
 
 def gecmis_erisim_kapsami(kullanici: dict | None) -> str:
