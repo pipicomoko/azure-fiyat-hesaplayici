@@ -34,7 +34,11 @@ _LISANS_HARITASI: dict[str, tuple[str, bool, bool]] = {
     "sql-rhel": ("SQL Server Standard Red Hat Enterprise Linux", False, True),
     "sql-rhel-web": ("SQL Server Web Red Hat Enterprise Linux", False, True),
     "sql-rhel-standard": ("SQL Server Standard Red Hat Enterprise Linux", False, True),
-    "sql-rhel-enterprise": ("SQL Server Enterprise Red Hat Enterprise Linux", False, True),
+    "sql-rhel-enterprise": (
+        "SQL Server Enterprise Red Hat Enterprise Linux",
+        False,
+        True,
+    ),
     "sql-suse": ("SQL Server Standard SLES", False, True),
     "sql-suse-web": ("SQL Server Web SLES", False, True),
     "sql-suse-standard": ("SQL Server Standard SLES", False, True),
@@ -112,7 +116,9 @@ def _saatlik_adaylar(kayitlar: list[dict]) -> list[dict]:
     return adaylar
 
 
-def _vcpu_icin_lisans_fiyati(kayitlar: list[dict], vcpu: int, dort_cekirdek_min: bool) -> float | None:
+def _vcpu_icin_lisans_fiyati(
+    kayitlar: list[dict], vcpu: int, dort_cekirdek_min: bool
+) -> float | None:
     """vCPU sayisina en uygun saatlik lisans birim fiyatini dondurur."""
     hedef = max(1, int(vcpu))
     if dort_cekirdek_min:

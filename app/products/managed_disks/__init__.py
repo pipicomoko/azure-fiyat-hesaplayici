@@ -15,9 +15,11 @@ from app.products.managed_disks.secenekler import SecenekSonucu
 class ManagedDisksUrunu:
     anahtar = "managed_disks"
     sablon_adi = "urunler/_disk_form.html"
+    # Azure urun adi dil bagimsiz (resmi calculator ile ayni)
+    SABIT_AD = "Managed Disks"
 
     def ad(self, dil: Dil) -> str:
-        return t("urun_disk_ad", dil)
+        return self.SABIT_AD
 
     def aciklama(self, dil: Dil) -> str:
         return t("urun_disk_aciklama", dil)
@@ -25,10 +27,14 @@ class ManagedDisksUrunu:
     def bos_yapilandirma(self) -> dict[str, Any]:
         return secenekler.bos_yapilandirma()
 
-    async def secenekleri_getir(self, yapilandirma: dict[str, Any], dil: Dil) -> SecenekSonucu:
+    async def secenekleri_getir(
+        self, yapilandirma: dict[str, Any], dil: Dil
+    ) -> SecenekSonucu:
         return secenekler.secenekleri_coz(yapilandirma, dil)
 
-    async def fiyatla(self, yapilandirma: dict[str, Any], para_birimi: str) -> FiyatSonucu:
+    async def fiyatla(
+        self, yapilandirma: dict[str, Any], para_birimi: str
+    ) -> FiyatSonucu:
         return await fiyatlama.fiyatla(yapilandirma, para_birimi)
 
     def ozet(self, yapilandirma: dict[str, Any], dil: Dil) -> str:
@@ -56,21 +62,26 @@ class ManagedDisksUrunu:
         boyut = yapilandirma.get("disk_boyutu_gib") or ""
         sure = int(yapilandirma.get("sure_miktar", 730))
         kademe = secenekler.kademe_adi(yapilandirma.get("kademe", ""), "en")
-        parcalar = [f"{adet} x {sku or (str(boyut) + ' GiB')} {kademe}", f"{sure} Hours"]
+        parcalar = [
+            f"{adet} x {sku or (str(boyut) + ' GiB')} {kademe}",
+            f"{sure} Hours",
+        ]
         if yapilandirma.get("iops"):
             parcalar.append(f"{yapilandirma['iops']} IOPS")
         if yapilandirma.get("throughput_mbps"):
             parcalar.append(f"{yapilandirma['throughput_mbps']} MB/s Throughput")
         description = ", ".join(parcalar)
-        return [DisaAktarimSatiri(
-            servis_kategori="Storage",
-            urun=self.ad(dil),
-            ozel_ad="",
-            bolge=bolge_adi,
-            yapilandirma_ozeti=description,
-            miktar=fiyat.aylik_toplam,
-            birim="month",
-            birim_fiyat=fiyat.aylik_toplam,
-            ara_toplam=round(fiyat.aylik_toplam, 2),
-            on_odeme=0.0,
-        )]
+        return [
+            DisaAktarimSatiri(
+                servis_kategori="Storage",
+                urun=self.ad(dil),
+                ozel_ad="",
+                bolge=bolge_adi,
+                yapilandirma_ozeti=description,
+                miktar=fiyat.aylik_toplam,
+                birim="month",
+                birim_fiyat=fiyat.aylik_toplam,
+                ara_toplam=round(fiyat.aylik_toplam, 2),
+                on_odeme=0.0,
+            )
+        ]

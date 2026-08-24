@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from calendar import monthrange
 from collections import defaultdict
 from datetime import date, datetime
 from urllib.parse import urlencode
@@ -19,14 +18,17 @@ from app.models import (
     Hesaplama,
 )
 from app.sablonlar import render
+from app.tarih_filtre import bugunun_tarihi, donem_araligini_coz
 from app.yetkilendirme import (
+    GORUNEN_DURUM_SIRASI,
     IZIN_HESAPLAMA_KULLAN,
     IZIN_ONAY_ISLEM,
     departman_basi_alt_kademe_mi,
     departman_basi_mi,
     departman_etiketi,
-    hesaplama_gorunen_durum,
+    departman_haritasini_yukle,
     genel_mudur_mu,
+    hesaplama_gorunen_durum,
     kullanici_izinli_mi,
     yetki_gerekli,
 )
@@ -42,15 +44,6 @@ ANA_DEPARTMANLAR = {
 }
 
 
-def _tarih_coz(ham: str, varsayilan: date) -> tuple[date, bool]:
-    if not ham:
-        return varsayilan, True
-    try:
-        return date.fromisoformat(ham), True
-    except ValueError:
-        return varsayilan, False
-
-
 def _kayit_tarihi(hesaplama: Hesaplama) -> date:
     zaman = (
         hesaplama.onay_tarihi
@@ -64,6 +57,24 @@ def _ana_departman(anahtar: str | None) -> str | None:
     if not anahtar:
         return None
     return "it" if anahtar == "it" or anahtar.startswith("it-") else anahtar
+
+
+def _alt_birimler(ana_departman: str) -> list[tuple[str, str]]:
+    """Ana departmanin alt birimleri (or. it → it-altyapi, it-yazilim, ...)."""
+    harita = departman_haritasini_yukle()
+    prefix = f"{ana_departman}-"
+    sonuc: list[tuple[str, str]] = []
+    for anahtar, bilgi in (harita.get("departmanlar") or {}).items():
+        kod = str(anahtar)
+        if not kod.startswith(prefix):
+            continue
+        if isinstance(bilgi, dict) and bilgi.get("etiket"):
+            etiket = str(bilgi["etiket"])
+        else:
+            etiket = departman_etiketi(kod)
+        sonuc.append((kod, etiket))
+    sonuc.sort(key=lambda x: x[1].lower())
+    return sonuc
 
 
 def _genel_mudur_kapsaminda(kullanici: dict, hesaplama: Hesaplama) -> bool:
@@ -85,17 +96,37 @@ def _genel_mudur_baglami(
     kullanici: dict,
     baslangic_ham: str,
     bitis_ham: str,
+    departman_ham: str = "",
+    alt_birim_ham: str = "",
 ) -> dict:
-    bugun = date.today()
-    ay_ilk = bugun.replace(day=1)
-    ay_son = bugun.replace(day=monthrange(bugun.year, bugun.month)[1])
-    baslangic, bas_ok = _tarih_coz(baslangic_ham, ay_ilk)
-    bitis, bit_ok = _tarih_coz(bitis_ham, ay_son)
-    tarih_hatasi = not bas_ok or not bit_ok or baslangic > bitis
-    if tarih_hatasi:
-        baslangic, bitis = ay_ilk, ay_son
+    bugun = bugunun_tarihi()
+    baslangic, bitis, tarih_hatasi = donem_araligini_coz(
+        baslangic_ham, bitis_ham, bugun=bugun
+    )
+
+    secili_departman = (departman_ham or "").strip().lower()
+    if secili_departman and secili_departman not in ANA_DEPARTMANLAR:
+        secili_departman = ""
+
+    alt_birim_secenekleri = _alt_birimler(secili_departman) if secili_departman else []
+    gecerli_altlar = {kod for kod, _ in alt_birim_secenekleri}
+    secili_alt_birim = (alt_birim_ham or "").strip().lower()
+    if secili_alt_birim not in gecerli_altlar:
+        secili_alt_birim = ""
 
     kapsam = [h for h in tum if _genel_mudur_kapsaminda(kullanici, h)]
+    if secili_departman:
+        kapsam = [
+            h
+            for h in kapsam
+            if _ana_departman(h.olusturan_departman) == secili_departman
+        ]
+    if secili_alt_birim:
+        kapsam = [
+            h
+            for h in kapsam
+            if (h.olusturan_departman or "").lower() == secili_alt_birim
+        ]
     donem = [h for h in kapsam if baslangic <= _kayit_tarihi(h) <= bitis]
     onayli = [h for h in donem if h.durum == DURUM_ONAYLANDI]
     bekleyen = [h for h in donem if h.durum == DURUM_ONAY_BEKLIYOR]
@@ -108,6 +139,7 @@ def _genel_mudur_baglami(
     ]
     reddedilen_adet = sum(a.islem == "reddedildi" for a in donem_aktiviteleri)
     iptal_adet = sum(a.islem == "iptal_edildi" for a in donem_aktiviteleri)
+    taslak_adet = sum(hesaplama_gorunen_durum(h) == "taslak" for h in donem)
 
     def para_toplamlari(kayitlar: list[Hesaplama]) -> list[dict]:
         toplamlar: dict[str, float] = defaultdict(float)
@@ -118,11 +150,33 @@ def _genel_mudur_baglami(
             for p, v in sorted(toplamlar.items())
         ]
 
-    departmanlar = []
-    for anahtar, etiket in ANA_DEPARTMANLAR.items():
-        kayitlar = [
-            h for h in onayli if _ana_departman(h.olusturan_departman) == anahtar
+    # Karsilastirma karti: tum departmanlar | secili alt birimler | tek satır
+    altlar = alt_birim_secenekleri
+    if secili_alt_birim:
+        kiyas_satirlari = [
+            (kod, etiket) for kod, etiket in altlar if kod == secili_alt_birim
         ]
+        alt_kirilim = True
+    elif secili_departman and altlar:
+        kiyas_satirlari = altlar
+        alt_kirilim = True
+    elif secili_departman:
+        kiyas_satirlari = [(secili_departman, ANA_DEPARTMANLAR[secili_departman])]
+        alt_kirilim = False
+    else:
+        kiyas_satirlari = list(ANA_DEPARTMANLAR.items())
+        alt_kirilim = False
+
+    departmanlar = []
+    for anahtar, etiket in kiyas_satirlari:
+        if alt_kirilim:
+            kayitlar = [
+                h for h in onayli if (h.olusturan_departman or "").lower() == anahtar
+            ]
+        else:
+            kayitlar = [
+                h for h in onayli if _ana_departman(h.olusturan_departman) == anahtar
+            ]
         sorgu = urlencode(
             {
                 "birim": anahtar,
@@ -200,11 +254,16 @@ def _genel_mudur_baglami(
         "baslangic": baslangic.isoformat(),
         "bitis": bitis.isoformat(),
         "tarih_hatasi": tarih_hatasi,
+        "filtre_departman": secili_departman,
+        "filtre_alt_birim": secili_alt_birim,
+        "departman_secenekleri": list(ANA_DEPARTMANLAR.items()),
+        "alt_birim_secenekleri": alt_birim_secenekleri,
         "onayli_adet": len(onayli),
         "onayli_toplamlar": para_toplamlari(onayli),
         "bekleyen_adet": len(bekleyen),
         "bekleyen_toplamlar": para_toplamlari(bekleyen),
         "reddedilen_adet": reddedilen_adet,
+        "taslak_adet": taslak_adet,
         "iptal_adet": iptal_adet,
         "departmanlar": departmanlar,
         "trendler": trendler,
@@ -221,14 +280,10 @@ def _departman_basi_baglami(
     baslangic_ham: str,
     bitis_ham: str,
 ) -> dict:
-    bugun = date.today()
-    ay_ilk = bugun.replace(day=1)
-    ay_son = bugun.replace(day=monthrange(bugun.year, bugun.month)[1])
-    baslangic, bas_ok = _tarih_coz(baslangic_ham, ay_ilk)
-    bitis, bit_ok = _tarih_coz(bitis_ham, ay_son)
-    tarih_hatasi = not bas_ok or not bit_ok or baslangic > bitis
-    if tarih_hatasi:
-        baslangic, bitis = ay_ilk, ay_son
+    bugun = bugunun_tarihi()
+    baslangic, bitis, tarih_hatasi = donem_araligini_coz(
+        baslangic_ham, bitis_ham, bugun=bugun
+    )
 
     kapsam = [h for h in tum if _genel_mudur_kapsaminda(kullanici, h)]
     donem = [h for h in kapsam if baslangic <= _kayit_tarihi(h) <= bitis]
@@ -337,6 +392,7 @@ def _departman_basi_baglami(
         "bekleyen_adet": len(bekleyen),
         "bekleyen_toplamlar": para_toplamlari(bekleyen),
         "reddedilen_adet": sum(a.islem == "reddedildi" for a in donem_aktiviteleri),
+        "taslak_adet": sum(hesaplama_gorunen_durum(h) == "taslak" for h in donem),
         "iptal_adet": sum(a.islem == "iptal_edildi" for a in donem_aktiviteleri),
         "aktif_calisan_sayisi": len(kisi_kayitlari),
         "trendler": trendler,
@@ -345,7 +401,6 @@ def _departman_basi_baglami(
         "son_kayitlar": son_kayitlar[:8],
         "panel_etiket_anahtari": "db_etiket",
         "panel_baslik_anahtari": "db_baslik",
-        "panel_aciklama_anahtari": "db_aciklama",
         "panel_maliyet_anahtari": "db_onayli_maliyet",
         "panel_trend_anahtari": "db_trend",
         "panel_ekip_anahtari": "db_ekip_ozeti",
@@ -367,19 +422,31 @@ async def pano(
     kullanici: dict = Depends(yetki_gerekli(IZIN_HESAPLAMA_KULLAN)),
     baslangic: str = Query(""),
     bitis: str = Query(""),
+    departman: str = Query(""),
+    alt_birim: str = Query(""),
 ):
     sam = (kullanici.get("kullanici_adi") or "").lower()
+    # BUG-18: dashboard listelerinde sert ust sinir
+    _DASH_LIMIT = 500
     if genel_mudur_mu(kullanici):
-        tum_sirket = list(oturum.exec(select(Hesaplama)).all())
-        aktiviteler = list(oturum.exec(select(AktiviteKaydi)).all())
+        tum_sirket = list(oturum.exec(select(Hesaplama).limit(_DASH_LIMIT)).all())
+        aktiviteler = list(oturum.exec(select(AktiviteKaydi).limit(_DASH_LIMIT)).all())
         return render(
             request,
             "genel_mudur_pano.html",
-            _genel_mudur_baglami(tum_sirket, aktiviteler, kullanici, baslangic, bitis),
+            _genel_mudur_baglami(
+                tum_sirket,
+                aktiviteler,
+                kullanici,
+                baslangic,
+                bitis,
+                departman,
+                alt_birim,
+            ),
         )
     if departman_basi_mi(kullanici):
-        tum_departman = list(oturum.exec(select(Hesaplama)).all())
-        aktiviteler = list(oturum.exec(select(AktiviteKaydi)).all())
+        tum_departman = list(oturum.exec(select(Hesaplama).limit(_DASH_LIMIT)).all())
+        aktiviteler = list(oturum.exec(select(AktiviteKaydi).limit(_DASH_LIMIT)).all())
         return render(
             request,
             "departman_basi_pano.html",
@@ -388,8 +455,8 @@ async def pano(
             ),
         )
     if departman_basi_alt_kademe_mi(kullanici):
-        tum_birim = list(oturum.exec(select(Hesaplama)).all())
-        aktiviteler = list(oturum.exec(select(AktiviteKaydi)).all())
+        tum_birim = list(oturum.exec(select(Hesaplama).limit(_DASH_LIMIT)).all())
+        aktiviteler = list(oturum.exec(select(AktiviteKaydi).limit(_DASH_LIMIT)).all())
         baglam = _departman_basi_baglami(
             tum_birim, aktiviteler, kullanici, baslangic, bitis
         )
@@ -397,7 +464,6 @@ async def pano(
             {
                 "panel_etiket_anahtari": "bs_etiket",
                 "panel_baslik_anahtari": "bs_baslik",
-                "panel_aciklama_anahtari": "bs_aciklama",
                 "panel_maliyet_anahtari": "bs_onayli_maliyet",
                 "panel_trend_anahtari": "bs_trend",
                 "panel_ekip_anahtari": "bs_ekip_ozeti",
@@ -411,24 +477,36 @@ async def pano(
         select(Hesaplama).where(Hesaplama.olusturan_kullanici_adi == sam)
     ).all()
 
-    taslaklar: list[Hesaplama] = []
-    gonderilenler: list[Hesaplama] = []
-    onaylananlar: list[Hesaplama] = []
-    reddedilenler: list[Hesaplama] = []
-
+    gruplar: dict[str, list[Hesaplama]] = {durum: [] for durum in GORUNEN_DURUM_SIRASI}
     for h in tum:
         gorunen = hesaplama_gorunen_durum(h)
-        if gorunen == "taslak":
-            taslaklar.append(h)
-        elif gorunen == "onay_bekliyor":
-            gonderilenler.append(h)
-        elif gorunen == "onaylandi":
-            onaylananlar.append(h)
-        elif gorunen == "reddedildi":
-            reddedilenler.append(h)
+        if gorunen in gruplar:
+            gruplar[gorunen].append(h)
 
     def _toplam(kayitlar: list[Hesaplama]) -> float:
         return round(sum(float(h.toplam_aylik_maliyet or 0) for h in kayitlar), 2)
+
+    kart_meta = {
+        "onay_bekliyor": ("gonderilen", "info"),
+        "onaylandi": ("onaylanan", "success"),
+        "reddedildi": ("reddedilen", "warning"),
+        "taslak": ("taslak", "default"),
+    }
+    kartlar = []
+    for durum in GORUNEN_DURUM_SIRASI:
+        kayitlar = gruplar[durum]
+        anahtar, rozet = kart_meta[durum]
+        kartlar.append(
+            {
+                "anahtar": anahtar,
+                "baslik_anahtar": f"durum_{durum}",
+                "adet": len(kayitlar),
+                "toplam": _toplam(kayitlar),
+                "kayitlar": _ozet_satirlari(kayitlar),
+                "rozet": rozet,
+                "filtre": durum,
+            }
+        )
 
     bekleyen_onay_sayisi = 0
     if kullanici_izinli_mi(kullanici, IZIN_ONAY_ISLEM):
@@ -444,44 +522,7 @@ async def pano(
         request,
         "pano.html",
         {
-            "kartlar": [
-                {
-                    "anahtar": "taslak",
-                    "baslik_anahtar": "durum_taslak",
-                    "adet": len(taslaklar),
-                    "toplam": _toplam(taslaklar),
-                    "kayitlar": _ozet_satirlari(taslaklar),
-                    "rozet": "default",
-                    "filtre": "taslak",
-                },
-                {
-                    "anahtar": "gonderilen",
-                    "baslik_anahtar": "durum_onay_bekliyor",
-                    "adet": len(gonderilenler),
-                    "toplam": _toplam(gonderilenler),
-                    "kayitlar": _ozet_satirlari(gonderilenler),
-                    "rozet": "info",
-                    "filtre": "onay_bekliyor",
-                },
-                {
-                    "anahtar": "onaylanan",
-                    "baslik_anahtar": "durum_onaylandi",
-                    "adet": len(onaylananlar),
-                    "toplam": _toplam(onaylananlar),
-                    "kayitlar": _ozet_satirlari(onaylananlar),
-                    "rozet": "success",
-                    "filtre": "onaylandi",
-                },
-                {
-                    "anahtar": "reddedilen",
-                    "baslik_anahtar": "durum_reddedildi",
-                    "adet": len(reddedilenler),
-                    "toplam": _toplam(reddedilenler),
-                    "kayitlar": _ozet_satirlari(reddedilenler),
-                    "rozet": "warning",
-                    "filtre": "reddedildi",
-                },
-            ],
+            "kartlar": kartlar,
             "bekleyen_onay_sayisi": bekleyen_onay_sayisi,
             "toplam_kayit": len(tum),
         },

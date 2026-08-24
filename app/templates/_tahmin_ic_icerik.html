@@ -79,15 +79,12 @@
       <div class="ui-card" id="tahmin-globaller">
         <div class="ui-card__body">
           <h2 class="panel-title" style="margin-bottom: var(--space-4)">{{ t('ozet_baslik', dil) }}</h2>
-          <div>
-            <label class="ui-label" for="para-birimi-secici">{{ t('para_birimi', dil) }}</label>
-            <select class="ui-select" name="para_birimi" id="para-birimi-secici">
-              {% for pb in para_birimleri %}
-              <option value="{{ pb.kod }}" {{ 'selected' if pb.kod == para_birimi }}>{{ pb.kod }}</option>
-              {% endfor %}
-            </select>
-          </div>
+          <input type="hidden" name="para_birimi" id="para-birimi-secici" value="USD">
           <div class="rail-metrics">
+            <div class="rail-metric">
+              <span class="rail-metric__label">{{ t('para_birimi', dil) }}</span>
+              <span class="rail-metric__value">USD</span>
+            </div>
             <div class="rail-metric">
               <span class="rail-metric__label">{{ t('kalem_sayisi', dil) }}</span>
               <span class="rail-metric__value" id="sidebar-kalem-sayisi">{{ kalem_sonuclari|length }}</span>
@@ -162,6 +159,7 @@
             </button>
             <button type="submit" formaction="/tahmin/disa-aktar" formmethod="post"
                     id="disa-aktar-butonu" class="ui-btn ui-btn--tertiary"
+                    formnovalidate
                     {% if not kalem_sonuclari %}disabled{% endif %}>
               {{ t('disa_aktar', dil) }}
             </button>

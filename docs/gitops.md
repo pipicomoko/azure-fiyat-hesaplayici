@@ -8,4 +8,5 @@
 4. Argo CD: `k8s/argocd-application.yaml`
 
 **Not:** Samba ve Postgres stateful; K8s’te PVC veya yönetilen DB ayrı karar.
-Şimdilik yerel `docker compose` geliştirme ortamıdır.
+Şimdilik yerel `docker compose` geliştirme ortamıdır. Liveness `/canli`,
+readiness `/saglik` (DB + LDAP TCP). Günlük dump: `docs/yedekleme.md`.

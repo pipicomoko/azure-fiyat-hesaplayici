@@ -77,6 +77,7 @@
       </button>
       {% else %}
       <form method="post" action="/dil">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="dil" value="{{ 'en' if dil == 'tr' else 'tr' }}">
         <button type="submit" class="app-lang-toggle" title="{{ t('dil_degistir', dil) }}" aria-label="{{ t('dil_degistir', dil) }}">
           {{ 'EN' if dil == 'tr' else 'TR' }}

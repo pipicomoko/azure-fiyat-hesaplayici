@@ -10,6 +10,19 @@
   </div>
 </section>
 
+<form method="get" action="/onay-kuyrugu" class="gecmis-search-toolbar mb-3" hx-boost="true">
+  <input type="text" name="birim" value="{{ filtre_birim }}" class="form-control form-control-sm" placeholder="{{ t('birim', dil) }}">
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
+    <input type="date" name="baslangic" value="{{ filtre_baslangic }}" class="form-control form-control-sm">
+  </label>
+  <label class="gecmis-tarih-alani">
+    <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
+    <input type="date" name="bitis" value="{{ filtre_bitis }}" class="form-control form-control-sm">
+  </label>
+  <button type="submit" class="btn btn-sm btn-primary">{{ t('ara', dil) }}</button>
+</form>
+
 {% if bekleyenler %}
 <div class="ui-table-wrap">
   <table class="ui-table">
@@ -32,9 +45,11 @@
         <td>
           <div style="display:flex; gap: var(--space-2); justify-content:flex-end; flex-wrap:wrap; align-items:center">
             <form action="/onay/{{ h.id }}/onayla" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="ui-btn ui-btn--primary ui-btn--sm">{{ t('onayla', dil) }}</button>
             </form>
             <form action="/onay/{{ h.id }}/reddet" method="post" style="display:flex; gap: var(--space-2); align-items:center">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <label class="visually-hidden" for="gerekce-{{ h.id }}">{{ t('gerekce', dil) }}</label>
               <input type="text" name="gerekce" id="gerekce-{{ h.id }}" class="ui-input" placeholder="{{ t('gerekce', dil) }}" style="width:12rem; height:28px">
               <button type="submit" class="ui-btn ui-btn--danger ui-btn--sm">{{ t('reddet', dil) }}</button>
@@ -45,6 +60,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include "_sayfalama.html" %}
 </div>
 {% else %}
 <p class="estimate-empty">{{ t('onay_bos', dil) }}</p>

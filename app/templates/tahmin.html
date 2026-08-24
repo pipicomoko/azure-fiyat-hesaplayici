@@ -4,6 +4,7 @@
 
 {% block icerik %}
 <form id="tahmin-formu" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {% include "_tahmin_ic_icerik.html" %}
 </form>
 
@@ -14,8 +15,7 @@ function tahminToplamiGuncelle() {
   kalemler.forEach(function (kalem) {
     toplam += parseFloat(kalem.dataset.tutar || '0');
   });
-  const paraBirimiSecici = document.getElementById('para-birimi-secici');
-  const paraBirimi = paraBirimiSecici ? paraBirimiSecici.value : 'USD';
+  const paraBirimi = 'USD';
   const aylikMetin = typeof formatCurrency === 'function'
     ? formatCurrency(toplam, paraBirimi)
     : (toplam.toFixed(2) + ' ' + paraBirimi);

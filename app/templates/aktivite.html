@@ -13,6 +13,11 @@
   </div>
 </section>
 
+<div class="gecmis-search-toolbar mb-3">
+  <a class="btn btn-sm btn-primary" href="/admin/aktivite">{{ t('nav_aktivite', dil) }}</a>
+  <a class="btn btn-sm btn-outline-secondary" href="/admin/giris-gunlugu">{{ t('nav_giris_gunlugu', dil) }}</a>
+</div>
+
 <section class="section-card">
   <div class="section-card-body p-0">
     <div class="table-responsive">
@@ -41,6 +46,7 @@
         </tbody>
       </table>
     </div>
+    {% include "_sayfalama.html" %}
   </div>
 </section>
 {% endblock %}

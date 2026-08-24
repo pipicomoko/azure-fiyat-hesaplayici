@@ -7,6 +7,7 @@ Export Tur B: Donemsel ozet (onaylanmis kayitlar).
 from __future__ import annotations
 
 import io
+import re
 import textwrap
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,6 +25,33 @@ class TahminBosHatasi(Exception):
     """Bos bir tahmin disa aktarilamaz."""
 
 
+# openpyxl worksheet title: max 31 char; yasak: \ / * ? : [ ]
+_EXCEL_SAYFA_YASAK = re.compile(r"[\\/*?:\[\]]")
+
+
+def excel_sayfa_adi(ad: str | None, yedek: str = "Sayfa") -> str:
+    """openpyxl'in kabul ettigi guvenli sayfa adi (BUG-02)."""
+    ham = (ad or "").strip() or str(yedek)
+    temiz = _EXCEL_SAYFA_YASAK.sub("_", ham).strip("'").strip()
+    if not temiz:
+        temiz = str(yedek) or "Sayfa"
+    return temiz[:31]
+
+
+def benzersiz_excel_sayfa_adi(
+    ad: str | None, mevcut: set[str], yedek: str = "Sayfa"
+) -> str:
+    """Yasak karakterleri temizler ve workbook icinde tekil tutar."""
+    temel = excel_sayfa_adi(ad, yedek)
+    aday = temel
+    i = 2
+    while aday in mevcut:
+        ek = f"_{i}"
+        aday = f"{temel[: max(1, 31 - len(ek))]}{ek}"
+        i += 1
+    return aday
+
+
 _BASLIK_DOLGU = PatternFill("solid", fgColor="F2F2F2")
 _ACIKLAMA_GENISLIGI = 110
 _SATIR_YUKSEKLIGI = 15.0
@@ -31,6 +59,16 @@ _DISCLAIMER = (
     "All prices shown are in United States – Dollar ($). "
     "This is an estimate and is not a quote. Prices are subject to change."
 )
+# Literal "$" so TR Excel does not substitute ₺; ","/"." follow workbook locale.
+_MALIYET_BICIMI = '"$" #,##0.00'
+_BOS_MALIYET = "—"
+
+_COL_AYLIK = 6
+_COL_INDIRIM = 7
+_COL_INDIRIMLI_AYLIK = 8
+_COL_INDIRIMLI_YILLIK = 9
+_COL_ON_ODEME = 10
+_COL_YILLIK = 11
 
 
 @dataclass
@@ -80,7 +118,16 @@ def _satir_yuksekligi(metin: str | None, sutun_genisligi: int) -> float:
     return max(_SATIR_YUKSEKLIGI, satir_sayisi * _SATIR_YUKSEKLIGI)
 
 
-def _hucrele(ws, row: int, col: int, value, bold=False, fill=None, align="left", number_format=None):
+def _hucrele(
+    ws,
+    row: int,
+    col: int,
+    value,
+    bold=False,
+    fill=None,
+    align="left",
+    number_format=None,
+):
     cell = ws.cell(row=row, column=col, value=value)
     if bold:
         cell.font = Font(bold=True)
@@ -92,24 +139,66 @@ def _hucrele(ws, row: int, col: int, value, bold=False, fill=None, align="left",
     return cell
 
 
-def calisma_kitabi_olustur(
+def _maliyet_hucresi(ws, row: int, col: int, value, bold=False):
+    return _hucrele(
+        ws,
+        row,
+        col,
+        round(float(value), 2),
+        bold=bold,
+        align="right",
+        number_format=_MALIYET_BICIMI,
+    )
+
+
+def indirim_yuzdesini_oku(ham) -> float | None:
+    """Form/kayit ham degerinden 0–100 indirim yuzdesi; gecersizse None."""
+    if ham in (None, ""):
+        return None
+    try:
+        deger = float(ham)
+    except (TypeError, ValueError):
+        return None
+    if deger < 0 or deger > 100:
+        return None
+    return deger
+
+
+def indirimli_aylik_hesapla(aylik: float, indirim_yuzdesi: float | None) -> float | None:
+    """Web kayit ile ayni: aylik * (1 - indirim/100), 4 hane."""
+    if indirim_yuzdesi is None:
+        return None
+    return round(float(aylik) * (1 - float(indirim_yuzdesi) / 100.0), 4)
+
+
+def satirlara_indirim_uygula(
+    satirlar: list[DisaAktarimSatiri],
+    aylik: float,
+    indirim_ham,
+) -> float:
+    """Indirimi export satirlarina yazar; toplama katilan aylik tutari dondurur."""
+    indirim = indirim_yuzdesini_oku(indirim_ham)
+    indirimli = indirimli_aylik_hesapla(aylik, indirim)
+    if indirim is None:
+        return float(aylik)
+    for satir in satirlar:
+        satir.indirim_yuzdesi = indirim
+        satir.indirimli_aylik = indirimli
+    return float(indirimli) if indirimli is not None else float(aylik)
+
+
+def _tahmin_sayfasini_doldur(
+    ws,
     satirlar: list[DisaAktarimSatiri],
     genel_toplam: float,
     para_birimi: str,
     dil: Dil,
     meta: HesaplamaMeta | None = None,
-) -> bytes:
-    if not satirlar:
-        raise TahminBosHatasi()
-
-    kitap = Workbook()
-    ws = kitap.active
-    ws.title = "Your Estimate"
-
+) -> None:
+    """Tek bir worksheet'e tahmin satirlari yazar (coklu export icin yeniden kullanilir)."""
     _hucrele(ws, 1, 1, "Microsoft Azure Estimate", bold=True)
     ws.row_dimensions[1].height = 18
 
-    # Ust bilgi (Tur A eklemeleri)
     row = 2
     if meta:
         _hucrele(ws, row, 1, meta.senaryo_adi or "Your Estimate")
@@ -141,6 +230,7 @@ def calisma_kitabi_olustur(
         "Estimated monthly cost",
         "Indirim Yuzdesi",
         "Indirimli Aylik Maliyet",
+        "İndirimli Yıllık Maliyeti",
         "Estimated upfront cost",
         "Yillik Tahmini Maliyet",
     ]
@@ -156,6 +246,7 @@ def calisma_kitabi_olustur(
         )
     ws.row_dimensions[baslik_satiri].height = 15
 
+    indirimli_yillik_toplam = 0.0
     for satir in satirlar:
         r = ws.max_row + 1
         aylik = float(satir.ara_toplam)
@@ -167,16 +258,31 @@ def calisma_kitabi_olustur(
         _hucrele(ws, r, 3, satir.ozel_ad or "")
         _hucrele(ws, r, 4, satir.bolge)
         _hucrele(ws, r, 5, satir.yapilandirma_ozeti)
-        _hucrele(ws, r, 6, round(aylik, 2), align="right", number_format="#,##0.00")
+        _maliyet_hucresi(ws, r, _COL_AYLIK, aylik)
         if indirim is not None:
-            _hucrele(ws, r, 7, round(float(indirim), 2), align="right", number_format="0.00")
-            _hucrele(ws, r, 8, round(float(indirimli or esas), 2), align="right", number_format="#,##0.00")
+            _hucrele(
+                ws,
+                r,
+                _COL_INDIRIM,
+                round(float(indirim), 2),
+                align="right",
+                number_format="0.00",
+            )
+            ind_aylik = float(indirimli) if indirimli is not None else esas
+            # Web: (indirimli_aylik | yillik) == indirimli_aylik * 12
+            ind_yillik = round(ind_aylik * 12, 2)
+            indirimli_yillik_toplam += ind_yillik
+            _maliyet_hucresi(ws, r, _COL_INDIRIMLI_AYLIK, ind_aylik)
+            _maliyet_hucresi(ws, r, _COL_INDIRIMLI_YILLIK, ind_yillik)
         else:
-            _hucrele(ws, r, 7, "—")
-            _hucrele(ws, r, 8, "—")
-        _hucrele(ws, r, 9, round(satir.on_odeme, 2), align="right", number_format="#,##0.00")
-        _hucrele(ws, r, 10, round(esas * 12, 2), align="right", number_format="#,##0.00")
-        ws.row_dimensions[r].height = _satir_yuksekligi(satir.yapilandirma_ozeti, _ACIKLAMA_GENISLIGI)
+            _hucrele(ws, r, _COL_INDIRIM, _BOS_MALIYET)
+            _hucrele(ws, r, _COL_INDIRIMLI_AYLIK, _BOS_MALIYET)
+            _hucrele(ws, r, _COL_INDIRIMLI_YILLIK, _BOS_MALIYET)
+        _maliyet_hucresi(ws, r, _COL_ON_ODEME, satir.on_odeme)
+        _maliyet_hucresi(ws, r, _COL_YILLIK, esas * 12)
+        ws.row_dimensions[r].height = _satir_yuksekligi(
+            satir.yapilandirma_ozeti, _ACIKLAMA_GENISLIGI
+        )
 
     r = ws.max_row + 1
     _hucrele(ws, r, 1, "Support")
@@ -184,11 +290,12 @@ def calisma_kitabi_olustur(
     _hucrele(ws, r, 3, "")
     _hucrele(ws, r, 4, "Support")
     _hucrele(ws, r, 5, "")
-    _hucrele(ws, r, 6, 0, align="right", number_format="#,##0.00")
-    _hucrele(ws, r, 7, "")
-    _hucrele(ws, r, 8, "")
-    _hucrele(ws, r, 9, 0, align="right", number_format="#,##0.00")
-    _hucrele(ws, r, 10, 0, align="right", number_format="#,##0.00")
+    _maliyet_hucresi(ws, r, _COL_AYLIK, 0)
+    _hucrele(ws, r, _COL_INDIRIM, "")
+    _hucrele(ws, r, _COL_INDIRIMLI_AYLIK, "")
+    _hucrele(ws, r, _COL_INDIRIMLI_YILLIK, "")
+    _maliyet_hucresi(ws, r, _COL_ON_ODEME, 0)
+    _maliyet_hucresi(ws, r, _COL_YILLIK, 0)
 
     r = ws.max_row + 1
     _hucrele(ws, r, 4, "Licensing Program")
@@ -202,18 +309,33 @@ def calisma_kitabi_olustur(
 
     r = ws.max_row + 1
     _hucrele(ws, r, 4, "Total", bold=True)
-    _hucrele(ws, r, 6, round(genel_toplam, 2), bold=True, align="right", number_format="#,##0.00")
-    _hucrele(ws, r, 9, 0, bold=True, align="right", number_format="#,##0.00")
-    _hucrele(ws, r, 10, round(genel_toplam * 12, 2), bold=True, align="right", number_format="#,##0.00")
+    _maliyet_hucresi(ws, r, _COL_AYLIK, genel_toplam, bold=True)
+    _maliyet_hucresi(ws, r, _COL_INDIRIMLI_YILLIK, indirimli_yillik_toplam, bold=True)
+    _maliyet_hucresi(ws, r, _COL_ON_ODEME, 0, bold=True)
+    _maliyet_hucresi(ws, r, _COL_YILLIK, genel_toplam * 12, bold=True)
 
     r = ws.max_row + 2
     _hucrele(ws, r, 1, _DISCLAIMER)
     r = ws.max_row + 1
-    _hucrele(ws, r, 1, f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    _hucrele(
+        ws,
+        r,
+        1,
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+    )
 
     sutun_genislikleri = {
-        1: 18, 2: 20, 3: 16, 4: 18, 5: _ACIKLAMA_GENISLIGI,
-        6: 22, 7: 14, 8: 22, 9: 22, 10: 22,
+        1: 18,
+        2: 20,
+        3: 16,
+        4: 18,
+        5: _ACIKLAMA_GENISLIGI,
+        _COL_AYLIK: 22,
+        _COL_INDIRIM: 14,
+        _COL_INDIRIMLI_AYLIK: 22,
+        _COL_INDIRIMLI_YILLIK: 26,
+        _COL_ON_ODEME: 22,
+        _COL_YILLIK: 22,
     }
     for col, genislik in sutun_genislikleri.items():
         ws.column_dimensions[get_column_letter(col)].width = genislik
@@ -221,6 +343,73 @@ def calisma_kitabi_olustur(
     for row_obj in ws.iter_rows(min_row=baslik_satiri + 1, max_col=5, min_col=5):
         for cell in row_obj:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+
+def calisma_kitabi_olustur(
+    satirlar: list[DisaAktarimSatiri],
+    genel_toplam: float,
+    para_birimi: str,
+    dil: Dil,
+    meta: HesaplamaMeta | None = None,
+) -> bytes:
+    if not satirlar:
+        raise TahminBosHatasi()
+
+    kitap = Workbook()
+    ws = kitap.active
+    ws.title = "Your Estimate"
+    _tahmin_sayfasini_doldur(ws, satirlar, genel_toplam, para_birimi, dil, meta)
+    arabellek = io.BytesIO()
+    kitap.save(arabellek)
+    return arabellek.getvalue()
+
+
+@dataclass(frozen=True)
+class CokluExcelPaket:
+    """Toplu Excel icin onceden cozumlenmis (ORM-bagimsiz) paket."""
+
+    ad: str
+    kayit_id: int | str
+    satirlar: list[DisaAktarimSatiri]
+    genel_toplam: float
+    para_birimi: str
+    dil: Dil
+    meta: HesaplamaMeta | None = None
+
+
+def coklu_calisma_kitabi_olustur(paketler: list[CokluExcelPaket]) -> bytes:
+    """Birden fazla tahmini TEK workbook'ta, sayfa basina yazarak uretir (BUG-06).
+
+    Eski yol her kayit icin workbook serialize+load+hucre kopyalama yapiyordu;
+    bu yol dogrudan sayfa doldurur (CPU yogun is async thread'e tasinmali).
+    """
+    kitap = Workbook()
+    mevcut: set[str] = set()
+    ilk = True
+    for paket in paketler:
+        if not paket.satirlar:
+            continue
+        sayfa_adi = benzersiz_excel_sayfa_adi(
+            paket.ad, mevcut, yedek=str(paket.kayit_id)
+        )
+        mevcut.add(sayfa_adi)
+        if ilk:
+            ws = kitap.active
+            ws.title = sayfa_adi
+            ilk = False
+        else:
+            ws = kitap.create_sheet(title=sayfa_adi)
+        _tahmin_sayfasini_doldur(
+            ws,
+            paket.satirlar,
+            paket.genel_toplam,
+            paket.para_birimi,
+            paket.dil,
+            paket.meta,
+        )
+
+    if ilk:
+        kitap.active.title = "Bos"
 
     arabellek = io.BytesIO()
     kitap.save(arabellek)
@@ -258,7 +447,14 @@ def donemsel_rapor_kitabi_olustur(hesaplamalar: list[Any]) -> bytes:
         _hucrele(ws, r, 3, departman_etiketi(dep) if dep else "")
         _hucrele(ws, r, 4, ", ".join(hizmetler) or h.ad)
         _hucrele(ws, r, 5, len(h.kalemler or []))
-        _hucrele(ws, r, 6, round(float(h.toplam_aylik_maliyet or 0), 2), align="right", number_format="#,##0.00")
+        _hucrele(
+            ws,
+            r,
+            6,
+            round(float(h.toplam_aylik_maliyet or 0), 2),
+            align="right",
+            number_format="#,##0.00",
+        )
         _hucrele(ws, r, 7, h.onaylayan_kullanici_adi or "")
         _hucrele(ws, r, 8, onay_t.strftime("%Y-%m-%d") if onay_t else "")
 

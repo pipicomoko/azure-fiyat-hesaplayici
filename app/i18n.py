@@ -2,7 +2,8 @@
 
 Tum menu, buton, alan etiketi, aciklama, dogrulama/hata mesaji ve Excel
 disa aktarim basligi buradan gelir. Azure SKU adlari, teknik kimlikler ve
-resmi urun adlari (orn. "Standard_D2s_v3", "Premium SSD v2") CEVRILMEZ.
+resmi urun adlari (orn. "Virtual Machines", "Managed Disks",
+"Standard_D2s_v3", "Premium SSD v2") CEVRILMEZ — dil TR olsa bile sabit EN kalir.
 """
 
 from typing import Literal
@@ -25,7 +26,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "nav_gonderilenler": {"tr": "Onaya gönderilenler", "en": "Submitted"},
     "nav_arama": {"tr": "Arama", "en": "Search"},
     "nav_sirket_kayitlari": {"tr": "Şirket Kayıtları", "en": "Company Records"},
-    "nav_departman_kayitlari": {"tr": "Departman Kayıtları", "en": "Department Records"},
+    "nav_departman_kayitlari": {
+        "tr": "Departman Kayıtları",
+        "en": "Department Records",
+    },
     "nav_birim_kayitlari": {"tr": "Birim Kayıtları", "en": "Unit Records"},
     "bs_etiket": {"tr": "Birim Yönetimi", "en": "Unit Management"},
     "bs_baslik": {"tr": "Birim Yönetim Özeti", "en": "Unit Management Overview"},
@@ -44,13 +48,22 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Departmanınızın onaylı maliyetlerini, ekip katkısını ve bekleyen kararları izleyin.",
         "en": "Track your department's approved costs, team contribution, and pending decisions.",
     },
-    "db_onayli_maliyet": {"tr": "Departman onaylı maliyeti", "en": "Department approved cost"},
+    "db_onayli_maliyet": {
+        "tr": "Departman onaylı maliyeti",
+        "en": "Department approved cost",
+    },
     "db_aktif_calisan": {"tr": "Aktif çalışan", "en": "Active employees"},
-    "db_hesaplama_yapan": {"tr": "Dönemde onaylı kaydı olan", "en": "With approved records in period"},
+    "db_hesaplama_yapan": {
+        "tr": "Dönemde onaylı kaydı olan",
+        "en": "With approved records in period",
+    },
     "db_trend": {"tr": "Departman 12 Aylık Trendi", "en": "Department 12-Month Trend"},
     "db_ekip_ozeti": {"tr": "Ekip Maliyet Özeti", "en": "Team Cost Summary"},
     "db_bana_bekleyen": {"tr": "Onayımı Bekleyenler", "en": "Waiting for My Approval"},
-    "db_son_kayitlar": {"tr": "Son Departman Kayıtları", "en": "Recent Department Records"},
+    "db_son_kayitlar": {
+        "tr": "Son Departman Kayıtları",
+        "en": "Recent Department Records",
+    },
     "gm_etiket": {"tr": "Genel Müdür", "en": "General Manager"},
     "gm_baslik": {"tr": "Şirket Maliyet Özeti", "en": "Company Cost Overview"},
     "gm_aciklama": {
@@ -58,23 +71,38 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "en": "Track approved Azure costs, departments, and pending decisions in one place.",
     },
     "gm_donem_filtre": {"tr": "Rapor dönemi", "en": "Reporting period"},
+    "gm_departman_filtre": {"tr": "Departman", "en": "Department"},
+    "gm_alt_birim_filtre": {"tr": "Alt birim", "en": "Sub-unit"},
+    "gm_tum_alt_birimler": {"tr": "Tüm alt birimler", "en": "All sub-units"},
     "gm_tarih_hatasi": {
         "tr": "Tarih aralığı geçersizdi; içinde bulunulan ay gösteriliyor.",
         "en": "The date range was invalid; the current month is shown.",
     },
     "gm_onayli_maliyet": {"tr": "Onaylı aylık maliyet", "en": "Approved monthly cost"},
-    "gm_bekleyen": {"tr": "Bekleyen potansiyel maliyet", "en": "Pending potential cost"},
+    "gm_bekleyen": {
+        "tr": "Bekleyen potansiyel maliyet",
+        "en": "Pending potential cost",
+    },
     "gm_kayit_adedi": {"tr": "{adet} kayıt", "en": "{adet} records"},
-    "gm_donem_icinde": {"tr": "Seçilen dönem içinde", "en": "Within the selected period"},
+    "gm_donem_icinde": {
+        "tr": "Seçilen dönem içinde",
+        "en": "Within the selected period",
+    },
     "gm_trend": {"tr": "12 Aylık Maliyet Trendi", "en": "12-Month Cost Trend"},
     "gm_trend_aciklama": {
         "tr": "Onay tarihine göre aylık maliyet; para birimleri ayrı gösterilir.",
         "en": "Monthly cost by approval date; currencies are shown separately.",
     },
     "gm_tabloyu_goster": {"tr": "Veri tablosunu göster", "en": "Show data table"},
-    "gm_departmanlar": {"tr": "Departman Karşılaştırması", "en": "Department Comparison"},
+    "gm_departmanlar": {
+        "tr": "Departman Karşılaştırması",
+        "en": "Department Comparison",
+    },
     "gm_bana_bekleyen": {"tr": "Kararımı Bekleyenler", "en": "Waiting for My Decision"},
-    "gm_en_yuksek": {"tr": "En Yüksek Maliyetli Kayıtlar", "en": "Highest-Cost Records"},
+    "gm_en_yuksek": {
+        "tr": "En Yüksek Maliyetli Kayıtlar",
+        "en": "Highest-Cost Records",
+    },
     "gm_son_kayitlar": {"tr": "Son Şirket Kayıtları", "en": "Recent Company Records"},
     "gm_veri_yok": {"tr": "Bu görünümde kayıt yok.", "en": "No records in this view."},
     "baslangic": {"tr": "Başlangıç", "en": "Start"},
@@ -87,7 +115,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Taslak, gönderilen, onaylanan ve reddedilen hesaplamalarınızın özeti.",
         "en": "Summary of your draft, submitted, approved, and rejected estimates.",
     },
-    "pano_bos_grup": {"tr": "Bu durumda kayıt yok.", "en": "No records in this status."},
+    "pano_bos_grup": {
+        "tr": "Bu durumda kayıt yok.",
+        "en": "No records in this status.",
+    },
     "pano_bekleyen_onay": {
         "tr": "Onay kuyruğunuzda {adet} bekleyen hesaplama var.",
         "en": "You have {adet} estimates waiting in your approval queue.",
@@ -95,6 +126,22 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "nav_onay": {"tr": "Onay Kuyruğu", "en": "Approval Queue"},
     "nav_raporlar": {"tr": "Raporlar", "en": "Reports"},
     "nav_aktivite": {"tr": "Aktivite", "en": "Activity"},
+    "nav_giris_gunlugu": {"tr": "Giriş günlüğü", "en": "Sign-in log"},
+    "giris_gunlugu_baslik": {"tr": "Giriş günlüğü", "en": "Sign-in log"},
+    "giris_gunlugu_aciklama": {
+        "tr": "Başarılı ve başarısız giriş denemeleri (şifre kaydedilmez). 90 gün saklanır.",
+        "en": "Successful and failed sign-in attempts (passwords are never stored). Kept for 90 days.",
+    },
+    "giris_gunlugu_bos": {
+        "tr": "Henüz giriş kaydı yok.",
+        "en": "No sign-in records yet.",
+    },
+    "giris_sonuc_basarili": {"tr": "Başarılı", "en": "Success"},
+    "giris_sonuc_basarisiz": {"tr": "Başarısız", "en": "Failed"},
+    "giris_sonuc_kilitli": {"tr": "Hız sınırı", "en": "Rate limited"},
+    "sonuc": {"tr": "Sonuç", "en": "Result"},
+    "hata_tipi": {"tr": "Hata tipi", "en": "Error type"},
+    "kullanici_adi": {"tr": "Kullanıcı adı", "en": "Username"},
     "nav_yonetim": {"tr": "Yönetim", "en": "Administration"},
     "nav_cikis": {"tr": "Çıkış yap", "en": "Log out"},
     "nav_giris": {"tr": "Giriş Yap", "en": "Log in"},
@@ -132,12 +179,13 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Aylık ve yıllık Azure maliyetlerini daha hızlı toparlamak için ürün ekleyin, düzenleyin ve saklayın.",
         "en": "Add, edit, and save products to prepare monthly and annual Azure cost estimates faster.",
     },
-    "urun_vm_ad": {"tr": "Sanal Makineler", "en": "Virtual Machines"},
+    # Azure urun adlari dil bagimsiz (TR arayuzde de orijinal EN kalir)
+    "urun_vm_ad": {"tr": "Virtual Machines", "en": "Virtual Machines"},
     "urun_vm_aciklama": {
         "tr": "Saniyeler içinde Windows ve Linux sanal makineleri oluşturun.",
         "en": "Provision Windows and Linux VMs in seconds.",
     },
-    "urun_disk_ad": {"tr": "Yönetilen Diskler", "en": "Managed Disks"},
+    "urun_disk_ad": {"tr": "Managed Disks", "en": "Managed Disks"},
     "urun_disk_aciklama": {
         "tr": "Azure sanal makineleri için kalıcı, güvenli disk depolama.",
         "en": "Persistent, secured disk storage for Azure virtual machines.",
@@ -146,16 +194,19 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "urun_ekle_baslik": {"tr": "Ürün ekle", "en": "Add product"},
     "urun_ara": {"tr": "Ürün ara...", "en": "Search products..."},
     "ekle": {"tr": "Ekle", "en": "Add"},
-    "tahmin_kalemleri": {"tr": "Tahmin kalemleri", "en": "Estimate line items"},
+    "tahmin_kalemleri": {"tr": "Tahmin ürünleri", "en": "Estimate products"},
     "ozet_baslik": {"tr": "Özet", "en": "Summary"},
     "adet_kisa": {"tr": "Adet", "en": "Qty"},
     # Tahmin (estimate) alani
     "tahmin_baslik": {"tr": "Tahminim", "en": "Your Estimate"},
     "tahmin_bos": {
-        "tr": "Henüz kalem eklemediniz. Yukarıdan bir ürün ekleyin.",
-        "en": "No line items yet. Add a product above.",
+        "tr": "Henüz ürün eklemediniz. Yukarıdan bir ürün ekleyin.",
+        "en": "No products yet. Add a product above.",
     },
-    "tahmin_aylik_toplam": {"tr": "Tahmini aylık toplam", "en": "Estimated monthly total"},
+    "tahmin_aylik_toplam": {
+        "tr": "Tahmini aylık toplam",
+        "en": "Estimated monthly total",
+    },
     "tahmin_kaldir": {"tr": "Kaldır", "en": "Remove"},
     "tahmin_aylik_maliyet": {"tr": "Aylık maliyet", "en": "Monthly cost"},
     "para_birimi": {"tr": "Para birimi", "en": "Currency"},
@@ -173,6 +224,15 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "en": "No valid Azure price was found for this configuration. "
         "Please change your selections and try again.",
     },
+    "gecersiz_yapilandirma": {
+        "tr": "Geçersiz yapılandırma. Lütfen listeden geçerli bir seçim yapın; tahmini fiyat gösterilmez.",
+        "en": "Invalid configuration. Choose a valid option from the list; estimated prices are never shown.",
+    },
+    "giris_hiz_siniri": {
+        "tr": "Çok fazla başarısız giriş denemesi. Lütfen bir dakika sonra tekrar deneyin.",
+        "en": "Too many failed sign-in attempts. Please try again in a minute.",
+    },
+    "sayfalama": {"tr": "Sayfalama", "en": "Pagination"},
     "fiyat_servisi_erisilemez": {
         "tr": "Azure fiyat servisine şu anda ulaşılamıyor. Lütfen daha sonra tekrar deneyin.",
         "en": "The Azure pricing service is currently unavailable. Please try again later.",
@@ -188,6 +248,18 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "onay_hedefi_gerekli": {
         "tr": "Onaya göndermek için listeden bir yönetici seçin.",
         "en": "Select an approver from the list before submitting.",
+    },
+    "onay_hedefi_kendisi_olamaz": {
+        "tr": "Onaylayacak yönetici kendiniz olamaz.",
+        "en": "You cannot select yourself as the approver.",
+    },
+    "onay_hedefi_zincirde_yok": {
+        "tr": "Seçilen onaycı yönetici zincirinizde değil.",
+        "en": "The selected approver is not in your manager chain.",
+    },
+    "onay_kendi_kayit_yasak": {
+        "tr": "Kendi oluşturduğunuz kaydı onaylayamaz veya reddedemezsiniz.",
+        "en": "You cannot approve or reject an estimate you created.",
     },
     "onay_zincir_yok": {
         "tr": "Yönetici zinciriniz bulunamadı; şu an yalnızca taslak kaydedebilirsiniz. Çıkış yapıp tekrar giriş deneyin.",
@@ -210,11 +282,20 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "durum_reddedildi": {"tr": "Reddedildi", "en": "Rejected"},
     "durum_iptal_edildi": {"tr": "İptal edildi", "en": "Cancelled"},
     "duzenle": {"tr": "Düzenle", "en": "Edit"},
-    "duzenle_tekrar_gonder": {"tr": "Düzenle ve tekrar gönder", "en": "Edit and resubmit"},
+    "duzenle_tekrar_gonder": {
+        "tr": "Düzenle ve tekrar gönder",
+        "en": "Edit and resubmit",
+    },
     "gecmis_taslaklar": {"tr": "Taslaklar", "en": "Drafts"},
-    "gecmis_gonderilenler": {"tr": "Onaya gönderilenler", "en": "Submitted for approval"},
+    "gecmis_gonderilenler": {
+        "tr": "Onaya gönderilenler",
+        "en": "Submitted for approval",
+    },
     "gecmis_taslak_bos": {"tr": "Henüz taslak yok.", "en": "No drafts yet."},
-    "gecmis_gonderilen_bos": {"tr": "Henüz onaya gönderilmiş kayıt yok.", "en": "No submitted estimates yet."},
+    "gecmis_gonderilen_bos": {
+        "tr": "Henüz onaya gönderilmiş kayıt yok.",
+        "en": "No submitted estimates yet.",
+    },
     "gecmis_tum_durumlar": {"tr": "Tüm durumlar", "en": "All statuses"},
     "onayla": {"tr": "Onayla", "en": "Approve"},
     "reddet": {"tr": "Reddet", "en": "Reject"},
@@ -241,7 +322,23 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Yalnızca onaylanmış kayıtlar (USD).",
         "en": "Approved estimates only (USD).",
     },
-    "rapor_bos": {"tr": "Filtreye uyan onaylanmış kayıt yok.", "en": "No matching approved estimates."},
+    "rapor_bos": {
+        "tr": "Filtreye uyan onaylanmış kayıt yok.",
+        "en": "No matching approved estimates.",
+    },
+    "rapor_hepsini_export": {
+        "tr": "Hepsini export et",
+        "en": "Export all",
+    },
+    "rapor_export_secilen": {
+        "tr": "Export seçilen ({n})",
+        "en": "Export selected ({n})",
+    },
+    "rapor_sec": {"tr": "Seç", "en": "Select"},
+    "rapor_secilen_yok": {
+        "tr": "Önce en az bir kayıt seçin.",
+        "en": "Select at least one estimate first.",
+    },
     "birim": {"tr": "Birim", "en": "Unit"},
     "onaylayan": {"tr": "Onaylayan", "en": "Approved by"},
     "onay_tarihi": {"tr": "Onay tarihi", "en": "Approval date"},
@@ -257,7 +354,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "en": "Your estimate is empty, there is nothing to save.",
     },
     "gecmis_baslik": {"tr": "Geçmiş Tahminler", "en": "Estimate History"},
-    "gecmis_bos": {"tr": "Henüz kaydedilmiş bir tahmin yok.", "en": "No saved estimates yet."},
+    "gecmis_bos": {
+        "tr": "Henüz kaydedilmiş bir tahmin yok.",
+        "en": "No saved estimates yet.",
+    },
     "gecmis_aciklama": {
         "tr": "Kaydedilen tahminleri inceleyin, detaylarını açın ve artık gerekmeyenleri kaldırın.",
         "en": "Review saved estimates, open their details, and remove entries you no longer need.",
@@ -274,23 +374,30 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Seçilen tahminlerden biri bulunamadı.",
         "en": "One of the selected estimates could not be found.",
     },
-    "karsilastirma_baslik": {"tr": "Tahmin Karşılaştırması", "en": "Estimate Comparison"},
+    "karsilastirma_baslik": {
+        "tr": "Tahmin Karşılaştırması",
+        "en": "Estimate Comparison",
+    },
     "karsilastirma_fark": {"tr": "Fark", "en": "Difference"},
     "karsilastirma_aciklama": {
-        "tr": "İki kayıtlı tahminin kalem ve toplam maliyet farklarını yan yana inceleyin.",
-        "en": "Review itemized and total cost differences between two saved estimates side by side.",
+        "tr": "İki kayıtlı tahminin ürün ve toplam maliyet farklarını yan yana inceleyin.",
+        "en": "Review product and total cost differences between two saved estimates side by side.",
     },
     "geri": {"tr": "Geri", "en": "Back"},
     "kayit": {"tr": "kayıt", "en": "records"},
-    "kalem_sayisi": {"tr": "Kalem sayısı", "en": "Item count"},
+    "kalem_sayisi": {"tr": "Ürün sayısı", "en": "Product count"},
     "tarih": {"tr": "Tarih", "en": "Date"},
     "ad": {"tr": "Ad", "en": "Name"},
     "toplam_aylik": {"tr": "Toplam (aylık)", "en": "Total (monthly)"},
     "toplam_yillik": {"tr": "Toplam (yıllık)", "en": "Total (annual)"},
-    "tahmin_yillik_maliyet": {"tr": "Tahmini yıllık toplam", "en": "Estimated annual total"},
+    "tahmin_yillik_maliyet": {
+        "tr": "Tahmini yıllık toplam",
+        "en": "Estimated annual total",
+    },
     "yillik_maliyet": {"tr": "Yıllık maliyet", "en": "Annual cost"},
     "yeni_tahmin": {"tr": "Yeni tahmin", "en": "New estimate"},
     "olusturan": {"tr": "Oluşturan", "en": "Created by"},
+    "kopyala": {"tr": "Kopyala", "en": "Copy"},
     "sil": {"tr": "Sil", "en": "Delete"},
     "sil_onay": {
         "tr": "Bu tahmini silmek istediğinizden emin misiniz?",
@@ -300,8 +407,8 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "detay": {"tr": "Detay", "en": "Detail"},
     "gecmis_detay_baslik": {"tr": "Tahmin Detayı", "en": "Estimate Detail"},
     "gecmis_detay_aciklama": {
-        "tr": "Kayıtlı tahminin kalemlerini ve fiyat bileşenlerini ayrıntılı olarak inceleyin.",
-        "en": "Review the saved estimate items and pricing components in detail.",
+        "tr": "Kayıtlı tahminin ürünlerini ve fiyat bileşenlerini ayrıntılı olarak inceleyin.",
+        "en": "Review the saved estimate products and pricing components in detail.",
     },
     "gecmis_yalnizca_sahibi_erisebilir": {
         "tr": "Bu tahmine sadece oluşturan kişi veya yöneticiler erişebilir.",
@@ -352,8 +459,14 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Gizli işletim sistemi şifrelemesi",
         "en": "Enable Confidential OS Encryption",
     },
-    "alan_patlama": {"tr": "Disk patlamasını (bursting) etkinleştir", "en": "Enable disk bursting"},
-    "alan_fiyatlandirma_modeli": {"tr": "Fiyatlandırma seçeneği", "en": "Savings option"},
+    "alan_patlama": {
+        "tr": "Disk patlamasını (bursting) etkinleştir",
+        "en": "Enable disk bursting",
+    },
+    "alan_fiyatlandirma_modeli": {
+        "tr": "Fiyatlandırma seçeneği",
+        "en": "Savings option",
+    },
     "alan_sure_birimi": {"tr": "Süre birimi", "en": "Duration unit"},
     "alan_sure_miktar": {"tr": "Süre", "en": "Duration"},
     "alan_bolge_kaynak": {"tr": "Kaynak bölge", "en": "Source region"},
@@ -375,14 +488,32 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "vm_alan_seri": {"tr": "Instance Serisi", "en": "Instance Series"},
     "vm_alan_instance": {"tr": "Instance", "en": "Instance"},
     "vm_alan_adet": {"tr": "Sanal makine sayısı", "en": "Virtual machines"},
-    "vm_alan_fiyatlandirma_modeli": {"tr": "Tasarruf seçenekleri", "en": "Savings options"},
-    "vm_alan_hibrit_fayda": {"tr": "Azure Hybrid Benefit", "en": "Azure Hybrid Benefit"},
-    "vm_bolum_disk": {"tr": "Yönetilen Diskler (bu VM için)", "en": "Managed Disks (for this VM)"},
+    "vm_alan_fiyatlandirma_modeli": {
+        "tr": "Tasarruf seçenekleri",
+        "en": "Savings options",
+    },
+    "vm_alan_hibrit_fayda": {
+        "tr": "Azure Hybrid Benefit",
+        "en": "Azure Hybrid Benefit",
+    },
+    "vm_bolum_disk": {
+        "tr": "Managed Disks (bu VM için)",
+        "en": "Managed Disks (for this VM)",
+    },
     "vm_bolum_bant_genisligi": {"tr": "Bant genişliği", "en": "Bandwidth"},
-    "vm_alan_veri_transfer_tipi": {"tr": "Veri transfer tipi", "en": "Data Transfer Type"},
-    "vm_alan_cikis_gb": {"tr": "Giden veri transferi (GB)", "en": "Outbound Data Transfer (GB)"},
+    "vm_alan_veri_transfer_tipi": {
+        "tr": "Veri transfer tipi",
+        "en": "Data Transfer Type",
+    },
+    "vm_alan_cikis_gb": {
+        "tr": "Giden veri transferi (GB)",
+        "en": "Outbound Data Transfer (GB)",
+    },
     "vm_bilesen_compute": {"tr": "İşlem (Compute)", "en": "Compute"},
-    "vm_bilesen_os": {"tr": "İşletim sistemi (Windows)", "en": "Operating system (Windows)"},
+    "vm_bilesen_os": {
+        "tr": "İşletim sistemi (Windows)",
+        "en": "Operating system (Windows)",
+    },
     "vm_bilesen_yazilim": {"tr": "Yazılım lisansı", "en": "Software license"},
     "vm_bilesen_bant_genisligi": {"tr": "Bant genişliği", "en": "Bandwidth"},
     # Excel disa aktarim basliklari
@@ -390,7 +521,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "xlsx_baslik_satiri": {"tr": "Azure Fiyat Tahmini", "en": "Azure Pricing Estimate"},
     "xlsx_servis_tipi": {"tr": "Servis Tipi", "en": "Service type"},
     "xlsx_aciklama": {"tr": "Açıklama", "en": "Description"},
-    "xlsx_tahmini_aylik_maliyet": {"tr": "Tahmini Aylık Maliyet", "en": "Estimated monthly cost"},
+    "xlsx_tahmini_aylik_maliyet": {
+        "tr": "Tahmini Aylık Maliyet",
+        "en": "Estimated monthly cost",
+    },
     "xlsx_urun": {"tr": "Ürün", "en": "Product"},
     "xlsx_ozet": {"tr": "Yapılandırma", "en": "Configuration"},
     "xlsx_bolge": {"tr": "Bölge", "en": "Region"},
@@ -399,7 +533,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
     "xlsx_birim_fiyat": {"tr": "Birim Fiyat", "en": "Unit Price"},
     "xlsx_ara_toplam": {"tr": "Ara Toplam (Aylık)", "en": "Subtotal (Monthly)"},
     "xlsx_genel_toplam": {"tr": "Genel Toplam (Aylık)", "en": "Grand Total (Monthly)"},
-    "xlsx_genel_toplam_yillik": {"tr": "Genel Toplam (Yıllık)", "en": "Grand Total (Annual)"},
+    "xlsx_genel_toplam_yillik": {
+        "tr": "Genel Toplam (Yıllık)",
+        "en": "Grand Total (Annual)",
+    },
     "xlsx_para_birimi": {"tr": "Para Birimi", "en": "Currency"},
     "xlsx_olusturulma_tarihi": {"tr": "Oluşturulma Tarihi", "en": "Generated On"},
 }

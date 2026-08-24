@@ -708,7 +708,6 @@ body.app-body {
 .rail-metrics {
   display: grid;
   gap: var(--space-3);
-  margin-top: var(--space-4);
 }
 
 .rail-metric {
@@ -848,6 +847,31 @@ body.app-body {
 .hero-panel-body {
   padding: var(--space-4);
   border-bottom: 1px solid var(--border);
+}
+
+.hero-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rapor-export-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.rapor-export-bar [data-rapor-export-secilen]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rapor-sec-sutun {
+  width: 2.25rem;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .section-card-body {

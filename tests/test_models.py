@@ -21,7 +21,9 @@ def test_hesaplama_ve_kalem_iliskisi():
             ozet="Standard HDD - S4 - x1 - East US",
             aylik_maliyet=1.59,
             yapilandirma={"bolge": "eastus", "kademe": "standardhdd", "sku": "S4"},
-            fiyat_kalemleri=[{"anahtar": "disk_bilesen_depolama", "aylik_tutar": 1.536}],
+            fiyat_kalemleri=[
+                {"anahtar": "disk_bilesen_depolama", "aylik_tutar": 1.536}
+            ],
         )
         oturum.add(kalem)
         oturum.commit()

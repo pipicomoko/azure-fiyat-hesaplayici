@@ -28,6 +28,7 @@ from app.products.managed_disks.secenekler import (
     SABIT_SKU_TABLOLARI,
     SAAT_CARPANLARI,
     SNAPSHOT_DESTEKLEYEN_KADEMELER,
+    _pozitif_adet,
 )
 
 _URUN_ADLARI = {
@@ -65,7 +66,10 @@ async def _urun_kayitlarini_al(bolge: str, kademe: str, para_birimi: str) -> lis
 
 
 def _meter_bul(
-    kayitlar: list[dict], meter_adi: str, unit: str | None = None, tip: str = "Consumption"
+    kayitlar: list[dict],
+    meter_adi: str,
+    unit: str | None = None,
+    tip: str = "Consumption",
 ) -> dict | None:
     adaylar = [
         k
@@ -77,7 +81,9 @@ def _meter_bul(
     return _en_iyi_kaydi_sec(adaylar)
 
 
-def _sku_meter_bul(kayitlar, sku, yedeklilik, ek, unit, tip="Consumption") -> dict | None:
+def _sku_meter_bul(
+    kayitlar, sku, yedeklilik, ek, unit, tip="Consumption"
+) -> dict | None:
     return _meter_bul(kayitlar, f"{sku} {yedeklilik} {ek}".strip(), unit, tip)
 
 
@@ -87,13 +93,16 @@ async def _fiyatla_sabit_sku(
     kademe = yapilandirma["kademe"]
     sku = yapilandirma["sku"]
     yedeklilik = yapilandirma.get("yedeklilik", "LRS")
-    adet = max(1, int(yapilandirma.get("adet", 1)))
+    adet = _pozitif_adet(yapilandirma.get("adet", 1))
     gib = SABIT_SKU_TABLOLARI[kademe][sku]
     fiyatlandirma_modeli = yapilandirma.get("fiyatlandirma_modeli", "payg")
 
     kalemler: list[FiyatKalemi] = []
 
-    if fiyatlandirma_modeli == "reservation_1y" and kademe in REZERVASYON_DESTEKLEYEN_KADEMELER:
+    if (
+        fiyatlandirma_modeli == "reservation_1y"
+        and kademe in REZERVASYON_DESTEKLEYEN_KADEMELER
+    ):
         adaylar = [
             k
             for k in kayitlar
@@ -104,7 +113,9 @@ async def _fiyatla_sabit_sku(
         disk_kaydi = _en_iyi_kaydi_sec(adaylar)
         if disk_kaydi is None:
             raise FiyatBulunamadiHatasi()
-        birim_fiyat = disk_kaydi["retailPrice"] / 12  # API: rezervasyon toplam donem fiyatini verir
+        birim_fiyat = (
+            disk_kaydi["retailPrice"] / 12
+        )  # API: rezervasyon toplam donem fiyatini verir
     else:
         disk_kaydi = _sku_meter_bul(kayitlar, sku, yedeklilik, "Disk", "1/Month")
         if disk_kaydi is None:
@@ -117,13 +128,19 @@ async def _fiyatla_sabit_sku(
     )
 
     if kademe in ISLEM_DESTEKLEYEN_KADEMELER:
-        islem_kaydi = _sku_meter_bul(kayitlar, sku, yedeklilik, "Disk Operations", "10K")
+        islem_kaydi = _sku_meter_bul(
+            kayitlar, sku, yedeklilik, "Disk Operations", "10K"
+        )
         islem_adet = max(0.0, float(yapilandirma.get("islem_adet", 0) or 0))
         if islem_kaydi and islem_adet > 0:
             islem_tutar = islem_kaydi["retailPrice"] * islem_adet
             kalemler.append(
                 FiyatKalemi(
-                    "disk_bilesen_islemler", islem_adet, "10K islem", islem_kaydi["retailPrice"], islem_tutar
+                    "disk_bilesen_islemler",
+                    islem_adet,
+                    "10K islem",
+                    islem_kaydi["retailPrice"],
+                    islem_tutar,
                 )
             )
 
@@ -140,19 +157,34 @@ async def _fiyatla_sabit_sku(
             miktar = gib * adet
             tutar = snapshot_kaydi["retailPrice"] * miktar
             kalemler.append(
-                FiyatKalemi("disk_bilesen_anlik_goruntu", miktar, "GB", snapshot_kaydi["retailPrice"], tutar)
+                FiyatKalemi(
+                    "disk_bilesen_anlik_goruntu",
+                    miktar,
+                    "GB",
+                    snapshot_kaydi["retailPrice"],
+                    tutar,
+                )
             )
 
-    if yapilandirma.get("gizli_sifreleme") and kademe in GIZLI_SIFRELEME_DESTEKLEYEN_KADEMELER:
+    if (
+        yapilandirma.get("gizli_sifreleme")
+        and kademe in GIZLI_SIFRELEME_DESTEKLEYEN_KADEMELER
+    ):
         gizli_kaydi = _meter_bul(
-            kayitlar, f"Confidential Compute Encryption {yedeklilik} Provisioned Capacity", "1 GiB/Hour"
+            kayitlar,
+            f"Confidential Compute Encryption {yedeklilik} Provisioned Capacity",
+            "1 GiB/Hour",
         )
         if gizli_kaydi:
             miktar = gib * adet
             tutar = gizli_kaydi["retailPrice"] * miktar * 730
             kalemler.append(
                 FiyatKalemi(
-                    "disk_bilesen_gizli_sifreleme", miktar, "GiB", gizli_kaydi["retailPrice"], tutar
+                    "disk_bilesen_gizli_sifreleme",
+                    miktar,
+                    "GiB",
+                    gizli_kaydi["retailPrice"],
+                    tutar,
                 )
             )
 
@@ -161,16 +193,29 @@ async def _fiyatla_sabit_sku(
 
 
 async def _fiyatla_provisioned(
-    yapilandirma: dict, kayitlar: list[dict], para_birimi: str, meter_onek: str, ucretsiz_iops: float, ucretsiz_throughput: float
+    yapilandirma: dict,
+    kayitlar: list[dict],
+    para_birimi: str,
+    meter_onek: str,
+    ucretsiz_iops: float,
+    ucretsiz_throughput: float,
 ) -> FiyatSonucu:
     gib = max(1.0, float(yapilandirma.get("disk_boyutu_gib", 1) or 1))
-    adet = max(1, int(yapilandirma.get("adet", 1)))
-    carpan = SAAT_CARPANLARI.get(yapilandirma.get("sure_birimi", "saat"), 1)
+    adet = _pozitif_adet(yapilandirma.get("adet", 1))
+    carpan = SAAT_CARPANLARI.get(yapilandirma.get("sure_birimi", "saat"))
+    if carpan is None:
+        from app.products.base import GecersizYapilandirmaHatasi
+
+        raise GecersizYapilandirmaHatasi("sure_birimi")
     saat = max(0.0, float(yapilandirma.get("sure_miktar", 730) or 0)) * carpan
 
-    kapasite_kaydi = _meter_bul(kayitlar, f"{meter_onek} Provisioned Capacity", "1 GiB/Hour")
+    kapasite_kaydi = _meter_bul(
+        kayitlar, f"{meter_onek} Provisioned Capacity", "1 GiB/Hour"
+    )
     iops_kaydi = _meter_bul(kayitlar, f"{meter_onek} Provisioned IOPS", "1/Hour")
-    throughput_kaydi = _meter_bul(kayitlar, f"{meter_onek} Provisioned Throughput (MBps)", "1/Hour")
+    throughput_kaydi = _meter_bul(
+        kayitlar, f"{meter_onek} Provisioned Throughput (MBps)", "1/Hour"
+    )
     if not (kapasite_kaydi and iops_kaydi and throughput_kaydi):
         raise FiyatBulunamadiHatasi()
 
@@ -178,7 +223,13 @@ async def _fiyatla_provisioned(
 
     kapasite_tutar = kapasite_kaydi["retailPrice"] * gib * saat * adet
     kalemler.append(
-        FiyatKalemi("disk_bilesen_depolama", gib * adet, "GiB", kapasite_kaydi["retailPrice"], kapasite_tutar)
+        FiyatKalemi(
+            "disk_bilesen_depolama",
+            gib * adet,
+            "GiB",
+            kapasite_kaydi["retailPrice"],
+            kapasite_tutar,
+        )
     )
 
     istenen_iops = max(0.0, float(yapilandirma.get("iops", 0) or 0))
@@ -186,16 +237,28 @@ async def _fiyatla_provisioned(
     if faturalanan_iops > 0:
         iops_tutar = iops_kaydi["retailPrice"] * faturalanan_iops * saat * adet
         kalemler.append(
-            FiyatKalemi("disk_bilesen_iops", faturalanan_iops, "IOPS", iops_kaydi["retailPrice"], iops_tutar)
+            FiyatKalemi(
+                "disk_bilesen_iops",
+                faturalanan_iops,
+                "IOPS",
+                iops_kaydi["retailPrice"],
+                iops_tutar,
+            )
         )
 
     istenen_throughput = max(0.0, float(yapilandirma.get("throughput_mbps", 0) or 0))
     faturalanan_throughput = max(0.0, istenen_throughput - ucretsiz_throughput)
     if faturalanan_throughput > 0:
-        throughput_tutar = throughput_kaydi["retailPrice"] * faturalanan_throughput * saat * adet
+        throughput_tutar = (
+            throughput_kaydi["retailPrice"] * faturalanan_throughput * saat * adet
+        )
         kalemler.append(
             FiyatKalemi(
-                "disk_bilesen_throughput", faturalanan_throughput, "MB/s", throughput_kaydi["retailPrice"], throughput_tutar
+                "disk_bilesen_throughput",
+                faturalanan_throughput,
+                "MB/s",
+                throughput_kaydi["retailPrice"],
+                throughput_tutar,
             )
         )
 
@@ -217,9 +280,16 @@ async def fiyatla(yapilandirma: dict, para_birimi: str) -> FiyatSonucu:
         return await _fiyatla_sabit_sku(yapilandirma, kayitlar, para_birimi)
     if kademe == "premiumssdv2":
         return await _fiyatla_provisioned(
-            yapilandirma, kayitlar, para_birimi, "Premium LRS", _PREMIUM_V2_UCRETSIZ_IOPS, _PREMIUM_V2_UCRETSIZ_THROUGHPUT
+            yapilandirma,
+            kayitlar,
+            para_birimi,
+            "Premium LRS",
+            _PREMIUM_V2_UCRETSIZ_IOPS,
+            _PREMIUM_V2_UCRETSIZ_THROUGHPUT,
         )
     if kademe == "ultrassd":
-        return await _fiyatla_provisioned(yapilandirma, kayitlar, para_birimi, "Ultra LRS", 0, 0)
+        return await _fiyatla_provisioned(
+            yapilandirma, kayitlar, para_birimi, "Ultra LRS", 0, 0
+        )
 
     raise FiyatBulunamadiHatasi()

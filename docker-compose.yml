@@ -1,4 +1,6 @@
 services:
+  # Gelistirme compose: --reload + bind-mount. Uretim icin Dockerfile CMD kullanin
+  # (reload yok, non-root USER). Ornek: docker build -t afh . && docker run --env-file .env -p 8000:8000 afh
   app:
     build: .
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -28,7 +30,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 180s
 
   postgres:
     image: postgres:16-alpine
@@ -45,6 +47,23 @@ services:
       retries: 5
     ports:
       - "127.0.0.1:5432:5432"
+
+  pg-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    profiles: ["backup"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: apc
+      POSTGRES_USER: apc
+      POSTGRES_PASSWORD: apc
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   # Samba AD LDS (LDAPS :636). Windows VM parkta; gelistirme dizini burasi.
   samba:
@@ -92,4 +111,5 @@ services:
 
 volumes:
   postgres_data:
+  postgres_backups:
   samba_data:

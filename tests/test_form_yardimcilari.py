@@ -23,9 +23,14 @@ def test_coklu_kalem_formunu_ayir_kalemleri_ve_genel_alanlari_ayirir():
 
     assert genel == {"para_birimi": "USD"}
     assert kalemler["abc123"] == {
-        "urun_tipi": "managed_disks", "bolge": "eastus", "disk": {"kademe": "standardhdd"}
+        "urun_tipi": "managed_disks",
+        "bolge": "eastus",
+        "disk": {"kademe": "standardhdd"},
     }
-    assert kalemler["def456"] == {"urun_tipi": "virtual_machines", "bolge": "westeurope"}
+    assert kalemler["def456"] == {
+        "urun_tipi": "virtual_machines",
+        "bolge": "westeurope",
+    }
 
 
 def test_coklu_kalem_formunu_ayir_checkbox_hidden_ikilisinde_son_deger_kazanir():
@@ -35,7 +40,9 @@ def test_coklu_kalem_formunu_ayir_checkbox_hidden_ikilisinde_son_deger_kazanir()
     assert kalemler["k1"]["anlik_goruntu"] == "false"
 
     # Checkbox isaretli: gizli "false" + checkbox "true" DOM sirasiyla gelir, son deger kazanir
-    form_isaretli = FormData([("k1.anlik_goruntu", "false"), ("k1.anlik_goruntu", "true")])
+    form_isaretli = FormData(
+        [("k1.anlik_goruntu", "false"), ("k1.anlik_goruntu", "true")]
+    )
     _, kalemler = coklu_kalem_formunu_ayir(form_isaretli)
     assert kalemler["k1"]["anlik_goruntu"] == "true"
 
@@ -47,7 +54,11 @@ def test_bos_degerleri_temizle_ic_ice_calisir():
 
 
 def test_boolean_alanlarini_normallestir_string_false_gercek_false_olur():
-    veri = {"anlik_goruntu": "false", "gizli_sifreleme": "true", "disk": {"patlama_etkin": "false"}}
+    veri = {
+        "anlik_goruntu": "false",
+        "gizli_sifreleme": "true",
+        "disk": {"patlama_etkin": "false"},
+    }
     boolean_alanlarini_normallestir(veri)
     assert veri["anlik_goruntu"] is False
     assert veri["gizli_sifreleme"] is True

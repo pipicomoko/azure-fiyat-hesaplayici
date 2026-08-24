@@ -19,8 +19,9 @@ from dataclasses import dataclass, field
 
 from app.bolgeler import BOLGELER, VARSAYILAN_BOLGE
 from app.fiyat_api import kayitlari_getir, odata_metin_kacir
-from app.products.base import SecenekSonucu
+from app.products.base import GecersizYapilandirmaHatasi, SecenekSonucu
 from app.products.managed_disks import secenekler as disk_secenekler
+from app.products.managed_disks.secenekler import _pozitif_adet
 
 KATEGORILER = [
     "all",
@@ -38,17 +39,32 @@ _KATEGORI_ETIKETLERI = {
     "memoryoptimized": {"tr": "Bellek optimizasyonlu", "en": "Memory optimized"},
     "storageoptimized": {"tr": "Depolama optimizasyonlu", "en": "Storage optimized"},
     "gpu": {"tr": "GPU", "en": "GPU"},
-    "highperformancecompute": {"tr": "Yüksek performanslı işlem", "en": "High performance compute"},
+    "highperformancecompute": {
+        "tr": "Yüksek performanslı işlem",
+        "en": "High performance compute",
+    },
 }
 
 _AILE_KATEGORI = {
-    "NC": "gpu", "ND": "gpu", "NV": "gpu", "NG": "gpu",
-    "HB": "highperformancecompute", "HC": "highperformancecompute", "HX": "highperformancecompute",
-    "DC": "generalpurpose", "FX": "computeoptimized",
-    "A": "generalpurpose", "B": "generalpurpose", "D": "generalpurpose",
-    "E": "memoryoptimized", "M": "memoryoptimized",
-    "F": "computeoptimized", "L": "storageoptimized",
-    "N": "gpu", "H": "highperformancecompute", "G": "generalpurpose",
+    "NC": "gpu",
+    "ND": "gpu",
+    "NV": "gpu",
+    "NG": "gpu",
+    "HB": "highperformancecompute",
+    "HC": "highperformancecompute",
+    "HX": "highperformancecompute",
+    "DC": "generalpurpose",
+    "FX": "computeoptimized",
+    "A": "generalpurpose",
+    "B": "generalpurpose",
+    "D": "generalpurpose",
+    "E": "memoryoptimized",
+    "M": "memoryoptimized",
+    "F": "computeoptimized",
+    "L": "storageoptimized",
+    "N": "gpu",
+    "H": "highperformancecompute",
+    "G": "generalpurpose",
 }
 _KATEGORI_RAM_ORANI_GIB = {
     "generalpurpose": 4.0,
@@ -66,30 +82,117 @@ ISLETIM_SISTEMLERI = ["linux", "windows"]
 
 WINDOWS_YAZILIM_TIPLERI = [
     ("os-only", {"tr": "(Yalnızca işletim sistemi)", "en": "(OS Only)"}, ["Windows"]),
-    ("biztalk-standard", {"tr": "BizTalk Server Standard", "en": "BizTalk Server Standard"}, ["BizTalk", "Standard"]),
-    ("biztalk-enterprise", {"tr": "BizTalk Server Enterprise", "en": "BizTalk Server Enterprise"}, ["BizTalk", "Enterprise"]),
+    (
+        "biztalk-standard",
+        {"tr": "BizTalk Server Standard", "en": "BizTalk Server Standard"},
+        ["BizTalk", "Standard"],
+    ),
+    (
+        "biztalk-enterprise",
+        {"tr": "BizTalk Server Enterprise", "en": "BizTalk Server Enterprise"},
+        ["BizTalk", "Enterprise"],
+    ),
     ("sql-web", {"tr": "SQL Server Web", "en": "SQL Server Web"}, ["SQL", "Web"]),
-    ("sql-standard", {"tr": "SQL Server Standard", "en": "SQL Server Standard"}, ["SQL", "Standard"]),
-    ("sql-enterprise", {"tr": "SQL Server Enterprise", "en": "SQL Server Enterprise"}, ["SQL", "Enterprise"]),
+    (
+        "sql-standard",
+        {"tr": "SQL Server Standard", "en": "SQL Server Standard"},
+        ["SQL", "Standard"],
+    ),
+    (
+        "sql-enterprise",
+        {"tr": "SQL Server Enterprise", "en": "SQL Server Enterprise"},
+        ["SQL", "Enterprise"],
+    ),
 ]
 LINUX_YAZILIM_TIPLERI = [
     ("ubuntu", {"tr": "Ubuntu", "en": "Ubuntu"}, []),
-    ("ubuntu-advantage", {"tr": "Ubuntu Advantage", "en": "Ubuntu Advantage"}, ["Ubuntu Advantage"]),
+    (
+        "ubuntu-advantage",
+        {"tr": "Ubuntu Advantage", "en": "Ubuntu Advantage"},
+        ["Ubuntu Advantage"],
+    ),
     ("ubuntu-pro", {"tr": "Ubuntu Pro", "en": "Ubuntu Pro"}, ["Ubuntu Pro"]),
-    ("rhel", {"tr": "Red Hat Enterprise Linux", "en": "Red Hat Enterprise Linux"}, ["RHEL"]),
-    ("rhel-ha", {"tr": "Red Hat Enterprise Linux (HA)", "en": "Red Hat Enterprise Linux with HA"}, ["RHEL", "HA"]),
-    ("rhel-sap", {"tr": "RHEL for SAP Business Applications", "en": "RHEL for SAP Business Applications"}, ["RHEL", "SAP"]),
+    (
+        "rhel",
+        {"tr": "Red Hat Enterprise Linux", "en": "Red Hat Enterprise Linux"},
+        ["RHEL"],
+    ),
+    (
+        "rhel-ha",
+        {
+            "tr": "Red Hat Enterprise Linux (HA)",
+            "en": "Red Hat Enterprise Linux with HA",
+        },
+        ["RHEL", "HA"],
+    ),
+    (
+        "rhel-sap",
+        {
+            "tr": "RHEL for SAP Business Applications",
+            "en": "RHEL for SAP Business Applications",
+        },
+        ["RHEL", "SAP"],
+    ),
     ("suse", {"tr": "SUSE Linux Enterprise", "en": "SUSE Linux Enterprise"}, ["SUSE"]),
-    ("suse-hpc", {"tr": "SUSE Linux Enterprise for HPC", "en": "SUSE Linux Enterprise for HPC"}, ["SUSE", "HPC"]),
-    ("sql-rhel-web", {"tr": "SQL Server Web (RHEL)", "en": "SQL Server Web Red Hat Enterprise Linux"}, ["SQL", "RHEL", "Web"]),
-    ("sql-rhel-standard", {"tr": "SQL Server Standard (RHEL)", "en": "SQL Server Standard Red Hat Enterprise Linux"}, ["SQL", "RHEL", "Standard"]),
-    ("sql-rhel-enterprise", {"tr": "SQL Server Enterprise (RHEL)", "en": "SQL Server Enterprise Red Hat Enterprise Linux"}, ["SQL", "RHEL", "Enterprise"]),
-    ("sql-suse-web", {"tr": "SQL Server Web (SUSE)", "en": "SQL Server Web SUSE"}, ["SQL", "SUSE", "Web"]),
-    ("sql-suse-standard", {"tr": "SQL Server Standard (SUSE)", "en": "SQL Server Standard SUSE"}, ["SQL", "SUSE", "Standard"]),
-    ("sql-suse-enterprise", {"tr": "SQL Server Enterprise (SUSE)", "en": "SQL Server Enterprise SUSE"}, ["SQL", "SUSE", "Enterprise"]),
-    ("sql-ubuntu-web", {"tr": "SQL Server Web (Ubuntu)", "en": "SQL Server Web Ubuntu"}, ["SQL", "Ubuntu", "Web"]),
-    ("sql-ubuntu-standard", {"tr": "SQL Server Standard (Ubuntu)", "en": "SQL Server Standard Ubuntu"}, ["SQL", "Ubuntu", "Standard"]),
-    ("sql-ubuntu-enterprise", {"tr": "SQL Server Enterprise (Ubuntu)", "en": "SQL Server Enterprise Ubuntu"}, ["SQL", "Ubuntu", "Enterprise"]),
+    (
+        "suse-hpc",
+        {"tr": "SUSE Linux Enterprise for HPC", "en": "SUSE Linux Enterprise for HPC"},
+        ["SUSE", "HPC"],
+    ),
+    (
+        "sql-rhel-web",
+        {
+            "tr": "SQL Server Web (RHEL)",
+            "en": "SQL Server Web Red Hat Enterprise Linux",
+        },
+        ["SQL", "RHEL", "Web"],
+    ),
+    (
+        "sql-rhel-standard",
+        {
+            "tr": "SQL Server Standard (RHEL)",
+            "en": "SQL Server Standard Red Hat Enterprise Linux",
+        },
+        ["SQL", "RHEL", "Standard"],
+    ),
+    (
+        "sql-rhel-enterprise",
+        {
+            "tr": "SQL Server Enterprise (RHEL)",
+            "en": "SQL Server Enterprise Red Hat Enterprise Linux",
+        },
+        ["SQL", "RHEL", "Enterprise"],
+    ),
+    (
+        "sql-suse-web",
+        {"tr": "SQL Server Web (SUSE)", "en": "SQL Server Web SUSE"},
+        ["SQL", "SUSE", "Web"],
+    ),
+    (
+        "sql-suse-standard",
+        {"tr": "SQL Server Standard (SUSE)", "en": "SQL Server Standard SUSE"},
+        ["SQL", "SUSE", "Standard"],
+    ),
+    (
+        "sql-suse-enterprise",
+        {"tr": "SQL Server Enterprise (SUSE)", "en": "SQL Server Enterprise SUSE"},
+        ["SQL", "SUSE", "Enterprise"],
+    ),
+    (
+        "sql-ubuntu-web",
+        {"tr": "SQL Server Web (Ubuntu)", "en": "SQL Server Web Ubuntu"},
+        ["SQL", "Ubuntu", "Web"],
+    ),
+    (
+        "sql-ubuntu-standard",
+        {"tr": "SQL Server Standard (Ubuntu)", "en": "SQL Server Standard Ubuntu"},
+        ["SQL", "Ubuntu", "Standard"],
+    ),
+    (
+        "sql-ubuntu-enterprise",
+        {"tr": "SQL Server Enterprise (Ubuntu)", "en": "SQL Server Enterprise Ubuntu"},
+        ["SQL", "Ubuntu", "Enterprise"],
+    ),
 ]
 _YAZILIM_TIPI_ARAMA = {
     kod: arama for kod, _, arama in WINDOWS_YAZILIM_TIPLERI + LINUX_YAZILIM_TIPLERI
@@ -103,15 +206,30 @@ _YAZILIM_TIPI_ARAMA["sql-ubuntu"] = ["SQL", "Ubuntu", "Standard"]
 
 _AHB_UYGUN_TIPLER = {
     "os-only",
-    "sql", "sql-web", "sql-standard", "sql-enterprise",
-    "rhel", "rhel-ha", "rhel-sap",
-    "suse", "suse-hpc",
-    "sql-rhel", "sql-rhel-web", "sql-rhel-standard", "sql-rhel-enterprise",
-    "sql-suse", "sql-suse-web", "sql-suse-standard", "sql-suse-enterprise",
+    "sql",
+    "sql-web",
+    "sql-standard",
+    "sql-enterprise",
+    "rhel",
+    "rhel-ha",
+    "rhel-sap",
+    "suse",
+    "suse-hpc",
+    "sql-rhel",
+    "sql-rhel-web",
+    "sql-rhel-standard",
+    "sql-rhel-enterprise",
+    "sql-suse",
+    "sql-suse-web",
+    "sql-suse-standard",
+    "sql-suse-enterprise",
 }
 
 TIERLER = ["standard", "basic"]
-_TIER_ETIKETLERI = {"standard": {"tr": "Standart", "en": "Standard"}, "basic": {"tr": "Temel", "en": "Basic"}}
+_TIER_ETIKETLERI = {
+    "standard": {"tr": "Standart", "en": "Standard"},
+    "basic": {"tr": "Temel", "en": "Basic"},
+}
 
 SURE_BIRIMLERI = ["saat", "gun", "ay"]
 _SURE_ETIKETLERI = {
@@ -121,7 +239,13 @@ _SURE_ETIKETLERI = {
 }
 SAAT_CARPANLARI = {"saat": 1, "gun": 24, "ay": 730}
 
-FIYATLANDIRMA_MODELLERI = ["payg", "savings_1y", "savings_3y", "reservation_1y", "reservation_3y"]
+FIYATLANDIRMA_MODELLERI = [
+    "payg",
+    "savings_1y",
+    "savings_3y",
+    "reservation_1y",
+    "reservation_3y",
+]
 _FIYATLANDIRMA_ETIKETLERI = {
     "payg": {"tr": "Kullandıkça öde", "en": "Pay as you go"},
     "savings_1y": {"tr": "1 yıllık tasarruf planı", "en": "1 year savings plan"},
@@ -189,7 +313,11 @@ def fiyatlandirma_modeli_adi(model: str, dil: str) -> str:
 
 
 def yazilim_tipleri(isletim_sistemi: str) -> list[tuple[str, dict, list[str]]]:
-    return WINDOWS_YAZILIM_TIPLERI if isletim_sistemi == "windows" else LINUX_YAZILIM_TIPLERI
+    return (
+        WINDOWS_YAZILIM_TIPLERI
+        if isletim_sistemi == "windows"
+        else LINUX_YAZILIM_TIPLERI
+    )
 
 
 def yazilim_tipi_arama_anahtar_kelimeleri(yazilim_tipi: str) -> list[str]:
@@ -205,7 +333,9 @@ def ahb_uygun_mu(yazilim_tipi: str) -> bool:
     return yazilim_tipini_normallestir(yazilim_tipi) in _AHB_UYGUN_TIPLER
 
 
-async def bolge_katalogunu_getir(bolge: str, tier: str, para_birimi: str = "USD") -> BolgeKatalogu:
+async def bolge_katalogunu_getir(
+    bolge: str, tier: str, para_birimi: str = "USD"
+) -> BolgeKatalogu:
     onek = "Basic_" if tier == "basic" else "Standard_"
     # endswith(productName,'Series'): yalnizca temel Linux serileri (Windows/SQL/RHEL
     # ekli urunler 'Series' ile bitmez). Tum VM tuketim kayitlarini cekmek 30+
@@ -309,7 +439,9 @@ def bos_yapilandirma() -> dict:
         "bant_genisligi": {
             "veri_transfer_tipi": "interregion",
             "kaynak_bolge": VARSAYILAN_BOLGE,
-            "hedef_bolge": next((b.kod for b in BOLGELER if b.kod != VARSAYILAN_BOLGE), VARSAYILAN_BOLGE),
+            "hedef_bolge": next(
+                (b.kod for b in BOLGELER if b.kod != VARSAYILAN_BOLGE), VARSAYILAN_BOLGE
+            ),
             "cikis_gb": 5,
         },
     }
@@ -322,25 +454,37 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
 
     if not yeni.get("bolge"):
         yeni["bolge"] = VARSAYILAN_BOLGE
-    if yeni.get("isletim_sistemi") not in ISLETIM_SISTEMLERI:
+    os_deger = yeni.get("isletim_sistemi")
+    if not os_deger:
         yeni["isletim_sistemi"] = "linux"
-    if yeni.get("kademe") not in TIERLER:
+    elif os_deger not in ISLETIM_SISTEMLERI:
+        raise GecersizYapilandirmaHatasi("isletim_sistemi")
+    kademe = yeni.get("kademe")
+    if not kademe:
         yeni["kademe"] = "standard"
-    if yeni.get("kategori") not in KATEGORILER:
+    elif kademe not in TIERLER:
+        raise GecersizYapilandirmaHatasi("kademe")
+    kategori = yeni.get("kategori")
+    if not kategori:
         yeni["kategori"] = "all"
-    if yeni.get("sure_birimi") not in SAAT_CARPANLARI:
+    elif kategori not in KATEGORILER:
+        raise GecersizYapilandirmaHatasi("kategori")
+    sure = yeni.get("sure_birimi")
+    if not sure:
         yeni["sure_birimi"] = "saat"
         yeni["sure_miktar"] = 730
-    try:
-        yeni["adet"] = max(1, int(float(yeni.get("adet", 1))))
-    except (TypeError, ValueError):
-        yeni["adet"] = 1
+    elif sure not in SAAT_CARPANLARI:
+        raise GecersizYapilandirmaHatasi("sure_birimi")
+    yeni["adet"] = _pozitif_adet(yeni.get("adet", 1))
     try:
         yeni["sure_miktar"] = max(0.0, float(yeni.get("sure_miktar", 730) or 0))
-    except (TypeError, ValueError):
-        yeni["sure_miktar"] = 730.0
-    if yeni.get("fiyatlandirma_modeli") not in FIYATLANDIRMA_MODELLERI:
+    except (TypeError, ValueError) as exc:
+        raise GecersizYapilandirmaHatasi("sure_miktar") from exc
+    model = yeni.get("fiyatlandirma_modeli")
+    if not model:
         yeni["fiyatlandirma_modeli"] = "payg"
+    elif model not in FIYATLANDIRMA_MODELLERI:
+        raise GecersizYapilandirmaHatasi("fiyatlandirma_modeli")
 
     from app.products.virtual_machines.lisanslar import (
         bolgede_windows_skulari,
@@ -348,7 +492,9 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     )
 
     yeni["yazilim_tipi"] = yazilim_tipini_normallestir(yeni.get("yazilim_tipi"))
-    gecerli_yazilim_kodlari = [kod for kod, _, _ in yazilim_tipleri(yeni["isletim_sistemi"])]
+    gecerli_yazilim_kodlari = [
+        kod for kod, _, _ in yazilim_tipleri(yeni["isletim_sistemi"])
+    ]
     if yeni.get("yazilim_tipi") not in gecerli_yazilim_kodlari:
         # Eski 'sql' -> sql-standard windows listesinde; linux'ta varsayilan ubuntu
         yeni["yazilim_tipi"] = gecerli_yazilim_kodlari[0]
@@ -358,11 +504,16 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     secenekler: dict[str, list[tuple[str, str]]] = {
         "bolge": [(b.kod, b.ad) for b in BOLGELER],
         "isletim_sistemi": [("linux", "Linux"), ("windows", "Windows")],
-        "yazilim_tipi": [(kod, etiket[dil]) for kod, etiket, _ in yazilim_tipleri(yeni["isletim_sistemi"])],
+        "yazilim_tipi": [
+            (kod, etiket[dil])
+            for kod, etiket, _ in yazilim_tipleri(yeni["isletim_sistemi"])
+        ],
         "kademe": [(k, tier_adi(k, dil)) for k in TIERLER],
         "kategori": [(k, kategori_adi(k, dil)) for k in KATEGORILER],
         "sure_birimi": [(b, sure_birimi_adi(b, dil)) for b in SURE_BIRIMLERI],
-        "fiyatlandirma_modeli": [(m, fiyatlandirma_modeli_adi(m, dil)) for m in FIYATLANDIRMA_MODELLERI],
+        "fiyatlandirma_modeli": [
+            (m, fiyatlandirma_modeli_adi(m, dil)) for m in FIYATLANDIRMA_MODELLERI
+        ],
     }
 
     katalog = await bolge_katalogunu_getir(yeni["bolge"], yeni["kademe"])
@@ -388,7 +539,9 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     if windows_skular is not None:
         seri_havuzu = [s for s in seri_havuzu if _seri_boyutlari(s)]
 
-    secenekler["seri"] = [("all", kategori_adi("all", dil))] + [(s, s) for s in seri_havuzu]
+    secenekler["seri"] = [("all", kategori_adi("all", dil))] + [
+        (s, s) for s in seri_havuzu
+    ]
     if yeni.get("seri") not in ["all", *seri_havuzu]:
         yeni["seri"] = "all"
 
@@ -400,11 +553,18 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     secenekler["sku"] = [(b.arm_sku_adi, _boyut_etiketi(b, dil)) for b in boyut_havuzu]
     gecerli_skular = {b.arm_sku_adi for b in boyut_havuzu}
     secili_boyut: BoyutBilgisi | None = None
-    if yeni.get("sku") in gecerli_skular:
-        secili_boyut = next(b for b in boyut_havuzu if b.arm_sku_adi == yeni["sku"])
-    elif boyut_havuzu:
+    sku = yeni.get("sku")
+    if sku in gecerli_skular:
+        secili_boyut = next(b for b in boyut_havuzu if b.arm_sku_adi == sku)
+    elif not sku and boyut_havuzu:
         secili_boyut = boyut_havuzu[0]
         yeni["sku"] = secili_boyut.arm_sku_adi
+    elif sku and str(sku).startswith("Standard_") and boyut_havuzu:
+        # Bolge/kademe degisiminde eski SKU listede olmayabilir → cascade
+        secili_boyut = boyut_havuzu[0]
+        yeni["sku"] = secili_boyut.arm_sku_adi
+    elif sku:
+        raise GecersizYapilandirmaHatasi("sku")
     else:
         yeni["sku"] = None
 
@@ -416,13 +576,23 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     disk_yapilandirma = yeni["disk"]
     disk_yapilandirma.setdefault("bolge", yeni["bolge"])
     disk_yapilandirma["bolge"] = yeni["bolge"]
-    disk_secenek_sonucu = disk_secenekler.secenekleri_coz(disk_yapilandirma, dil)
+    # Gomulu diskte adet=0 = disk eklenmemis (VM varsayilani); min_adet=0
+    disk_secenek_sonucu = disk_secenekler.secenekleri_coz(
+        disk_yapilandirma, dil, min_adet=0
+    )
     if secili_boyut is not None and not secili_boyut.premium_depolama:
-        if disk_secenek_sonucu.yapilandirma.get("kademe") in ("premiumssd", "premiumssdv2", "ultrassd"):
+        if disk_secenek_sonucu.yapilandirma.get("kademe") in (
+            "premiumssd",
+            "premiumssdv2",
+            "ultrassd",
+        ):
             disk_secenek_sonucu.yapilandirma["kademe"] = "standardhdd"
-            disk_secenek_sonucu = disk_secenekler.secenekleri_coz(disk_secenek_sonucu.yapilandirma, dil)
+            disk_secenek_sonucu = disk_secenekler.secenekleri_coz(
+                disk_secenek_sonucu.yapilandirma, dil, min_adet=0
+            )
         disk_secenek_sonucu.secenekler["kademe"] = [
-            (k, disk_secenekler.kademe_adi(k, dil)) for k in ("standardhdd", "standardssd")
+            (k, disk_secenekler.kademe_adi(k, dil))
+            for k in ("standardhdd", "standardssd")
         ]
     yeni["disk"] = disk_secenek_sonucu.yapilandirma
     secenekler["disk"] = disk_secenek_sonucu.secenekler
@@ -441,8 +611,22 @@ async def secenekleri_coz(yapilandirma: dict, dil: str) -> SecenekSonucu:
     if bant["veri_transfer_tipi"] != "interregion":
         bant["hedef_bolge"] = None
 
-    gorunur = {"bolge", "isletim_sistemi", "yazilim_tipi", "kademe", "kategori", "seri", "sku", "adet", "sure_birimi", "sure_miktar", "fiyatlandirma_modeli"}
+    gorunur = {
+        "bolge",
+        "isletim_sistemi",
+        "yazilim_tipi",
+        "kademe",
+        "kategori",
+        "seri",
+        "sku",
+        "adet",
+        "sure_birimi",
+        "sure_miktar",
+        "fiyatlandirma_modeli",
+    }
     if ahb_uygun_mu(yeni["yazilim_tipi"]):
         gorunur.add("hibrit_fayda")
 
-    return SecenekSonucu(yapilandirma=yeni, secenekler=secenekler, gorunur_alanlar=gorunur)
+    return SecenekSonucu(
+        yapilandirma=yeni, secenekler=secenekler, gorunur_alanlar=gorunur
+    )

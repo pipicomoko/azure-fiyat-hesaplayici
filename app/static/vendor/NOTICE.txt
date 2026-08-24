@@ -1,0 +1,17 @@
+Vendored front-end assets (BUG-09: no external CDN at runtime)
+
+bootstrap@5.3.3
+  bootstrap.min.css
+  bootstrap.bundle.min.js
+  License: MIT — https://github.com/twbs/bootstrap/blob/v5.3.3/LICENSE
+  Source: https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/
+
+htmx.org@1.9.12
+  htmx.min.js
+  License: BSD-2-Clause — https://github.com/bigskysoftware/htmx/blob/v1.9.12/LICENSE
+  Source: https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js
+
+SHA-256 (at vendor time):
+  3c8f27e6009ccfd710a905e6dcf12d0ee3c6f2ac7da05b0572d3e0d12e736fc8  bootstrap.min.css
+  0833b2e9c3a26c258476c46266e6877fc75218625162e0460be9a3a098a61c6c  bootstrap.bundle.min.js
+  449317ade7881e949510db614991e195c3a099c4c791c24dacec55f9f4a2a452  htmx.min.js

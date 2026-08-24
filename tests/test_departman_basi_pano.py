@@ -58,6 +58,15 @@ def test_bes_departman_basi_ortak_yonetim_panelini_gorur(
     assert "Yönetim Özeti" in yanit.text
     assert "Departman Yönetimi" in yanit.text
     assert "Departman Kayıtları" in yanit.text
+    # Departman filtresi yalnizca Ahmet panosunda; donem tarihleri ortak
+    assert 'name="departman"' not in yanit.text
+    assert 'name="baslangic"' in yanit.text
+    assert 'name="bitis"' in yanit.text
+    from app.tarih_filtre import varsayilan_tarih_iso
+
+    bas, bit = varsayilan_tarih_iso()
+    assert f'name="baslangic" value="{bas}"' in yanit.text
+    assert f'name="bitis" value="{bit}"' in yanit.text
 
 
 def test_departman_basi_yalnizca_manager_zincirindeki_kayitlari_gorur(
@@ -99,6 +108,24 @@ def test_departman_basi_yalnizca_manager_zincirindeki_kayitlari_gorur(
     assert "IT Kaydi" not in yanit.text
 
 
+def test_departman_basi_pano_durum_kart_sirasi(client, veritabani):
+    """Mudur ozet kartlari: bekleyen → onaylandı → reddedildi → taslak (aktif calisan sonda)."""
+    import re
+
+    murat = _kullanici("murat.ozturk", "Murat Ozturk", "finans")
+    app.dependency_overrides[aktif_kullanici] = lambda: murat
+    yanit = client.get("/")
+    assert yanit.status_code == 200
+    etiketler = re.findall(r'executive-kpi__label">([^<]+)', yanit.text)
+    assert etiketler == [
+        "Bekleyen potansiyel maliyet",
+        "Departman onaylı maliyeti",
+        "Reddedildi",
+        "Taslak",
+        "Aktif çalışan",
+    ]
+
+
 def test_ara_kademe_yonetici_departman_basi_panelini_gormez(client, veritabani):
     yonetici = {
         "kullanici_adi": "caner.bulut",
@@ -116,4 +143,5 @@ def test_ara_kademe_yonetici_departman_basi_panelini_gormez(client, veritabani):
 
     assert yanit.status_code == 200
     assert "Departman Yönetimi" not in yanit.text
-    assert "Taslak, gönderilen, onaylanan" in yanit.text
+    assert "dashboard-grid" in yanit.text or "dashboard-stat" in yanit.text
+    assert "Taslak" in yanit.text or "Draft" in yanit.text

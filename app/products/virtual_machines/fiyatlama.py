@@ -52,7 +52,9 @@ def _kademeli_tutar(kayitlar: list[dict], miktar: float) -> float:
     """tierMinimumUnits'e gore kademeli (graduated/hacim bazli) fiyatlandirma
     uygular -- Azure'in Bant genisligi gibi bazi metrikleri gercekten bu
     sekilde faturalandirdigi dogrulanmistir (canli API)."""
-    kademeler = sorted({k.get("tierMinimumUnits", 0.0): k["retailPrice"] for k in kayitlar}.items())
+    kademeler = sorted(
+        {k.get("tierMinimumUnits", 0.0): k["retailPrice"] for k in kayitlar}.items()
+    )
     if not kademeler or miktar <= 0:
         return 0.0
     toplam = 0.0
@@ -122,7 +124,9 @@ def _tasarruf_orani_bul(compute_kaydi: dict, terim: str) -> float | None:
     return None
 
 
-async def _rezervasyon_kaydini_bul(bolge: str, sku: str, terim: str, para_birimi: str) -> dict | None:
+async def _rezervasyon_kaydini_bul(
+    bolge: str, sku: str, terim: str, para_birimi: str
+) -> dict | None:
     kayitlar = await _sku_kayitlarini_al(bolge, sku, para_birimi)
     adaylar = [
         k
@@ -154,7 +158,9 @@ def _vcpu_coz(sku: str, yapilandirma: dict) -> int:
     return max(1, vcpu or 1)
 
 
-async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[FiyatKalemi]:
+async def _compute_ve_os_fiyatla(
+    yapilandirma: dict, para_birimi: str
+) -> list[FiyatKalemi]:
     bolge = yapilandirma["bolge"]
     sku = yapilandirma.get("sku")
     if not sku:
@@ -162,10 +168,14 @@ async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[F
 
     adet = max(1, int(_pozitif_sayi(yapilandirma.get("adet", 1), 1)))
     carpan = SAAT_CARPANLARI.get(yapilandirma.get("sure_birimi", "saat"), 1)
-    toplam_saat = max(0.0, _pozitif_sayi(yapilandirma.get("sure_miktar", 730), 730)) * carpan
+    toplam_saat = (
+        max(0.0, _pozitif_sayi(yapilandirma.get("sure_miktar", 730), 730)) * carpan
+    )
     fiyatlandirma_modeli = yapilandirma.get("fiyatlandirma_modeli", "payg")
     isletim_sistemi = yapilandirma.get("isletim_sistemi", "linux")
-    yazilim_tipi = yazilim_tipini_normallestir(yapilandirma.get("yazilim_tipi", "ubuntu"))
+    yazilim_tipi = yazilim_tipini_normallestir(
+        yapilandirma.get("yazilim_tipi", "ubuntu")
+    )
     hibrit = bool(yapilandirma.get("hibrit_fayda"))
     vcpu = _vcpu_coz(sku, yapilandirma)
 
@@ -186,19 +196,33 @@ async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[F
         if oran is None:
             raise FiyatBulunamadiHatasi()
         compute_tutar = oran * toplam_saat * adet
-        kalemler.append(FiyatKalemi("vm_bilesen_compute", toplam_saat * adet, "saat", oran, compute_tutar))
+        kalemler.append(
+            FiyatKalemi(
+                "vm_bilesen_compute", toplam_saat * adet, "saat", oran, compute_tutar
+            )
+        )
     elif fiyatlandirma_modeli in _REZERVASYON_TERIM:
-        rez_kaydi = await _rezervasyon_kaydini_bul(bolge, sku, _REZERVASYON_TERIM[fiyatlandirma_modeli], para_birimi)
+        rez_kaydi = await _rezervasyon_kaydini_bul(
+            bolge, sku, _REZERVASYON_TERIM[fiyatlandirma_modeli], para_birimi
+        )
         if rez_kaydi is None:
             raise FiyatBulunamadiHatasi()
         ay_sayisi = _REZERVASYON_AY[fiyatlandirma_modeli]
         aylik_birim = rez_kaydi["retailPrice"] / ay_sayisi
         compute_tutar = aylik_birim * adet
-        kalemler.append(FiyatKalemi("vm_bilesen_compute", adet, "vm", aylik_birim, compute_tutar))
+        kalemler.append(
+            FiyatKalemi("vm_bilesen_compute", adet, "vm", aylik_birim, compute_tutar)
+        )
     else:
         compute_tutar = compute_payg_fiyat * toplam_saat * adet
         kalemler.append(
-            FiyatKalemi("vm_bilesen_compute", toplam_saat * adet, "saat", compute_payg_fiyat, compute_tutar)
+            FiyatKalemi(
+                "vm_bilesen_compute",
+                toplam_saat * adet,
+                "saat",
+                compute_payg_fiyat,
+                compute_tutar,
+            )
         )
 
     # --- 2) Windows OS farki ---
@@ -225,7 +249,13 @@ async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[F
             lisans_birim = 0.0
         lisans_tutar = lisans_birim * toplam_saat * adet
         kalemler.append(
-            FiyatKalemi("vm_bilesen_yazilim", toplam_saat * adet, "saat", lisans_birim, lisans_tutar)
+            FiyatKalemi(
+                "vm_bilesen_yazilim",
+                toplam_saat * adet,
+                "saat",
+                lisans_birim,
+                lisans_tutar,
+            )
         )
         return kalemler
 
@@ -241,10 +271,18 @@ async def _compute_ve_os_fiyatla(yapilandirma: dict, para_birimi: str) -> list[F
     if windows_os_gerekli_mi(isletim_sistemi, yazilim_tipi):
         windows_kaydi = _windows_os_kaydini_bul(kayitlar)
         if windows_kaydi is not None:
-            windows_fark = max(0.0, float(windows_kaydi["retailPrice"]) - compute_payg_fiyat)
+            windows_fark = max(
+                0.0, float(windows_kaydi["retailPrice"]) - compute_payg_fiyat
+            )
             fark = max(0.0, fark - windows_fark)
     kalemler.append(
-        FiyatKalemi("vm_bilesen_yazilim", toplam_saat * adet, "saat", fark, fark * toplam_saat * adet)
+        FiyatKalemi(
+            "vm_bilesen_yazilim",
+            toplam_saat * adet,
+            "saat",
+            fark,
+            fark * toplam_saat * adet,
+        )
     )
     return kalemler
 
@@ -258,7 +296,9 @@ async def _bant_genisligi_fiyatla(bant: dict, para_birimi: str) -> list[FiyatKal
     if not kaynak:
         return []
 
-    filtre = f"serviceName eq 'Bandwidth' and armRegionName eq '{odata_metin_kacir(kaynak)}'"
+    filtre = (
+        f"serviceName eq 'Bandwidth' and armRegionName eq '{odata_metin_kacir(kaynak)}'"
+    )
     kayitlar = await kayitlari_getir(filtre, para_birimi)
 
     if bant.get("veri_transfer_tipi") == "internetegress":
@@ -282,7 +322,9 @@ async def _bant_genisligi_fiyatla(bant: dict, para_birimi: str) -> list[FiyatKal
 
     tutar = _kademeli_tutar(eslesen, cikis_gb)
     birim_fiyat = tutar / cikis_gb if cikis_gb else 0.0
-    return [FiyatKalemi("vm_bilesen_bant_genisligi", cikis_gb, "GB", birim_fiyat, tutar)]
+    return [
+        FiyatKalemi("vm_bilesen_bant_genisligi", cikis_gb, "GB", birim_fiyat, tutar)
+    ]
 
 
 async def fiyatla(yapilandirma: dict, para_birimi: str) -> FiyatSonucu:

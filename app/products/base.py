@@ -18,6 +18,17 @@ class FiyatBulunamadiHatasi(Exception):
     bunun yerine kullaniciya net, yerellestirilmis bir hata sunmalidir."""
 
 
+class GecersizYapilandirmaHatasi(Exception):
+    """Whitelist disi / parse edilemeyen alan (BUG-15).
+
+    Sessizce varsayilan SKU/fiyata dusulmez; cagiran hata gosterir.
+    """
+
+    def __init__(self, alan: str = ""):
+        self.alan = alan
+        super().__init__(alan or "gecersiz_yapilandirma")
+
+
 @dataclass
 class FiyatKalemi:
     """Tek bir maliyet bileseni (orn. 'Compute', 'Isletim sistemi', 'Depolama',
@@ -98,14 +109,18 @@ class UrunModulu(Protocol):
         """Yeni bir kalem eklenirken kullanilacak varsayilan yapilandirma."""
         ...
 
-    async def secenekleri_getir(self, yapilandirma: dict[str, Any], dil: str) -> SecenekSonucu:
+    async def secenekleri_getir(
+        self, yapilandirma: dict[str, Any], dil: str
+    ) -> SecenekSonucu:
         """Kismi/tam yapilandirmaya gore bagimli alanlarin secim listelerini
         cozer (orn. Kategori -> Seri, Isletim Sistemi -> Yazilim Tipi, Disk
         Kademesi -> Redundancy/Disk Boyutu). Sonuc, gecersiz kombinasyonlarin
         arayuzde asla gosterilmeyecegini garanti eder."""
         ...
 
-    async def fiyatla(self, yapilandirma: dict[str, Any], para_birimi: str) -> FiyatSonucu:
+    async def fiyatla(
+        self, yapilandirma: dict[str, Any], para_birimi: str
+    ) -> FiyatSonucu:
         """FiyatBulunamadiHatasi firlatabilir; cagiran bunu yakalayip
         kullaniciya `t('fiyat_bulunamadi', dil)` gosterir."""
         ...

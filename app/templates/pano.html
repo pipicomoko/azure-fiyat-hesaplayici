@@ -3,20 +3,6 @@
 {% block baslik %}{{ t('nav_ana_sayfa', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
 
 {% block icerik %}
-<section class="ui-card" style="margin-bottom: var(--space-4)">
-  <div class="ui-card__body" style="display:flex; justify-content:space-between; gap: var(--space-4); flex-wrap:wrap; align-items:flex-end">
-    <div>
-      <h1 class="ui-card__title">{{ t('pano_baslik', dil) }}</h1>
-      <p class="ui-card__subtitle">{{ t('pano_aciklama', dil) }}</p>
-    </div>
-    <div style="display:flex; gap: var(--space-2); flex-wrap:wrap">
-      <a class="ui-btn ui-btn--primary" href="/tahmin">{{ t('yeni_tahmin', dil) }}</a>
-      <a class="ui-btn ui-btn--secondary" href="/gecmis/taslaklar">{{ t('nav_taslaklar', dil) }}</a>
-      <a class="ui-btn ui-btn--secondary" href="/gecmis/gonderilenler">{{ t('nav_gonderilenler', dil) }}</a>
-    </div>
-  </div>
-</section>
-
 {% if bekleyen_onay_sayisi %}
 <div class="ui-alert ui-alert--info" style="margin-bottom: var(--space-4)" role="status">
   {{ t('pano_bekleyen_onay', dil, adet=bekleyen_onay_sayisi) }}

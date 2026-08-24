@@ -63,7 +63,12 @@ def bos_degerleri_temizle(sozluk: dict) -> None:
             del sozluk[anahtar]
 
 
-_BOOLEAN_ALANLARI = {"anlik_goruntu", "gizli_sifreleme", "patlama_etkin", "hibrit_fayda"}
+_BOOLEAN_ALANLARI = {
+    "anlik_goruntu",
+    "gizli_sifreleme",
+    "patlama_etkin",
+    "hibrit_fayda",
+}
 
 
 def boolean_alanlarini_normallestir(sozluk: dict) -> None:

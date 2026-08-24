@@ -31,6 +31,112 @@ function initializeThemeToggle() {
   });
 }
 
+function initializeRaporExport() {
+  document.querySelectorAll("[data-rapor-export]").forEach((bar) => {
+    if (bar.dataset.raporReady === "true") {
+      return;
+    }
+
+    const hepsiniBtn = bar.querySelector("[data-rapor-hepsini]");
+    const exportBtn = bar.querySelector("[data-rapor-export-secilen]");
+    const tablo =
+      bar.parentElement?.querySelector("[data-rapor-tablo]") ||
+      document.querySelector("[data-rapor-tablo]");
+    const hepsiniCb = tablo
+      ? tablo.querySelector("[data-rapor-hepsini-cb]")
+      : document.querySelector("[data-rapor-hepsini-cb]");
+    const labelTemplate = bar.dataset.labelTemplate || "Export selected ({n})";
+    const exportUrl = bar.dataset.exportUrl || "/raporlar/excel";
+
+    function secilenKutular() {
+      const kok = tablo || document;
+      return Array.from(kok.querySelectorAll("[data-rapor-sec]")).filter((cb) => {
+        const satir = cb.closest("tr");
+        return !satir || satir.style.display !== "none";
+      });
+    }
+
+    function secilenIdler() {
+      return secilenKutular()
+        .filter((cb) => cb.checked)
+        .map((cb) => cb.value)
+        .filter(Boolean);
+    }
+
+    function guncelle() {
+      const idler = secilenIdler();
+      const n = idler.length;
+      const kutular = secilenKutular();
+      if (exportBtn) {
+        exportBtn.textContent = labelTemplate.replace("{n}", String(n));
+        exportBtn.disabled = n === 0;
+        exportBtn.setAttribute("aria-disabled", n === 0 ? "true" : "false");
+      }
+      if (hepsiniBtn) {
+        hepsiniBtn.disabled = kutular.length === 0;
+      }
+      if (hepsiniCb && kutular.length) {
+        hepsiniCb.checked = n === kutular.length && n > 0;
+        hepsiniCb.indeterminate = n > 0 && n < kutular.length;
+      } else if (hepsiniCb) {
+        hepsiniCb.checked = false;
+        hepsiniCb.indeterminate = false;
+      }
+    }
+
+    function hepsiniSec() {
+      secilenKutular().forEach((cb) => {
+        cb.checked = true;
+      });
+      guncelle();
+    }
+
+    function exportSecilen() {
+      const idler = secilenIdler();
+      if (!idler.length) {
+        return;
+      }
+      const params = new URLSearchParams();
+      const kisi = bar.dataset.filtreKisi || "";
+      const birim = bar.dataset.filtreBirim || "";
+      const baslangic = bar.dataset.filtreBaslangic || "";
+      const bitis = bar.dataset.filtreBitis || "";
+      if (kisi) params.set("kisi", kisi);
+      if (birim) params.set("birim", birim);
+      if (baslangic) params.set("baslangic", baslangic);
+      if (bitis) params.set("bitis", bitis);
+      idler.forEach((id) => params.append("ids", id));
+      window.location.href = `${exportUrl}?${params.toString()}`;
+    }
+
+    if (hepsiniBtn) {
+      hepsiniBtn.addEventListener("click", hepsiniSec);
+    }
+    if (exportBtn) {
+      exportBtn.addEventListener("click", exportSecilen);
+    }
+    if (hepsiniCb) {
+      hepsiniCb.addEventListener("change", () => {
+        const isaretle = hepsiniCb.checked;
+        secilenKutular().forEach((cb) => {
+          cb.checked = isaretle;
+        });
+        guncelle();
+      });
+    }
+    const kok = tablo || document;
+    kok.querySelectorAll("[data-rapor-sec]").forEach((cb) => {
+      cb.addEventListener("change", guncelle);
+    });
+
+    // Istemci tarafi filtre (gecmis arama) sonrasi sayaci guncelle
+    document.addEventListener("gecmis-filtre-degisti", guncelle);
+
+    guncelle();
+    bar.dataset.raporReady = "true";
+  });
+}
+
 function formatCurrency(amount, currencyCode) {
   const lang = (document.documentElement.lang || "tr").toLowerCase().startsWith("en")
     ? "en-US"
@@ -59,6 +165,61 @@ function syncSummaryTotals() {
   if (yearly && sidebarYearly) {
     sidebarYearly.textContent = yearly.textContent;
   }
+}
+
+function afhIsoTarih(d) {
+  const yil = d.getFullYear();
+  const ay = String(d.getMonth() + 1).padStart(2, "0");
+  const gun = String(d.getDate()).padStart(2, "0");
+  return `${yil}-${ay}-${gun}`;
+}
+
+function afhBirAyOnce(d) {
+  let yil = d.getFullYear();
+  let ay = d.getMonth() - 1;
+  if (ay < 0) {
+    ay = 11;
+    yil -= 1;
+  }
+  const sonGun = new Date(yil, ay + 1, 0).getDate();
+  const gun = Math.min(d.getDate(), sonGun);
+  return new Date(yil, ay, gun);
+}
+
+function afhVarsayilanTarihAraligi(refDate) {
+  const kaynak = refDate ? new Date(refDate) : new Date();
+  const bitis = new Date(kaynak.getFullYear(), kaynak.getMonth(), kaynak.getDate());
+  return {
+    baslangic: afhIsoTarih(afhBirAyOnce(bitis)),
+    bitis: afhIsoTarih(bitis),
+  };
+}
+
+function afhTarihFiltreTuru(input) {
+  if (!input || String(input.type).toLowerCase() !== "date") {
+    return null;
+  }
+  const anahtar = `${input.name || ""} ${input.id || ""}`.toLowerCase();
+  if (anahtar.includes("baslangic")) return "baslangic";
+  if (anahtar.includes("bitis")) return "bitis";
+  return null;
+}
+
+function afhBosTarihFiltreleriniDoldur() {
+  const aralik = afhVarsayilanTarihAraligi();
+  document.querySelectorAll('input[type="date"]').forEach((input) => {
+    if (input.value) {
+      return;
+    }
+    const tur = afhTarihFiltreTuru(input);
+    if (tur === "baslangic") {
+      input.value = aralik.baslangic;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    } else if (tur === "bitis") {
+      input.value = aralik.bitis;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  });
 }
 
 function initializeDetailsState() {
@@ -92,12 +253,16 @@ function filtreleUrunListesi(query) {
 document.addEventListener("DOMContentLoaded", () => {
   initializeThemeToggle();
   initializeDetailsState();
+  initializeRaporExport();
+  afhBosTarihFiltreleriniDoldur();
   syncSummaryTotals();
 });
 
 document.body.addEventListener("htmx:afterSwap", () => {
   initializeThemeToggle();
   initializeDetailsState();
+  initializeRaporExport();
+  afhBosTarihFiltreleriniDoldur();
   syncSummaryTotals();
 });
 

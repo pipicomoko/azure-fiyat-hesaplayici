@@ -13,9 +13,16 @@
         {{ t('duzenle_tekrar_gonder', dil) if gorunen_durum == 'reddedildi' else t('duzenle', dil) }}
       </a>
       {% endif %}
+      {% if kopyalayabilir %}
+      <form action="/gecmis/{{ hesaplama.id }}/kopyala" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm">{{ t('kopyala', dil) }}</button>
+      </form>
+      {% endif %}
       <a href="/gecmis/{{ hesaplama.id }}/excel" class="ui-btn ui-btn--secondary ui-btn--sm" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
       {% if iptal_edebilir %}
       <form action="/gecmis/{{ hesaplama.id }}/iptal" method="post" class="detail-header__cancel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="text" name="gerekce" class="ui-input" placeholder="{{ t('gerekce', dil) }}">
         <button type="submit" class="ui-btn ui-btn--secondary ui-btn--sm">{{ t('iptal_et', dil) }}</button>
       </form>
@@ -23,6 +30,7 @@
       {% if (hesaplama.olusturan_kullanici_adi or '')|lower == (kullanici.kullanici_adi or '')|lower %}
       <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
             onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="ui-btn ui-btn--danger ui-btn--sm">{{ t('sil', dil) }}</button>
       </form>
       {% endif %}
@@ -71,7 +79,7 @@
     <div class="d-flex justify-content-between align-items-start">
       <div>
         <span class="section-kicker mb-2">{{ "VM" if kalem.urun_tipi == 'virtual_machines' else "Disk" }}</span>
-        <h2 class="h6 mb-0">{{ t('urun_vm_ad', dil) if kalem.urun_tipi == 'virtual_machines' else t('urun_disk_ad', dil) }}</h2>
+        <h2 class="h6 mb-0">{% if kalem.urun_tipi == 'virtual_machines' %}Virtual Machines{% else %}Managed Disks{% endif %}</h2>
         {% set bolge_adi = kalem_bolgesi(kalem, hesaplama.para_birimi, 'en') %}
         {% if bolge_adi %}
         <div class="detail-spec-region">{{ bolge_adi }}</div>

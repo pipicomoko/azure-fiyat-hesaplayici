@@ -10,12 +10,6 @@
       <h1 class="hero-title mb-2">{{ t('rapor_baslik', dil) }}</h1>
       <p class="hero-text mb-0">{{ t('rapor_aciklama', dil) }}</p>
     </div>
-    <div>
-      <a class="btn btn-outline-primary btn-sm"
-         href="/raporlar/excel?kisi={{ filtre_kisi }}&birim={{ filtre_birim }}&baslangic={{ filtre_baslangic }}&bitis={{ filtre_bitis }}">
-        {{ t('excel_aktar', dil) }} (B)
-      </a>
-    </div>
   </div>
 </section>
 
@@ -33,13 +27,42 @@
   <button type="submit" class="btn btn-sm btn-primary">{{ t('ara', dil) }}</button>
 </form>
 
+<div class="rapor-export-bar mb-3"
+     data-rapor-export
+     data-export-url="/raporlar/excel"
+     data-label-template="{{ t('rapor_export_secilen', dil) }}"
+     data-filtre-kisi="{{ filtre_kisi }}"
+     data-filtre-birim="{{ filtre_birim }}"
+     data-filtre-baslangic="{{ filtre_baslangic }}"
+     data-filtre-bitis="{{ filtre_bitis }}">
+  <button type="button"
+          class="btn btn-outline-primary btn-sm"
+          data-rapor-hepsini
+          {% if not hesaplamalar %}disabled{% endif %}>
+    {{ t('rapor_hepsini_export', dil) }}
+  </button>
+  <button type="button"
+          class="btn btn-primary btn-sm"
+          data-rapor-export-secilen
+          disabled
+          aria-disabled="true">
+    {{ t('rapor_export_secilen', dil).replace('{n}', '0') }}
+  </button>
+</div>
+
 {% if hesaplamalar %}
 <section class="section-card">
   <div class="section-card-body p-0">
     <div class="table-responsive">
-      <table class="table table-sm align-middle app-table mb-0">
+      <table class="table table-sm align-middle app-table mb-0" data-rapor-tablo>
         <thead>
           <tr>
+            <th scope="col" class="rapor-sec-sutun">
+              <input type="checkbox"
+                     class="form-check-input"
+                     data-rapor-hepsini-cb
+                     aria-label="{{ t('rapor_hepsini_export', dil) }}">
+            </th>
             <th>{{ t('ad', dil) }}</th>
             <th>{{ t('olusturan', dil) }}</th>
             <th>{{ t('birim', dil) }}</th>
@@ -51,6 +74,13 @@
         <tbody>
           {% for h in hesaplamalar %}
           <tr>
+            <td class="rapor-sec-sutun">
+              <input type="checkbox"
+                     class="form-check-input"
+                     data-rapor-sec
+                     value="{{ h.id }}"
+                     aria-label="{{ t('rapor_sec', dil) }}: {{ h.ad }}">
+            </td>
             <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
             <td>{{ h.olusturan_ad_soyad or h.olusturan_kullanici_adi }}</td>
             <td>{{ h.olusturan_departman or "" }}</td>
@@ -64,6 +94,7 @@
     </div>
   </div>
 </section>
+{% include "_sayfalama.html" %}
 {% else %}
 <p class="text-muted">{{ t('rapor_bos', dil) }}</p>
 {% endif %}

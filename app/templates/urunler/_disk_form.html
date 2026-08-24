@@ -1,6 +1,6 @@
 <article class="tahmin-kalemi" id="kalem-{{ kalem_id }}"
      hx-post="/tahmin/kalem/hesapla?kalem_id={{ kalem_id }}"
-     hx-trigger="change, change from:#para-birimi-secici"
+     hx-trigger="change"
      hx-target="this" hx-swap="outerHTML"
      data-tutar="{{ (fiyat.aylik_toplam if fiyat else 0) | round(4) }}"
      data-adet="{{ yapilandirma.adet | default(1) }}">

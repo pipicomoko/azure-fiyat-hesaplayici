@@ -8,9 +8,26 @@
     <div>
       <span class="executive-eyebrow">{{ t('gm_etiket', dil) }}</span>
       <h1 class="ui-card__title">{{ t('gm_baslik', dil) }}</h1>
-      <p class="ui-card__subtitle">{{ t('gm_aciklama', dil) }}</p>
     </div>
     <form method="get" class="executive-filter" aria-label="{{ t('gm_donem_filtre', dil) }}">
+      <label>{{ t('gm_departman_filtre', dil) }}
+        <select name="departman" class="form-control" onchange="this.form.querySelector('[name=alt_birim]')?.remove(); this.form.submit()">
+          <option value="">{{ t('gecmis_tum_departmanlar', dil) }}</option>
+          {% for anahtar, etiket in departman_secenekleri %}
+          <option value="{{ anahtar }}" {% if filtre_departman == anahtar %}selected{% endif %}>{{ etiket }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% if alt_birim_secenekleri %}
+      <label>{{ t('gm_alt_birim_filtre', dil) }}
+        <select name="alt_birim" class="form-control">
+          <option value="">{{ t('gm_tum_alt_birimler', dil) }}</option>
+          {% for anahtar, etiket in alt_birim_secenekleri %}
+          <option value="{{ anahtar }}" {% if filtre_alt_birim == anahtar %}selected{% endif %}>{{ etiket }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
       <label>{{ t('baslangic', dil) }}<input type="date" name="baslangic" value="{{ baslangic }}" class="form-control"></label>
       <label>{{ t('bitis', dil) }}<input type="date" name="bitis" value="{{ bitis }}" class="form-control"></label>
       <button class="ui-btn ui-btn--primary" type="submit">{{ t('filtrele', dil) }}</button>
@@ -23,13 +40,6 @@
 {% endif %}
 
 <div class="executive-kpis">
-  <section class="ui-card executive-kpi">
-    <div class="ui-card__body">
-      <span class="executive-kpi__label">{{ t('gm_onayli_maliyet', dil) }}</span>
-      {% for toplam in onayli_toplamlar %}<strong>{{ toplam.toplam | para(toplam.para_birimi, dil) }}</strong>{% else %}<strong>—</strong>{% endfor %}
-      <small>{{ t('gm_kayit_adedi', dil, adet=onayli_adet) }}</small>
-    </div>
-  </section>
   <a class="ui-card executive-kpi" href="/onay-kuyrugu">
     <div class="ui-card__body">
       <span class="executive-kpi__label">{{ t('gm_bekleyen', dil) }}</span>
@@ -37,8 +47,15 @@
       <small>{{ t('gm_kayit_adedi', dil, adet=bekleyen_adet) }}</small>
     </div>
   </a>
+  <section class="ui-card executive-kpi">
+    <div class="ui-card__body">
+      <span class="executive-kpi__label">{{ t('gm_onayli_maliyet', dil) }}</span>
+      {% for toplam in onayli_toplamlar %}<strong>{{ toplam.toplam | para(toplam.para_birimi, dil) }}</strong>{% else %}<strong>—</strong>{% endfor %}
+      <small>{{ t('gm_kayit_adedi', dil, adet=onayli_adet) }}</small>
+    </div>
+  </section>
   <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('durum_reddedildi', dil) }}</span><strong>{{ reddedilen_adet }}</strong><small>{{ t('gm_donem_icinde', dil) }}</small></div></section>
-  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('durum_iptal_edildi', dil) }}</span><strong>{{ iptal_adet }}</strong><small>{{ t('gm_donem_icinde', dil) }}</small></div></section>
+  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('durum_taslak', dil) }}</span><strong>{{ taslak_adet }}</strong><small>{{ t('gm_donem_icinde', dil) }}</small></div></section>
 </div>
 
 <div class="executive-layout">

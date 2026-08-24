@@ -14,11 +14,11 @@
 <div class="gecmis-search-toolbar mb-3">
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
-    <input type="date" id="personalTarihBaslangic" class="form-control form-control-sm">
+    <input type="date" id="personalTarihBaslangic" value="{{ filtre_baslangic }}" class="form-control form-control-sm">
   </label>
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
-    <input type="date" id="personalTarihBitis" class="form-control form-control-sm">
+    <input type="date" id="personalTarihBitis" value="{{ filtre_bitis }}" class="form-control form-control-sm">
   </label>
   <button type="button" id="personalFiltreTemizle" class="btn btn-sm btn-outline-secondary">
     {{ t('gecmis_filtre_temizle', dil) }}
@@ -59,9 +59,16 @@
             <td>
               <div class="d-flex gap-1 justify-content-end">
                 <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">{{ t('duzenle', dil) }}</a>
+                {% if hesaplamayi_kopyalayabilir_mi(kullanici, hesaplama) %}
+                <form action="/gecmis/{{ hesaplama.id }}/kopyala" method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">{{ t('kopyala', dil) }}</button>
+                </form>
+                {% endif %}
                 <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
                 <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
                       onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
                 </form>
               </div>
@@ -74,6 +81,20 @@
     <p id="gecmisPersonalSonucYok" class="empty-state mt-0 p-3" style="display:none;">
       {{ t('gecmis_filtre_sonuc_yok', dil) }}
     </p>
+    {% if sayfalama and sayfalama.toplam_sayfa > 1 %}
+    <nav class="d-flex justify-content-between align-items-center p-3 border-top" aria-label="{{ t('sayfalama', dil) }}">
+      <span class="text-muted small">{{ sayfalama.toplam_kayit }} {{ t('kayit', dil) }}</span>
+      <div class="d-flex gap-2">
+        {% if sayfalama.onceki_sayfa %}
+        <a class="btn btn-sm btn-outline-secondary" href="?sayfa={{ sayfalama.onceki_sayfa }}">←</a>
+        {% endif %}
+        <span class="align-self-center small">{{ sayfalama.sayfa }} / {{ sayfalama.toplam_sayfa }}</span>
+        {% if sayfalama.sonraki_sayfa %}
+        <a class="btn btn-sm btn-outline-secondary" href="?sayfa={{ sayfalama.sonraki_sayfa }}">→</a>
+        {% endif %}
+      </div>
+    </nav>
+    {% endif %}
     {% else %}
     <p class="empty-state mb-0 p-3">{{ t('gecmis_tahmin_gecmisi_bos', dil) if ustu_yok else t('gecmis_taslak_bos', dil) }}</p>
     {% endif %}
@@ -85,11 +106,11 @@
 <div class="gecmis-search-toolbar mb-3">
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
-    <input type="date" id="personalTarihBaslangic" class="form-control form-control-sm">
+    <input type="date" id="personalTarihBaslangic" value="{{ filtre_baslangic }}" class="form-control form-control-sm">
   </label>
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
-    <input type="date" id="personalTarihBitis" class="form-control form-control-sm">
+    <input type="date" id="personalTarihBitis" value="{{ filtre_bitis }}" class="form-control form-control-sm">
   </label>
   <select id="gonderilenDurumFiltre" class="form-select form-select-sm" style="max-width:12rem">
     <option value="">{{ t('gecmis_tum_durumlar', dil) }}</option>
@@ -154,10 +175,17 @@
                   {{ t('duzenle_tekrar_gonder', dil) if gd == 'reddedildi' else t('duzenle', dil) }}
                 </a>
                 {% endif %}
+                {% if hesaplamayi_kopyalayabilir_mi(kullanici, hesaplama) %}
+                <form action="/gecmis/{{ hesaplama.id }}/kopyala" method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">{{ t('kopyala', dil) }}</button>
+                </form>
+                {% endif %}
                 <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
                 {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
                 <form action="/gecmis/{{ hesaplama.id }}/sil" method="post"
                       onsubmit="return confirm('{{ t('sil_onay', dil) }}');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="btn btn-sm btn-outline-danger">{{ t('sil', dil) }}</button>
                 </form>
                 {% endif %}
@@ -171,6 +199,20 @@
     <p id="gecmisGonderilenSonucYok" class="empty-state mt-0 p-3" style="display:none;">
       {{ t('gecmis_filtre_sonuc_yok', dil) }}
     </p>
+    {% if sayfalama and sayfalama.toplam_sayfa > 1 %}
+    <nav class="d-flex justify-content-between align-items-center p-3 border-top" aria-label="{{ t('sayfalama', dil) }}">
+      <span class="text-muted small">{{ sayfalama.toplam_kayit }} {{ t('kayit', dil) }}</span>
+      <div class="d-flex gap-2">
+        {% if sayfalama.onceki_sayfa %}
+        <a class="btn btn-sm btn-outline-secondary" href="?sayfa={{ sayfalama.onceki_sayfa }}">←</a>
+        {% endif %}
+        <span class="align-self-center small">{{ sayfalama.sayfa }} / {{ sayfalama.toplam_sayfa }}</span>
+        {% if sayfalama.sonraki_sayfa %}
+        <a class="btn btn-sm btn-outline-secondary" href="?sayfa={{ sayfalama.sonraki_sayfa }}">→</a>
+        {% endif %}
+      </div>
+    </nav>
+    {% endif %}
     {% else %}
     <p class="empty-state mb-0 p-3">{{ t('gecmis_gonderilen_bos', dil) }}</p>
     {% endif %}
@@ -179,31 +221,47 @@
 
 {% elif aktif_sekme == 'arama' %}
 
-<div class="gecmis-search-toolbar mb-3">
-  {% if gecmis_gorunumu == 'yonetici' %}
-  <select id="gecmisDepartmanFiltre" class="form-select form-select-sm gecmis-search-select">
+<form method="get" action="/gecmis/arama" class="gecmis-search-toolbar mb-3" hx-boost="true">
+  {% if departman_listesi %}
+  <select name="birim" class="form-select form-select-sm gecmis-search-select">
     <option value="">{{ t('gecmis_tum_departmanlar', dil) }}</option>
     {% for dep in departman_listesi %}
-    <option value="{{ dep.anahtar }}">{{ dep.etiket }}</option>
+    <option value="{{ dep.anahtar }}" {% if filtre_birim == dep.anahtar %}selected{% endif %}>{{ dep.etiket }}</option>
     {% endfor %}
   </select>
   {% endif %}
-  <input type="search" id="gecmisIsimFiltre" class="form-control form-control-sm gecmis-search-input"
+  <input type="search" name="kisi" value="{{ filtre_kisi }}" class="form-control form-control-sm gecmis-search-input"
          placeholder="{{ t('gecmis_isim_ara', dil) }}" autocomplete="off">
+  <select name="durum" class="form-select form-select-sm gecmis-search-select">
+    <option value="">{{ t('gecmis_tum_durumlar', dil) }}</option>
+    {% for d in GORUNEN_DURUM_FILTRE_SIRASI %}
+    <option value="{{ d }}" {% if filtre_durum == d %}selected{% endif %}>{{ t('durum_' + d, dil) }}</option>
+    {% endfor %}
+  </select>
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
-    <input type="date" id="gecmisTarihBaslangic" class="form-control form-control-sm">
+    <input type="date" name="baslangic" value="{{ filtre_baslangic }}" class="form-control form-control-sm">
   </label>
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_bitis', dil) }}</span>
-    <input type="date" id="gecmisTarihBitis" class="form-control form-control-sm">
+    <input type="date" name="bitis" value="{{ filtre_bitis }}" class="form-control form-control-sm">
   </label>
-  <button type="button" id="gecmisFiltreTemizle" class="btn btn-sm btn-outline-secondary">
-    {{ t('gecmis_filtre_temizle', dil) }}
+  <button type="submit" class="btn btn-sm btn-primary">{{ t('ara', dil) }}</button>
+</form>
+
+{% if arama_hesaplamalari %}
+<div class="rapor-export-bar mb-3"
+     data-rapor-export
+     data-export-url="/gecmis-excel"
+     data-label-template="{{ t('rapor_export_secilen', dil) }}">
+  <button type="button" class="btn btn-outline-primary btn-sm" data-rapor-hepsini>
+    {{ t('rapor_hepsini_export', dil) }}
+  </button>
+  <button type="button" class="btn btn-primary btn-sm" data-rapor-export-secilen disabled aria-disabled="true">
+    {{ t('rapor_export_secilen', dil).replace('{n}', '0') }}
   </button>
 </div>
 
-{% if arama_hesaplamalari %}
 <section class="section-card">
   <div class="section-card-header">
     <div class="d-flex align-items-center gap-2">
@@ -215,9 +273,15 @@
   </div>
   <div class="section-card-body p-0">
     <div class="table-responsive">
-      <table class="table table-sm align-middle app-table mb-0" id="gecmisAramaTablosu">
+      <table class="table table-sm align-middle app-table mb-0" id="gecmisAramaTablosu" data-rapor-tablo>
         <thead>
           <tr>
+            <th scope="col" class="rapor-sec-sutun">
+              <input type="checkbox"
+                     class="form-check-input"
+                     data-rapor-hepsini-cb
+                     aria-label="{{ t('rapor_hepsini_export', dil) }}">
+            </th>
             <th>{{ t('ad', dil) }}</th>
             <th>{{ t('durum', dil) }}</th>
             <th>{{ t('tarih', dil) }}</th>
@@ -237,6 +301,13 @@
               data-kullanici="{{ (hesaplama.olusturan_kullanici_adi or '')|lower }}"
               data-ad-soyad="{{ (hesaplama.olusturan_ad_soyad or '')|lower }}"
               data-tarih="{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime('%Y-%m-%d') }}">
+            <td class="rapor-sec-sutun">
+              <input type="checkbox"
+                     class="form-check-input"
+                     data-rapor-sec
+                     value="{{ hesaplama.id }}"
+                     aria-label="{{ t('rapor_sec', dil) }}: {{ hesaplama.ad }}">
+            </td>
             <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
             <td>
               <span class="ui-badge{% if gd == 'onaylandi' %} ui-badge--success{% elif gd == 'reddedildi' %} ui-badge--danger{% elif gd == 'onay_bekliyor' %} ui-badge--warning{% endif %}">
@@ -250,13 +321,35 @@
             <td class="num">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi, dil) }}</td>
             <td class="num">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi, dil) }}</td>
             <td>
-              <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+              <div class="d-flex gap-1 justify-content-end">
+                {% if hesaplamayi_kopyalayabilir_mi(kullanici, hesaplama) %}
+                <form action="/gecmis/{{ hesaplama.id }}/kopyala" method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary">{{ t('kopyala', dil) }}</button>
+                </form>
+                {% endif %}
+                <a href="/gecmis/{{ hesaplama.id }}/excel" class="btn btn-sm btn-outline-secondary" title="{{ t('excel_aktar', dil) }}">↓ Excel</a>
+              </div>
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% if sayfalama and sayfalama.toplam_sayfa > 1 %}
+    <nav class="d-flex justify-content-between align-items-center p-3 border-top" aria-label="{{ t('sayfalama', dil) }}">
+      <span class="text-muted small">{{ sayfalama.toplam_kayit }} {{ t('kayit', dil) }}</span>
+      <div class="d-flex gap-2">
+        {% if sayfalama.onceki_sayfa %}
+        <a class="btn btn-sm btn-outline-secondary" href="?sayfa={{ sayfalama.onceki_sayfa }}">←</a>
+        {% endif %}
+        <span class="align-self-center small">{{ sayfalama.sayfa }} / {{ sayfalama.toplam_sayfa }}</span>
+        {% if sayfalama.sonraki_sayfa %}
+        <a class="btn btn-sm btn-outline-secondary" href="?sayfa={{ sayfalama.sonraki_sayfa }}">→</a>
+        {% endif %}
+      </div>
+    </nav>
+    {% endif %}
   </div>
 </section>
 <p id="gecmisAramaSonucYok" class="empty-state mt-3" style="display:none;">
@@ -316,6 +409,7 @@
 
       if (bosMesaj) bosMesaj.style.display = gorunen === 0 ? '' : 'none';
       sayaclar.forEach(function (alan) { alan.textContent = gorunen; });
+      document.dispatchEvent(new Event('gecmis-filtre-degisti'));
     }
 
     if (dep) dep.addEventListener('change', filtrele);
@@ -331,6 +425,7 @@
         filtrele();
       });
     }
+    filtrele();
   }
 
   function personalFiltreKur() {
@@ -385,6 +480,7 @@
         filtrele();
       });
     }
+    filtrele();
   }
 
   personalFiltreKur();

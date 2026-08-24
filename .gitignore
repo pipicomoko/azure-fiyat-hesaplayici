@@ -12,3 +12,9 @@ postgres_data/
 *.db-shm
 *.db-wal
 config/ad-ca.pem
+node_modules/
+playwright-report/
+test-results/
+lighthouse-report.json
+coverage/
+package-lock.json

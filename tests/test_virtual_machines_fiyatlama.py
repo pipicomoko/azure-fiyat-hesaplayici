@@ -16,25 +16,45 @@ from app.products.virtual_machines import fiyatlama, secenekler
 
 _D2SV5_KAYITLARI = [
     {
-        "armSkuName": "Standard_D2s_v5", "productName": "Virtual Machines Dsv5 Series",
-        "meterName": "D2s v5", "retailPrice": 0.096, "type": "Consumption",
-        "savingsPlan": [{"term": "1 Year", "retailPrice": 0.0658368}, {"term": "3 Years", "retailPrice": 0.0441792}],
+        "armSkuName": "Standard_D2s_v5",
+        "productName": "Virtual Machines Dsv5 Series",
+        "meterName": "D2s v5",
+        "retailPrice": 0.096,
+        "type": "Consumption",
+        "savingsPlan": [
+            {"term": "1 Year", "retailPrice": 0.0658368},
+            {"term": "3 Years", "retailPrice": 0.0441792},
+        ],
     },
     {
-        "armSkuName": "Standard_D2s_v5", "productName": "Virtual Machines Dsv5 Series Windows",
-        "meterName": "D2s v5", "retailPrice": 0.188, "type": "Consumption",
+        "armSkuName": "Standard_D2s_v5",
+        "productName": "Virtual Machines Dsv5 Series Windows",
+        "meterName": "D2s v5",
+        "retailPrice": 0.188,
+        "type": "Consumption",
     },
     {
-        "armSkuName": "Standard_D2s_v5", "productName": "Virtual Machines Dsv5 Series",
-        "meterName": "D2s v5 Spot", "retailPrice": 0.02, "type": "Consumption",
+        "armSkuName": "Standard_D2s_v5",
+        "productName": "Virtual Machines Dsv5 Series",
+        "meterName": "D2s v5 Spot",
+        "retailPrice": 0.02,
+        "type": "Consumption",
     },
     {
-        "armSkuName": "Standard_D2s_v5", "productName": "Virtual Machines Dsv5 Series",
-        "meterName": "D2s v5", "retailPrice": 519.0, "type": "Reservation", "reservationTerm": "1 Year",
+        "armSkuName": "Standard_D2s_v5",
+        "productName": "Virtual Machines Dsv5 Series",
+        "meterName": "D2s v5",
+        "retailPrice": 519.0,
+        "type": "Reservation",
+        "reservationTerm": "1 Year",
     },
     {
-        "armSkuName": "Standard_D2s_v5", "productName": "Virtual Machines Dsv5 Series",
-        "meterName": "D2s v5", "retailPrice": 997.0, "type": "Reservation", "reservationTerm": "3 Years",
+        "armSkuName": "Standard_D2s_v5",
+        "productName": "Virtual Machines Dsv5 Series",
+        "meterName": "D2s v5",
+        "retailPrice": 997.0,
+        "type": "Reservation",
+        "reservationTerm": "3 Years",
     },
 ]
 
@@ -48,7 +68,10 @@ async def _sahte_kayitlari_getir(filtre, para_birimi="USD", onbellek_kullan=True
 @pytest.fixture(autouse=True)
 def _fiyat_api_sahte(monkeypatch):
     onbellek_temizle()
-    monkeypatch.setattr("app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte_kayitlari_getir)
+    monkeypatch.setattr(
+        "app.products.virtual_machines.fiyatlama.kayitlari_getir",
+        _sahte_kayitlari_getir,
+    )
     yield
     onbellek_temizle()
 
@@ -82,7 +105,9 @@ def test_windows_os_only_compute_artı_os_farki():
 
 
 def test_windows_hibrit_fayda_os_bileseni_sifirlar():
-    cfg = _taban_yapilandirma(isletim_sistemi="windows", yazilim_tipi="os-only", hibrit_fayda=True)
+    cfg = _taban_yapilandirma(
+        isletim_sistemi="windows", yazilim_tipi="os-only", hibrit_fayda=True
+    )
     sonuc = asyncio.run(fiyatlama.fiyatla(cfg, "USD"))
     os_kalemi = next(k for k in sonuc.kalemler if k.anahtar == "vm_bilesen_os")
     assert os_kalemi.aylik_tutar == 0.0
@@ -103,6 +128,7 @@ def test_tasarruf_plani_1_yil_saatlik_oran_kullanir():
 
 def test_windows_sql_standard_compute_os_ve_lisans(monkeypatch):
     """SQL lisansi Virtual Machines Licenses API'den gelir (SKU all-in degil)."""
+
     async def _sahte(filtre, para_birimi="USD", onbellek_kullan=True):
         if "Virtual Machines Licenses" in filtre and "SQL Server Standard" in filtre:
             return [
@@ -125,8 +151,12 @@ def test_windows_sql_standard_compute_os_ve_lisans(monkeypatch):
             return _D2SV5_KAYITLARI
         return []
 
-    monkeypatch.setattr("app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte)
-    monkeypatch.setattr("app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte)
+    monkeypatch.setattr(
+        "app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte
+    )
+    monkeypatch.setattr(
+        "app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte
+    )
 
     cfg = _taban_yapilandirma(
         isletim_sistemi="windows",
@@ -156,8 +186,12 @@ def test_eski_sql_kodu_sql_standard_olarak_calisir(monkeypatch):
             return _D2SV5_KAYITLARI
         return []
 
-    monkeypatch.setattr("app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte)
-    monkeypatch.setattr("app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte)
+    monkeypatch.setattr(
+        "app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte
+    )
+    monkeypatch.setattr(
+        "app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte
+    )
     cfg = _taban_yapilandirma(isletim_sistemi="windows", yazilim_tipi="sql", vcpu=2)
     sonuc = asyncio.run(fiyatlama.fiyatla(cfg, "USD"))
     assert any(k.anahtar == "vm_bilesen_yazilim" for k in sonuc.kalemler)
@@ -180,8 +214,12 @@ def test_sql_hibrit_fayda_lisansi_sifirlar(monkeypatch):
             return _D2SV5_KAYITLARI
         return []
 
-    monkeypatch.setattr("app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte)
-    monkeypatch.setattr("app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte)
+    monkeypatch.setattr(
+        "app.products.virtual_machines.fiyatlama.kayitlari_getir", _sahte
+    )
+    monkeypatch.setattr(
+        "app.products.virtual_machines.lisanslar.kayitlari_getir", _sahte
+    )
     cfg = _taban_yapilandirma(
         isletim_sistemi="windows",
         yazilim_tipi="sql-standard",
@@ -193,6 +231,7 @@ def test_sql_hibrit_fayda_lisansi_sifirlar(monkeypatch):
     assert yazilim.aylik_tutar == 0.0
     # Compute + Windows OS kalir
     assert round(sonuc.aylik_toplam, 2) == 137.24
+
 
 def test_eslesen_sku_yoksa_hata_firlatir():
     cfg = _taban_yapilandirma(sku="Standard_Yok_v99")

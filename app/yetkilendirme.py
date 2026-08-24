@@ -24,7 +24,17 @@ import ssl
 from pathlib import Path
 
 from fastapi import Depends, HTTPException, Request
-from ldap3 import AUTO_BIND_TLS_BEFORE_BIND, NONE, SIMPLE, SUBTREE, Connection, Server, Tls
+from ldap3 import (
+    AUTO_BIND_TLS_BEFORE_BIND,
+    FIRST,
+    NONE,
+    SIMPLE,
+    SUBTREE,
+    Connection,
+    Server,
+    ServerPool,
+    Tls,
+)
 from ldap3.core.exceptions import LDAPException, LDAPStartTLSError
 from ldap3.utils.conv import escape_filter_chars
 
@@ -42,19 +52,21 @@ LDAP_ARAMA_TABANI = os.getenv("LDAP_ARAMA_TABANI", "DC=sirket,DC=local")
 LDAP_TLS_MODU = os.getenv("LDAP_TLS_MODU", "ldaps")
 LDAP_CA_SERTIFIKA_DOSYASI = os.getenv("LDAP_CA_SERTIFIKA_DOSYASI") or None
 
-if APP_ORTAMI == "production" and LDAP_TLS_MODU == "kapali":
-    raise RuntimeError(
-        "Uretim ortaminda (APP_ENV=production) LDAP_TLS_MODU=kapali kullanilamaz. "
-        "LDAP_TLS_MODU'nu 'ldaps' veya 'starttls' olarak ayarlayin."
-    )
-
 # Grup adi -> izin listesi eslemesi. Varsayilan dosya config/yetki_haritasi.json;
 # YETKI_HARITASI_DOSYASI ile degistirilebilir (ops/admin, kod degistirmeden
 # hangi AD grubunun hangi izne sahip oldugunu yapilandirabilir).
-_VARSAYILAN_YETKI_DOSYASI = Path(__file__).resolve().parent.parent / "config" / "yetki_haritasi.json"
-YETKI_HARITASI_DOSYASI = Path(os.getenv("YETKI_HARITASI_DOSYASI") or _VARSAYILAN_YETKI_DOSYASI)
-_VARSAYILAN_DEPARTMAN_DOSYASI = Path(__file__).resolve().parent.parent / "config" / "departman_haritasi.json"
-DEPARTMAN_HARITASI_DOSYASI = Path(os.getenv("DEPARTMAN_HARITASI_DOSYASI") or _VARSAYILAN_DEPARTMAN_DOSYASI)
+_VARSAYILAN_YETKI_DOSYASI = (
+    Path(__file__).resolve().parent.parent / "config" / "yetki_haritasi.json"
+)
+YETKI_HARITASI_DOSYASI = Path(
+    os.getenv("YETKI_HARITASI_DOSYASI") or _VARSAYILAN_YETKI_DOSYASI
+)
+_VARSAYILAN_DEPARTMAN_DOSYASI = (
+    Path(__file__).resolve().parent.parent / "config" / "departman_haritasi.json"
+)
+DEPARTMAN_HARITASI_DOSYASI = Path(
+    os.getenv("DEPARTMAN_HARITASI_DOSYASI") or _VARSAYILAN_DEPARTMAN_DOSYASI
+)
 
 IZIN_HESAPLAMA_KULLAN = "hesaplama.kullan"
 IZIN_YONETICI_ERISIM = "gecmis.yonetici_gor"
@@ -101,6 +113,47 @@ def _ca_dosyasi() -> str | None:
     return None
 
 
+def ldap_uretim_guvenlik_dogrula(
+    ortam: str | None = None,
+    tls_modu: str | None = None,
+    ca_yolu: str | None | object = ...,
+) -> None:
+    """Uretimde TLS kapali veya CA'siz LDAPS/StartTLS'i engeller (BUG-10).
+
+    ca_yolu=... → gercek dosya aranir; None/str ile testlerde enjekte edilebilir.
+    """
+    ortam_adi = (
+        ortam
+        if ortam is not None
+        else os.getenv("APP_ENV", APP_ORTAMI) or "development"
+    )
+    ortam_adi = str(ortam_adi).strip().lower()
+    mod = (
+        tls_modu
+        if tls_modu is not None
+        else os.getenv("LDAP_TLS_MODU", LDAP_TLS_MODU) or "ldaps"
+    )
+    mod = str(mod).strip().lower()
+
+    if ortam_adi != "production":
+        return
+
+    if mod == "kapali":
+        raise RuntimeError(
+            "Uretim ortaminda (APP_ENV=production) LDAP_TLS_MODU=kapali kullanilamaz. "
+            "LDAP_TLS_MODU'nu 'ldaps' veya 'starttls' olarak ayarlayin."
+        )
+
+    if mod in ("ldaps", "starttls"):
+        ca = _ca_dosyasi() if ca_yolu is ... else ca_yolu
+        if not ca:
+            raise RuntimeError(
+                "Uretim ortaminda LDAPS/StartTLS icin CA sertifikasi zorunludur "
+                "(BUG-10: CERT_NONE ile sessizce dusmek yasak). "
+                "LDAP_CA_SERTIFIKA_DOSYASI yolunu ayarlayin veya config/ad-ca.pem ekleyin."
+            )
+
+
 def _tls_hatasi_mi(hata: BaseException) -> bool:
     if isinstance(hata, (LDAPStartTLSError, ssl.SSLError, TimeoutError)):
         return True
@@ -108,37 +161,66 @@ def _tls_hatasi_mi(hata: BaseException) -> bool:
     return any(parca in mesaj for parca in ("ssl", "tls", "starttls", "certificate"))
 
 
-def _tls_ayarlari() -> Tls:
+def ldap_sunucu_hostlari(ham: str | None = None) -> list[str]:
+    """LDAP_SUNUCU virgulle ayrilmis birden fazla DC kabul eder."""
+    kaynak = LDAP_SUNUCU if ham is None else ham
+    return [parca.strip() for parca in str(kaynak or "").split(",") if parca.strip()]
+
+
+def _tls_ayarlari(hostlar: list[str] | None = None) -> Tls:
     ca = _ca_dosyasi()
+    # BUG-10: uretimde CA yoksa CERT_NONE'a dusme — acilis/runtime fail
+    if ca is None:
+        ldap_uretim_guvenlik_dogrula(ca_yolu=None)
+        logger.warning(
+            "LDAP TLS: CA dosyasi yok, sunucu sertifikasi dogrulanmiyor (yalnizca gelistirme)"
+        )
     ayar: dict = {
         "validate": ssl.CERT_REQUIRED if ca else ssl.CERT_NONE,
         "version": ssl.PROTOCOL_TLS_CLIENT,
     }
     if ca:
         ayar["ca_certs_file"] = ca
-    if not _ip_adresi_mi(LDAP_SUNUCU):
-        ayar["valid_names"] = [LDAP_SUNUCU, LDAP_DOMAIN]
-    elif ca is None:
-        logger.warning("LDAP TLS: CA dosyasi yok, sunucu sertifikasi dogrulanmiyor")
+    isimler = [h for h in (hostlar or ldap_sunucu_hostlari()) if not _ip_adresi_mi(h)]
+    if LDAP_DOMAIN and LDAP_DOMAIN not in isimler:
+        isimler.append(LDAP_DOMAIN)
+    if isimler:
+        ayar["valid_names"] = isimler
     return Tls(**ayar)
 
 
-def _sunucu_olustur() -> Server:
+def _tek_ldap_sunucusu(host: str, tls: Tls | None) -> Server:
     # get_info=NONE: her giriste AD sema/DSE sorgusu acilmasin. Bu sorgu
     # hem yavas hem de eszamanli girislerde DC uzerinde baglanti tuketir.
     ortak = {"connect_timeout": 8, "get_info": NONE}
     if LDAP_TLS_MODU == "kapali":
-        return Server(LDAP_SUNUCU, port=LDAP_PORT or 389, **ortak)
-
-    tls = _tls_ayarlari()
+        return Server(host, port=LDAP_PORT or 389, **ortak)
     if LDAP_TLS_MODU == "ldaps":
-        return Server(LDAP_SUNUCU, port=LDAP_PORT or 636, use_ssl=True, tls=tls, **ortak)
+        return Server(host, port=LDAP_PORT or 636, use_ssl=True, tls=tls, **ortak)
     if LDAP_TLS_MODU == "starttls":
-        return Server(LDAP_SUNUCU, port=LDAP_PORT or 389, use_ssl=False, tls=tls, **ortak)
+        return Server(host, port=LDAP_PORT or 389, use_ssl=False, tls=tls, **ortak)
     raise RuntimeError(f"Gecersiz LDAP_TLS_MODU: {LDAP_TLS_MODU!r}")
 
 
-def _baglanti_olustur(sunucu: Server, kullanici_principal: str, sifre: str) -> Connection:
+def _sunucu_olustur() -> Server | ServerPool:
+    hostlar = ldap_sunucu_hostlari()
+    if not hostlar:
+        raise RuntimeError("LDAP_SUNUCU bos olamaz.")
+    tls = None if LDAP_TLS_MODU == "kapali" else _tls_ayarlari(hostlar)
+    sunucular = [_tek_ldap_sunucusu(host, tls) for host in hostlar]
+    if len(sunucular) == 1:
+        return sunucular[0]
+    # FIRST: listedeki ilk DC tercih; biri dusunce sonrakine gec (exhaust=True)
+    return ServerPool(sunucular, FIRST, active=True, exhaust=True)
+
+
+# Acilista uretim LDAP guvenlik kapilari (TLS kapali / CA yok → CERT_NONE yasak)
+ldap_uretim_guvenlik_dogrula()
+
+
+def _baglanti_olustur(
+    sunucu: Server | ServerPool, kullanici_principal: str, sifre: str
+) -> Connection:
     # LDAPS: TLS soket seviyesinde zaten kurulu -> ek adim gerekmez.
     # StartTLS: duz baglanti acilir, bind'dan ONCE start_tls() otomatik cagrilir.
     auto_bind = AUTO_BIND_TLS_BEFORE_BIND if LDAP_TLS_MODU == "starttls" else True
@@ -211,7 +293,14 @@ def _departman_anahtari_etiketten_turetilir(deger: str | None) -> str | None:
 
     # Unvan "X Muduru" / "X Uzmani" seklindeyse kok departmani cikar
     # Ornek: "Finans Muduru" -> "finans", "Lojistik Uzmani" -> "lojistik"
-    for sonek in (" muduru", " uzmani", " analisti", " yoneticisi", " direktoru", " sorumlusu"):
+    for sonek in (
+        " muduru",
+        " uzmani",
+        " analisti",
+        " yoneticisi",
+        " direktoru",
+        " sorumlusu",
+    ):
         if norm.endswith(sonek):
             kok = norm[: -len(sonek)].strip()
             if kok:
@@ -252,9 +341,13 @@ def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
     if getattr(kayit, "displayName", None) and kayit.displayName.value:
         display = kayit.displayName.value
     ad_soyad = display or (
-        kayit.cn.value if getattr(kayit, "cn", None) and kayit.cn.value else kullanici_adi
+        kayit.cn.value
+        if getattr(kayit, "cn", None) and kayit.cn.value
+        else kullanici_adi
     )
-    unvan = kayit.title.value if getattr(kayit, "title", None) and kayit.title.value else ""
+    unvan = (
+        kayit.title.value if getattr(kayit, "title", None) and kayit.title.value else ""
+    )
     manager_dn = ""
     if getattr(kayit, "manager", None) and kayit.manager.value:
         manager_dn = str(kayit.manager.value)
@@ -277,7 +370,12 @@ def _kayittan_kullanici(kayit, kullanici_adi: str) -> dict:
             if parc.upper().startswith("OU=")
         ]
         for ou_adi in ou_parcalar:
-            if ou_adi.lower() in {"kullanicilar", "gruplar", "bagimsizhesaplar", "servishesaplari"}:
+            if ou_adi.lower() in {
+                "kullanicilar",
+                "gruplar",
+                "bagimsizhesaplar",
+                "servishesaplari",
+            }:
                 continue
             aday = _departman_anahtari_etiketten_turetilir(ou_adi)
             if aday and aday != "diger":
@@ -302,7 +400,10 @@ def _yanittan_kullanici(yanit: list | None, kullanici_adi: str) -> dict | None:
     for madde in yanit or []:
         if not isinstance(madde, dict):
             continue
-        if madde.get("type") not in (None, "searchResEntry") and "attributes" not in madde:
+        if (
+            madde.get("type") not in (None, "searchResEntry")
+            and "attributes" not in madde
+        ):
             continue
         nitelikler = madde.get("attributes") or {}
         if not nitelikler and not madde.get("dn"):
@@ -383,7 +484,9 @@ def giris_dogrula(kullanici_adi: str, sifre: str) -> dict | None:
             baglanti = None
         except LDAPException as hata:
             if _tls_hatasi_mi(hata):
-                logger.warning("LDAP TLS baglantisi kurulamadi: %s", type(hata).__name__)
+                logger.warning(
+                    "LDAP TLS baglantisi kurulamadi: %s", type(hata).__name__
+                )
                 raise LdapTlsHatasi from hata
             son_hata = type(hata).__name__
             baglanti = None
@@ -403,20 +506,32 @@ def giris_dogrula(kullanici_adi: str, sifre: str) -> dict | None:
                 f"(userPrincipalName={guvenli_ad}))"
             ),
             search_scope=SUBTREE,
-            attributes=["cn", "displayName", "title", "memberOf", "sAMAccountName", "manager", "department"],
+            attributes=[
+                "cn",
+                "displayName",
+                "title",
+                "memberOf",
+                "sAMAccountName",
+                "manager",
+                "department",
+            ],
         )
         if baglanti.entries:
             kullanici = _kayittan_kullanici(baglanti.entries[0], kullanici_adi)
-            kullanici["manager_zinciri"], kullanici["manager_adlari"] = _manager_zinciri_yukle(
-                baglanti, kullanici.get("manager")
+            kullanici["manager_zinciri"], kullanici["manager_adlari"] = (
+                _manager_zinciri_yukle(baglanti, kullanici.get("manager"))
             )
             return kullanici
 
-        yanit = arama_sonucu[2] if isinstance(arama_sonucu, tuple) and len(arama_sonucu) >= 3 else None
+        yanit = (
+            arama_sonucu[2]
+            if isinstance(arama_sonucu, tuple) and len(arama_sonucu) >= 3
+            else None
+        )
         kullanici = _yanittan_kullanici(yanit, kullanici_adi)
         if kullanici:
-            kullanici["manager_zinciri"], kullanici["manager_adlari"] = _manager_zinciri_yukle(
-                baglanti, kullanici.get("manager")
+            kullanici["manager_zinciri"], kullanici["manager_adlari"] = (
+                _manager_zinciri_yukle(baglanti, kullanici.get("manager"))
             )
             return kullanici
 
@@ -440,7 +555,9 @@ def yetki_haritasini_yukle() -> dict[str, list[str]]:
         with open(YETKI_HARITASI_DOSYASI, encoding="utf-8") as dosya:
             veri = json.load(dosya)
     except (OSError, json.JSONDecodeError) as hata:
-        logger.error("Yetki haritasi yuklenemedi (%s): %s", YETKI_HARITASI_DOSYASI, hata)
+        logger.error(
+            "Yetki haritasi yuklenemedi (%s): %s", YETKI_HARITASI_DOSYASI, hata
+        )
         return {}
 
     return {
@@ -474,9 +591,11 @@ def giris_sonrasi_yol(kullanici: dict | None) -> str:
     if kullanici is not None and ustu_olmayan_mi(kullanici):
         if kullanici_izinli_mi(kullanici, IZIN_ONAY_ISLEM):
             return "/onay-kuyrugu"
-        if kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM) or kullanici_izinli_mi(
-            kullanici, IZIN_DIREKTOR_ERISIM
-        ) or kullanici_izinli_mi(kullanici, IZIN_YONETICI_ERISIM):
+        if (
+            kullanici_izinli_mi(kullanici, IZIN_ADMIN_ERISIM)
+            or kullanici_izinli_mi(kullanici, IZIN_DIREKTOR_ERISIM)
+            or kullanici_izinli_mi(kullanici, IZIN_YONETICI_ERISIM)
+        ):
             return "/gecmis/arama"
         if kullanici_izinli_mi(kullanici, IZIN_RAPOR_GOR):
             return "/raporlar"
@@ -495,7 +614,9 @@ def departman_haritasini_yukle() -> dict:
         with open(DEPARTMAN_HARITASI_DOSYASI, encoding="utf-8") as dosya:
             return json.load(dosya)
     except (OSError, json.JSONDecodeError) as hata:
-        logger.error("Departman haritasi yuklenemedi (%s): %s", DEPARTMAN_HARITASI_DOSYASI, hata)
+        logger.error(
+            "Departman haritasi yuklenemedi (%s): %s", DEPARTMAN_HARITASI_DOSYASI, hata
+        )
         return {}
 
 
@@ -578,10 +699,16 @@ def kullanicinin_yonettigi_departmanlar(kullanici: dict | None) -> set[str]:
         return set()
     harita = departman_haritasini_yukle()
     varsayilan = str(harita.get("varsayilan_departman") or "diger")
-    return {departman for departman in kullanicinin_departmanlari(kullanici) if departman != varsayilan}
+    return {
+        departman
+        for departman in kullanicinin_departmanlari(kullanici)
+        if departman != varsayilan
+    }
 
 
-def hesaplama_departmani(olusturan_gruplar: list[str] | None, olusturan_departman: str | None = None) -> str | None:
+def hesaplama_departmani(
+    olusturan_gruplar: list[str] | None, olusturan_departman: str | None = None
+) -> str | None:
     if olusturan_departman:
         return olusturan_departman
     if not olusturan_gruplar:
@@ -703,6 +830,35 @@ def genel_mudur_mu(kullanici: dict | None) -> bool:
 kendinden_onaylayabilir_mi = ustu_olmayan_mi
 
 
+def kendi_onay_hedefi_mi(kullanici: dict | None, onay_hedefi: str | None) -> bool:
+    """Kullanici kendini onayci olarak secmis mi? (BUG-03)"""
+    if kullanici is None or not onay_hedefi:
+        return False
+    sam = (kullanici.get("kullanici_adi") or "").lower().strip()
+    hedef = onay_hedefi.lower().strip()
+    return bool(sam and hedef and sam == hedef)
+
+
+def onay_hedefi_zincirde_mi(zincir: list[str] | None, onay_hedefi: str | None) -> bool:
+    """Onayci gercek manager zincirinde mi? (BUG-04)"""
+    if not onay_hedefi:
+        return False
+    hedef = onay_hedefi.lower().strip()
+    izinli = {str(z).lower().strip() for z in (zincir or []) if z}
+    return bool(hedef and hedef in izinli)
+
+
+def kendi_hesaplamasini_isliyor_mu(kullanici: dict | None, hesaplama) -> bool:
+    """Onay/red islemi kendi olusturdugu kayda mi? (BUG-03)"""
+    if kullanici is None or hesaplama is None:
+        return False
+    sam = (kullanici.get("kullanici_adi") or "").lower().strip()
+    olusturan = (
+        (getattr(hesaplama, "olusturan_kullanici_adi", None) or "").lower().strip()
+    )
+    return bool(sam and olusturan and sam == olusturan)
+
+
 def oturum_manager_adi(kullanici: dict | None, sam: str | None) -> str:
     """Oturumdaki manager_adlari haritasindan veya sam'dan gorunen ad."""
     anahtar = (sam or "").lower().strip()
@@ -770,7 +926,10 @@ def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
         # Onaylanmis / iptal / onay bekleyen — taslak degil (altindaki kisilerin)
         if durum == DURUM_TASLAK:
             return False
-        zincir = [z.lower() for z in (getattr(hesaplama, "olusturan_manager_zinciri", None) or [])]
+        zincir = [
+            z.lower()
+            for z in (getattr(hesaplama, "olusturan_manager_zinciri", None) or [])
+        ]
         # Kayit sahibi manager zincirinde oturum kullanicisi var mi?
         if oturum in zincir:
             return True
@@ -778,6 +937,16 @@ def hesaplamaya_erisebilir_mi(kullanici: dict | None, hesaplama) -> bool:
         return False
 
     return False
+
+
+# Ozet kartlari, gruplu listeler ve durum filtreleri: bekleyen → onaylandı → reddedildi → taslak.
+GORUNEN_DURUM_SIRASI = (
+    "onay_bekliyor",
+    "onaylandi",
+    "reddedildi",
+    "taslak",
+)
+GORUNEN_DURUM_FILTRE_SIRASI = GORUNEN_DURUM_SIRASI + ("iptal_edildi",)
 
 
 def hesaplama_gorunen_durum(hesaplama) -> str:
@@ -796,7 +965,9 @@ def hesaplamayi_duzenleyebilir_mi(kullanici: dict | None, hesaplama) -> bool:
 
     if kullanici is None:
         return False
-    if (hesaplama.olusturan_kullanici_adi or "").lower() != (kullanici.get("kullanici_adi") or "").lower():
+    if (hesaplama.olusturan_kullanici_adi or "").lower() != (
+        kullanici.get("kullanici_adi") or ""
+    ).lower():
         return False
     return (getattr(hesaplama, "durum", DURUM_TASLAK) or DURUM_TASLAK) == DURUM_TASLAK
 
@@ -804,6 +975,24 @@ def hesaplamayi_duzenleyebilir_mi(kullanici: dict | None, hesaplama) -> bool:
 def hesaplamayi_silebilir_mi(kullanici: dict | None, hesaplama) -> bool:
     """Silme: yalnizca sahibi ve yalnizca taslak/reddedilmis (taslak) kayitlar."""
     return hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama)
+
+
+def hesaplamayi_kopyalayabilir_mi(kullanici: dict | None, hesaplama) -> bool:
+    """Taslak, onaya gonderilmis veya reddedilmis kaydi gorebilen kullanici kopyalayabilir.
+
+    Kopya, kopyalayan kullanicinin kendi taslagi olur (`hesaplama.kullan` gerekir).
+    """
+    if kullanici is None or hesaplama is None:
+        return False
+    if not kullanici_izinli_mi(kullanici, IZIN_HESAPLAMA_KULLAN):
+        return False
+    if not hesaplamaya_erisebilir_mi(kullanici, hesaplama):
+        return False
+    return hesaplama_gorunen_durum(hesaplama) in (
+        "taslak",
+        "onay_bekliyor",
+        "reddedildi",
+    )
 
 
 def hesaplamayi_iptal_edebilir_mi(kullanici: dict | None, hesaplama) -> bool:
@@ -834,7 +1023,10 @@ def aktif_kullanici(request: Request) -> dict:
     if kullanici is None:
         raise GirisGerekli()
     guncellendi = False
-    if kullanici.get("kullanici_adi") and kullanici["kullanici_adi"] != kullanici["kullanici_adi"].lower():
+    if (
+        kullanici.get("kullanici_adi")
+        and kullanici["kullanici_adi"] != kullanici["kullanici_adi"].lower()
+    ):
         kullanici["kullanici_adi"] = kullanici["kullanici_adi"].lower()
         guncellendi = True
     mevcut_dep = kullanici.get("departman")

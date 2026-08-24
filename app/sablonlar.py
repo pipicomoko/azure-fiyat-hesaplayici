@@ -11,9 +11,12 @@ from pathlib import Path
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from app.guvenlik import csrf_token_al_veya_olustur
 from app.i18n import istekten_dil_al, t
 from app.kayitli_tahmin import birim_etiketi, kalem_aciklamasi, kalem_bolgesi
+from app.sayfalama import sayfa_sorgusu
 from app.yetkilendirme import (
+    GORUNEN_DURUM_FILTRE_SIRASI,
     departman_basi_alt_kademe_mi,
     departman_basi_mi,
     gecmis_erisim_kapsami,
@@ -21,6 +24,7 @@ from app.yetkilendirme import (
     hesaplama_departmani,
     hesaplama_gorunen_durum,
     hesaplamayi_duzenleyebilir_mi,
+    hesaplamayi_kopyalayabilir_mi,
     kullanici_izinli_mi,
     sam_gorunen_adi,
     ustu_olmayan_mi,
@@ -36,7 +40,9 @@ templates.env.globals["departman_basi_mi"] = departman_basi_mi
 templates.env.globals["departman_basi_alt_kademe_mi"] = departman_basi_alt_kademe_mi
 templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
 templates.env.globals["hesaplama_gorunen_durum"] = hesaplama_gorunen_durum
+templates.env.globals["GORUNEN_DURUM_FILTRE_SIRASI"] = GORUNEN_DURUM_FILTRE_SIRASI
 templates.env.globals["hesaplamayi_duzenleyebilir_mi"] = hesaplamayi_duzenleyebilir_mi
+templates.env.globals["hesaplamayi_kopyalayabilir_mi"] = hesaplamayi_kopyalayabilir_mi
 templates.env.globals["ustu_olmayan_mi"] = ustu_olmayan_mi
 templates.env.globals["kendinden_onaylayabilir_mi"] = ustu_olmayan_mi  # alias
 templates.env.globals["sam_gorunen_adi"] = sam_gorunen_adi
@@ -61,6 +67,7 @@ def statik_surum(dosya_adi: str) -> str:
 
 
 templates.env.globals["statik_surum"] = statik_surum
+templates.env.globals["sayfa_sorgusu"] = sayfa_sorgusu
 
 
 def _para_bicimlendir(deger: float, para_birimi: str = "USD", dil: str = "tr") -> str:
@@ -76,12 +83,16 @@ def _para_bicimlendir(deger: float, para_birimi: str = "USD", dil: str = "tr") -
         return bn.format_currency(tutar, para_birimi, locale=locale)
     except Exception:
         if dil == "tr":
-            govde = f"{tutar:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            govde = (
+                f"{tutar:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            )
             return f"{govde} {para_birimi}"
         return f"{tutar:,.2f} {para_birimi}"
 
 
-def _birim_fiyat_bicimlendir(deger: float, para_birimi: str = "USD", dil: str = "tr") -> str:
+def _birim_fiyat_bicimlendir(
+    deger: float, para_birimi: str = "USD", dil: str = "tr"
+) -> str:
     try:
         tutar = float(deger)
     except (TypeError, ValueError):
@@ -112,13 +123,24 @@ templates.env.filters["yerel_saat"] = yerel_saate_cevir
 templates.env.filters["gorunen_durum"] = hesaplama_gorunen_durum
 
 
-def render(request: Request, sablon_adi: str, baglam: dict | None = None, durum_kodu: int = 200):
+def render(
+    request: Request, sablon_adi: str, baglam: dict | None = None, durum_kodu: int = 200
+):
     tam_baglam = dict(baglam or {})
     tam_baglam.setdefault("dil", istekten_dil_al(request))
     tam_baglam.setdefault("kullanici", request.session.get("kullanici"))
+    tam_baglam.setdefault("csrf_token", csrf_token_al_veya_olustur(request))
     # Sablon yardimcilari: reload/eski worker senaryolarinda global kaybolmasin
     tam_baglam.setdefault("hesaplama_gorunen_durum", hesaplama_gorunen_durum)
-    tam_baglam.setdefault("hesaplamayi_duzenleyebilir_mi", hesaplamayi_duzenleyebilir_mi)
+    tam_baglam.setdefault("GORUNEN_DURUM_FILTRE_SIRASI", GORUNEN_DURUM_FILTRE_SIRASI)
+    tam_baglam.setdefault(
+        "hesaplamayi_duzenleyebilir_mi", hesaplamayi_duzenleyebilir_mi
+    )
+    tam_baglam.setdefault(
+        "hesaplamayi_kopyalayabilir_mi", hesaplamayi_kopyalayabilir_mi
+    )
     tam_baglam.setdefault("hesaplama_departmani", hesaplama_departmani)
     tam_baglam.setdefault("kullanici_izinli_mi", kullanici_izinli_mi)
-    return templates.TemplateResponse(request, sablon_adi, tam_baglam, status_code=durum_kodu)
+    return templates.TemplateResponse(
+        request, sablon_adi, tam_baglam, status_code=durum_kodu
+    )

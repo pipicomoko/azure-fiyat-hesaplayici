@@ -39,7 +39,9 @@ class Hesaplama(SQLModel, table=True):
     red_gerekce: Optional[str] = Field(default=None)
     iptal_gerekce: Optional[str] = Field(default=None)
     # Manager zinciri anlik goruntusu (onaya gonderildiginde)
-    olusturan_manager_zinciri: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    olusturan_manager_zinciri: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON)
+    )
 
     kalemler: list["HesaplamaKalemi"] = Relationship(
         back_populates="hesaplama",
@@ -65,6 +67,26 @@ class HesaplamaKalemi(SQLModel, table=True):
     fiyat_kalemleri: list = Field(default_factory=list, sa_column=Column(JSON))
 
     hesaplama: Optional[Hesaplama] = Relationship(back_populates="kalemler")
+
+
+GIRIS_SONUC_BASARILI = "basarili"
+GIRIS_SONUC_BASARISIZ = "basarisiz"
+GIRIS_SONUC_KILITLI = "kilitli"
+
+
+class GirisDenemesi(SQLModel, table=True):
+    """Basarili/basarisiz giris denemeleri. Sifre asla yazilmaz."""
+
+    __tablename__ = "giris_denemeleri"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    olusturulma_tarihi: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), index=True
+    )
+    kullanici_adi: str = Field(index=True)
+    ip: str = Field(default="")
+    sonuc: str = Field(index=True)
+    hata_tipi: Optional[str] = Field(default=None)
 
 
 class AktiviteKaydi(SQLModel, table=True):

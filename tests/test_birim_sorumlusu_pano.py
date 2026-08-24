@@ -99,6 +99,24 @@ def test_birim_sorumlusu_yalnizca_kendi_alt_agacini_gorur(client, veritabani):
     assert "Murat Diger Kayit" not in yanit.text
 
 
+def test_birim_sorumlusu_pano_durum_kart_sirasi(client, veritabani):
+    """Birim sorumlusu ozet kartlari: bekleyen → onaylandı → reddedildi → taslak (aktif calisan sonda)."""
+    import re
+
+    sibel = _kullanici("sibel.arslan", "Sibel Arslan", "finans", "murat.ozturk")
+    app.dependency_overrides[aktif_kullanici] = lambda: sibel
+    yanit = client.get("/")
+    assert yanit.status_code == 200
+    etiketler = re.findall(r'executive-kpi__label">([^<]+)', yanit.text)
+    assert etiketler == [
+        "Bekleyen potansiyel maliyet",
+        "Birim onaylı maliyeti",
+        "Reddedildi",
+        "Taslak",
+        "Aktif çalışan",
+    ]
+
+
 def test_daha_alt_yonetici_birim_sorumlusu_panelini_gormez(client, veritabani):
     emre = {
         "kullanici_adi": "emre.turan",
@@ -116,4 +134,5 @@ def test_daha_alt_yonetici_birim_sorumlusu_panelini_gormez(client, veritabani):
 
     assert yanit.status_code == 200
     assert "Birim Yönetimi" not in yanit.text
-    assert "Taslak, gönderilen, onaylanan" in yanit.text
+    assert "dashboard-grid" in yanit.text or "dashboard-stat" in yanit.text
+    assert "Taslak" in yanit.text or "Draft" in yanit.text

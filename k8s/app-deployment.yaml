@@ -1,4 +1,10 @@
 # AFH uygulama imaji (GitOps iskeleti — urun stabil olduktan sonra genisletilir)
+#
+# Secret olusturma ornegi (degerleri kendiniz uretin; buraya yazmayin):
+#   kubectl create secret generic afh-secrets \
+#     --from-literal=secret-key="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
+#     --from-literal=database-url='postgresql+psycopg://...' \
+#     --from-file=ad-ca-pem=./config/ad-ca.pem
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,22 +26,97 @@ spec:
           image: ghcr.io/OWNER/azure-fiyat-hesaplayici:latest
           ports:
             - containerPort: 8000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
           env:
             - name: APP_ENV
               value: production
             - name: LDAP_TLS_MODU
               value: ldaps
+            # BUG-10: CA zorunlu; CERT_NONE'a dusulmez
+            - name: LDAP_CA_SERTIFIKA_DOSYASI
+              value: /certs/ad-ca.pem
+            # LDAP baglantisi — ConfigMap veya asagidaki value'lari ortaminiza gore doldurun
+            - name: LDAP_SUNUCU
+              valueFrom:
+                configMapKeyRef:
+                  name: afh-config
+                  key: ldap-sunucu
+                  optional: true
+            - name: LDAP_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: afh-config
+                  key: ldap-domain
+                  optional: true
+            - name: LDAP_ARAMA_TABANI
+              valueFrom:
+                configMapKeyRef:
+                  name: afh-config
+                  key: ldap-arama-tabani
+                  optional: true
+            - name: LDAP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: afh-config
+                  key: ldap-port
+                  optional: true
+            - name: GENEL_MUDUR_SAM
+              valueFrom:
+                configMapKeyRef:
+                  name: afh-config
+                  key: genel-mudur-sam
+                  optional: true
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: afh-secrets
+                  key: secret-key
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: afh-secrets
                   key: database-url
+          volumeMounts:
+            - name: ldap-ca
+              mountPath: /certs
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /saglik
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /canli
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: ldap-ca
+          secret:
+            secretName: afh-secrets
+            items:
+              - key: ad-ca-pem
+                path: ad-ca.pem
+---
+# Istege bagli ConfigMap iskeleti — gercek degerleri cluster'da olusturun
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: afh-config
+data:
+  ldap-sunucu: "dc01.sirket.local"
+  ldap-domain: "sirket.local"
+  ldap-arama-tabani: "DC=sirket,DC=local"
+  ldap-port: ""
+  genel-mudur-sam: ""
 ---
 apiVersion: v1
 kind: Service

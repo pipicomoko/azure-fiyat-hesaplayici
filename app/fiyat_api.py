@@ -59,7 +59,7 @@ def _429_bekleme_suresi(yanit: httpx.Response, deneme: int) -> float:
             return max(1.0, float(ham))
         except ValueError:
             pass
-    return min(2.0 ** deneme, 30.0)
+    return min(2.0**deneme, 30.0)
 
 
 async def kayitlari_getir(
@@ -76,7 +76,10 @@ async def kayitlari_getir(
     anahtar = f"{para_birimi}:{filtre}"
     if onbellek_kullan:
         girdi = _onbellek.get(anahtar)
-        if girdi is not None and (time.monotonic() - girdi.olusturulma) < _ONBELLEK_SURESI_SN:
+        if (
+            girdi is not None
+            and (time.monotonic() - girdi.olusturulma) < _ONBELLEK_SURESI_SN
+        ):
             return girdi.kayitlar
 
     parametreler: dict | None = {
@@ -103,13 +106,19 @@ async def kayitlari_getir(
                 veri = yanit.json()
                 kayitlar.extend(veri.get("Items", []))
                 url = veri.get("NextPageLink")
-                parametreler = None  # NextPageLink zaten tum sorgu parametrelerini icerir
+                parametreler = (
+                    None  # NextPageLink zaten tum sorgu parametrelerini icerir
+                )
                 sayfa += 1
     except httpx.HTTPError as hata:
-        raise FiyatApiHatasi(f"Azure Retail Prices API'sine erisilemedi: {hata}") from hata
+        raise FiyatApiHatasi(
+            f"Azure Retail Prices API'sine erisilemedi: {hata}"
+        ) from hata
 
     if onbellek_kullan:
-        _onbellek[anahtar] = _OnbellekGirdisi(kayitlar=kayitlar, olusturulma=time.monotonic())
+        _onbellek[anahtar] = _OnbellekGirdisi(
+            kayitlar=kayitlar, olusturulma=time.monotonic()
+        )
 
     return kayitlar
 

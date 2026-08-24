@@ -541,3 +541,7 @@ ihtiyaç.
 
 Ekibim, Onay Kuyruğu, Tüm Kayıtlar gibi listeler zamanla uzayacak;
 baştan sayfalı (örn. 20 kayıt/sayfa) tasarlanması önerilir.
+
+Uygulandı: Onay kuyruğu, raporlar, aktivite/giriş günlüğü ve geçmiş arama
+20 kayıt/sayfa (geçmiş kişisel listeler 50). Filtreler query parametresi
+ile sunucuda uygulanır.

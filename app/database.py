@@ -7,7 +7,24 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+psycopg://apc:apc@localhost:5432/apc"
 )
 
-engine = create_engine(DATABASE_URL, echo=False)
+
+def _int_ortam(ad: str, varsayilan: int) -> int:
+    ham = (os.getenv(ad) or "").strip()
+    if not ham:
+        return varsayilan
+    try:
+        return max(0, int(ham))
+    except ValueError:
+        return varsayilan
+
+
+_motor_ayarlari: dict = {"echo": False}
+if DATABASE_URL.startswith("postgresql"):
+    _motor_ayarlari["pool_size"] = _int_ortam("DB_POOL_SIZE", 5)
+    _motor_ayarlari["max_overflow"] = _int_ortam("DB_MAX_OVERFLOW", 10)
+    _motor_ayarlari["pool_pre_ping"] = True
+
+engine = create_engine(DATABASE_URL, **_motor_ayarlari)
 
 
 def _pg() -> bool:
@@ -32,11 +49,18 @@ def veritabanini_olustur() -> None:
 
     SQLModel.metadata.create_all(engine)
 
-    _ekle_sutun("hesaplamalar", "olusturan_gruplar", "JSON DEFAULT '[]'::json", "TEXT DEFAULT '[]'")
+    _ekle_sutun(
+        "hesaplamalar",
+        "olusturan_gruplar",
+        "JSON DEFAULT '[]'::json",
+        "TEXT DEFAULT '[]'",
+    )
     _ekle_sutun("hesaplamalar", "olusturan_departman", "VARCHAR")
     _ekle_sutun("hesaplamalar", "olusturan_unvan", "VARCHAR")
     _ekle_sutun("hesaplamalar", "olusturan_ad_soyad", "VARCHAR")
-    _ekle_sutun("hesaplamalar", "durum", "VARCHAR DEFAULT 'taslak'", "TEXT DEFAULT 'taslak'")
+    _ekle_sutun(
+        "hesaplamalar", "durum", "VARCHAR DEFAULT 'taslak'", "TEXT DEFAULT 'taslak'"
+    )
     _ekle_sutun("hesaplamalar", "revizyon", "INTEGER DEFAULT 1", "INTEGER DEFAULT 1")
     _ekle_sutun("hesaplamalar", "onay_hedefi", "VARCHAR")
     _ekle_sutun("hesaplamalar", "onay_hedefi_ad_soyad", "VARCHAR")
@@ -51,7 +75,9 @@ def veritabanini_olustur() -> None:
         "TEXT DEFAULT '[]'",
     )
     _ekle_sutun("hesaplama_kalemleri", "indirim_yuzdesi", "DOUBLE PRECISION", "REAL")
-    _ekle_sutun("hesaplama_kalemleri", "indirimli_aylik_maliyet", "DOUBLE PRECISION", "REAL")
+    _ekle_sutun(
+        "hesaplama_kalemleri", "indirimli_aylik_maliyet", "DOUBLE PRECISION", "REAL"
+    )
 
 
 def _eksik_departmanlari_doldur() -> None:

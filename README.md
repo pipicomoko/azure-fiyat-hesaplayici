@@ -36,8 +36,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Uygulama http://localhost:8000 adresinde acilir (giris ekranina yonlendirir). Saglik kontrolu:
-http://localhost:8000/saglik
+Uygulama http://localhost:8000 adresinde acilir (giris ekranina yonlendirir).
+Surec ayakta mi: http://localhost:8000/canli
+Readiness (Postgres + LDAP TCP): http://localhost:8000/saglik
 
 Ayni agdaki baska bir bilgisayar icin Mac'in LAN IP'sini kullanin, ornek:
 `http://10.22.251.190:8000` (IP `ipconfig getifaddr en0` ile gorulur).
@@ -73,6 +74,8 @@ uretimde `ldaps` veya `starttls` yapin, veritabani portu yalnizca localhost'ta d
 `.env.example` dosyasina bakin. Onemli olanlar:
 
 - `LDAP_SUNUCU`, `LDAP_DOMAIN`, `LDAP_ARAMA_TABANI`: sirketin AD DS sunucu bilgileri.
+  `LDAP_SUNUCU` virgulle birden fazla DC alabilir (`dc01.sirket.local,dc02.sirket.local`);
+  baglanti ilk ulasilabilir sunucuya gecer.
 - `LDAP_TLS_MODU`: `ldaps` (varsayilan) | `starttls` | `kapali`. `APP_ENV=production` iken
   `kapali` kabul edilmez. LDAPS icin AD DC'de sunucu sertifikasi olmali (port 636).
 - `LDAP_CA_SERTIFIKA_DOSYASI`: DC/CA sertifikasinin PEM yolu, varsayilan `config/ad-ca.pem`.
@@ -85,15 +88,28 @@ kaydedin. 636 uzerinde TLS el sikismasi olmadan uygulama giris yapamaz.
 - `YETKI_HARITASI_DOSYASI`: varsayilan `config/yetki_haritasi.json` yerine baska bir dosya
   belirtmek icin (AD grubu -> izin eslemesini kod degistirmeden yapilandirmak icin).
 
+Gunluk veritabani dump'i (opsiyonel): `docker compose --profile backup up -d` —
+ayrintilar `docs/yedekleme.md`. Postgres baglanti havuzu `DB_POOL_SIZE` /
+`DB_MAX_OVERFLOW` ile ayarlanir.
+
+Admin giris denemelerini `/admin/giris-gunlugu` altinda gorur (`audit.gor`); sifre
+yazilmaz, kayitlar 90 gun saklanir.
+
 ## Gelistirme (Docker'siz, opsiyonel)
 
+Python **3.12** kullanin (CI, Dockerfile ve `.python-version` ile ayni). Sisteminizde
+baska bir surum varsa `python3.12 -m venv .venv` tercih edin.
+
 ```bash
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 pytest
 ruff check .
+ruff format --check .
 ```
+
+`uvicorn app.main:app` calistirirken kok dizindeki `.env` otomatik yuklenir (`load_dotenv`).
 
 Testler gercek bir AD/LDAP sunucusuna veya Azure Retail Prices API'sine ihtiyac duymaz (LDAP
 baglantisi ve fiyat API'si testlerde mocklanir); fiyatlama testleri, Azure Retail Prices

@@ -24,9 +24,11 @@ def _sayiya_cevir(deger: Any) -> float:
 class VirtualMachinesUrunu:
     anahtar = "virtual_machines"
     sablon_adi = "urunler/_vm_form.html"
+    # Azure urun adi dil bagimsiz (resmi calculator ile ayni)
+    SABIT_AD = "Virtual Machines"
 
     def ad(self, dil: Dil) -> str:
-        return t("urun_vm_ad", dil)
+        return self.SABIT_AD
 
     def aciklama(self, dil: Dil) -> str:
         return t("urun_vm_aciklama", dil)
@@ -34,10 +36,14 @@ class VirtualMachinesUrunu:
     def bos_yapilandirma(self) -> dict[str, Any]:
         return secenekler.bos_yapilandirma()
 
-    async def secenekleri_getir(self, yapilandirma: dict[str, Any], dil: Dil) -> SecenekSonucu:
+    async def secenekleri_getir(
+        self, yapilandirma: dict[str, Any], dil: Dil
+    ) -> SecenekSonucu:
         return await secenekler.secenekleri_coz(yapilandirma, dil)
 
-    async def fiyatla(self, yapilandirma: dict[str, Any], para_birimi: str) -> FiyatSonucu:
+    async def fiyatla(
+        self, yapilandirma: dict[str, Any], para_birimi: str
+    ) -> FiyatSonucu:
         return await fiyatlama.fiyatla(yapilandirma, para_birimi)
 
     def ozet(self, yapilandirma: dict[str, Any], dil: Dil) -> str:
@@ -46,27 +52,41 @@ class VirtualMachinesUrunu:
         sku = yapilandirma.get("sku") or "?"
         adet = yapilandirma.get("adet", 1)
         yazilim_kodu = yapilandirma.get("yazilim_tipi", "")
-        yazilim_liste = secenekler.yazilim_tipleri(yapilandirma.get("isletim_sistemi", "linux"))
-        yazilim_adi = next((etiket[dil] for kod, etiket, _ in yazilim_liste if kod == yazilim_kodu), yazilim_kodu)
+        yazilim_liste = secenekler.yazilim_tipleri(
+            yapilandirma.get("isletim_sistemi", "linux")
+        )
+        yazilim_adi = next(
+            (etiket[dil] for kod, etiket, _ in yazilim_liste if kod == yazilim_kodu),
+            yazilim_kodu,
+        )
         parcalar = [f"{adet} x {sku}", yazilim_adi, bolge_adi]
         if yapilandirma.get("hibrit_fayda"):
             parcalar.append("AHB")
         return " - ".join(str(p) for p in parcalar)
 
-    def _azure_description(self, yapilandirma: dict[str, Any], fiyat: FiyatSonucu, dil: Dil) -> str:
+    def _azure_description(
+        self, yapilandirma: dict[str, Any], fiyat: FiyatSonucu, dil: Dil
+    ) -> str:
         """Azure orijinal sitesindeki Description formatını üretir.
         Örnek: '1 D4ads v5 (4 vCPUs, 16 GB RAM) x 730 Hours (Pay as you go), Linux, ...'
         """
         from app.products.virtual_machines.secenekler import (
-            _sku_goruntu_adi, _govdeyi_ayristir, seri_kategorisi,
-            tahmini_ram_gib, fiyatlandirma_modeli_adi,
-            SAAT_CARPANLARI, _BILINEN_SKU_BOYUTLARI,
+            _sku_goruntu_adi,
+            _govdeyi_ayristir,
+            seri_kategorisi,
+            tahmini_ram_gib,
+            fiyatlandirma_modeli_adi,
+            SAAT_CARPANLARI,
+            _BILINEN_SKU_BOYUTLARI,
         )
+
         sku = yapilandirma.get("sku") or ""
         adet = max(1, int(_sayiya_cevir(yapilandirma.get("adet", 1)) or 1))
         sure_birimi = yapilandirma.get("sure_birimi", "ay")
         sure_miktar = _sayiya_cevir(yapilandirma.get("sure_miktar", 730)) or 730
-        fm = fiyatlandirma_modeli_adi(yapilandirma.get("fiyatlandirma_modeli", "payg"), "en")
+        fm = fiyatlandirma_modeli_adi(
+            yapilandirma.get("fiyatlandirma_modeli", "payg"), "en"
+        )
         isletim = yapilandirma.get("isletim_sistemi", "linux").capitalize()
 
         goruntu = _sku_goruntu_adi(sku)
@@ -87,7 +107,9 @@ class VirtualMachinesUrunu:
         carpan = SAAT_CARPANLARI.get(sure_birimi, 730)
         sure_toplam = sure_miktar * carpan if sure_birimi != "ay" else 730
 
-        parcalar = [f"{adet} {goruntu} {boyut_str} x {int(sure_toplam)} {sure_birim_str} ({fm})"]
+        parcalar = [
+            f"{adet} {goruntu} {boyut_str} x {int(sure_toplam)} {sure_birim_str} ({fm})"
+        ]
         parcalar.append(isletim)
 
         # Disk bilgisi
@@ -98,7 +120,9 @@ class VirtualMachinesUrunu:
             disk_sku = disk.get("sku") or ""
             disk_boyut = disk.get("disk_boyutu_gib") or ""
             disk_sure = int(_sayiya_cevir(disk.get("sure_miktar")) or 730)
-            disk_bilgi = f"{disk_adet} X {disk_boyut or disk_sku} GiB Disks, {disk_sure} Hours"
+            disk_bilgi = (
+                f"{disk_adet} X {disk_boyut or disk_sku} GiB Disks, {disk_sure} Hours"
+            )
             if disk.get("iops"):
                 disk_bilgi += f", {disk['iops']} IOPS"
             if disk.get("throughput_mbps"):
@@ -110,7 +134,11 @@ class VirtualMachinesUrunu:
         gb = _sayiya_cevir(bant.get("cikis_gb"))
         if gb:
             transfer_tip = bant.get("veri_transfer_tipi", "interregion")
-            tip_str = "Inter Region transfer type" if transfer_tip == "interregion" else "Internet Egress transfer type"
+            tip_str = (
+                "Inter Region transfer type"
+                if transfer_tip == "interregion"
+                else "Internet Egress transfer type"
+            )
             kaynak = bant.get("kaynak_bolge", "")
             hedef = bant.get("hedef_bolge", "")
             gb = f"{gb:g}"
@@ -125,15 +153,17 @@ class VirtualMachinesUrunu:
         bolge = bolge_bul(yapilandirma.get("bolge", ""))
         bolge_adi = bolge.ad if bolge else yapilandirma.get("bolge", "")
         description = self._azure_description(yapilandirma, fiyat, dil)
-        return [DisaAktarimSatiri(
-            servis_kategori="Compute",
-            urun=self.ad(dil),
-            ozel_ad="",
-            bolge=bolge_adi,
-            yapilandirma_ozeti=description,
-            miktar=fiyat.aylik_toplam,
-            birim="month",
-            birim_fiyat=fiyat.aylik_toplam,
-            ara_toplam=round(fiyat.aylik_toplam, 2),
-            on_odeme=0.0,
-        )]
+        return [
+            DisaAktarimSatiri(
+                servis_kategori="Compute",
+                urun=self.ad(dil),
+                ozel_ad="",
+                bolge=bolge_adi,
+                yapilandirma_ozeti=description,
+                miktar=fiyat.aylik_toplam,
+                birim="month",
+                birim_fiyat=fiyat.aylik_toplam,
+                ara_toplam=round(fiyat.aylik_toplam, 2),
+                on_odeme=0.0,
+            )
+        ]

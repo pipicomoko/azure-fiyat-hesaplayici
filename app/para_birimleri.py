@@ -1,8 +1,6 @@
-"""Desteklenen para birimleri.
+"""Para birimi: Azure Pricing Calculator ile ayni — yalnizca USD.
 
-Resmi Azure Pricing Calculator'in para birimi listesiyle aynidir (canli
-inceleme ile dogrulanmistir). Kur DEGERI icermez -- Retail Prices API'sine
-`currencyCode` parametresi olarak gecilir, donusum Microsoft tarafinda yapilir.
+Retail Prices API `currencyCode=USD` ile cagrilir; UI'da secim yoktur.
 """
 
 from dataclasses import dataclass
@@ -16,33 +14,18 @@ class ParaBirimi:
     ad: str
 
 
+# Geriye donuk importlar icin; UI secici kaldirildi.
 PARA_BIRIMLERI: list[ParaBirimi] = [
     ParaBirimi("USD", "United States - Dollar ($)"),
-    ParaBirimi("AUD", "Australia - Dollar ($)"),
-    ParaBirimi("BRL", "Brazil - Real (R$)"),
-    ParaBirimi("CAD", "Canada - Dollar ($)"),
-    ParaBirimi("DKK", "Denmark - Krone (kr)"),
-    ParaBirimi("EUR", "Euro Zone - Euro (€)"),
-    ParaBirimi("INR", "India - Rupee (₹)"),
-    ParaBirimi("JPY", "Japan - Yen (¥)"),
-    ParaBirimi("KRW", "Korea - Won (₩)"),
-    ParaBirimi("NZD", "New Zealand - Dollar ($)"),
-    ParaBirimi("NOK", "Norway - Krone (kr)"),
-    ParaBirimi("RUB", "Russia - Ruble (руб)"),
-    ParaBirimi("SEK", "Sweden - Krona (kr)"),
-    ParaBirimi("CHF", "Switzerland - Franc (chf)"),
-    ParaBirimi("TWD", "Taiwan - Dollar (NT$)"),
-    ParaBirimi("GBP", "United Kingdom - Pound (£)"),
 ]
 
 _KODLAR = {p.kod for p in PARA_BIRIMLERI}
 
 
 def para_birimi_gecerli_mi(kod: str) -> bool:
-    return kod in _KODLAR
+    return kod == VARSAYILAN_PARA_BIRIMI
 
 
 def guvenli_para_birimi(kod: str | None) -> str:
-    if kod and para_birimi_gecerli_mi(kod):
-        return kod
+    """Her zaman USD (formdan gelen deger yok sayilir)."""
     return VARSAYILAN_PARA_BIRIMI

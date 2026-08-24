@@ -35,8 +35,8 @@
   --danger: #b42318;
   --danger-subtle: #fef3f2;
 
-  /* Typography */
-  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Typography — sistem yigini (Google Fonts CDN yok; BUG-09) */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --text-xs: 12px;
   --text-sm: 13px;
   --text-base: 14px;

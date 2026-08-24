@@ -8,7 +8,6 @@
     <div>
       <span class="executive-eyebrow">{{ t(panel_etiket_anahtari, dil) }}</span>
       <h1 class="ui-card__title">{{ departman_etiketi }} · {{ t(panel_baslik_anahtari, dil) }}</h1>
-      <p class="ui-card__subtitle">{{ t(panel_aciklama_anahtari, dil) }}</p>
     </div>
     <form method="get" class="executive-filter" aria-label="{{ t('gm_donem_filtre', dil) }}">
       <label>{{ t('baslangic', dil) }}<input type="date" name="baslangic" value="{{ baslangic }}" class="form-control"></label>
@@ -21,11 +20,11 @@
 {% if tarih_hatasi %}<div class="ui-alert ui-alert--warning" role="alert">{{ t('gm_tarih_hatasi', dil) }}</div>{% endif %}
 
 <div class="executive-kpis executive-kpis--five">
-  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t(panel_maliyet_anahtari, dil) }}</span>{% for toplam in onayli_toplamlar %}<strong>{{ toplam.toplam | para(toplam.para_birimi, dil) }}</strong>{% else %}<strong>—</strong>{% endfor %}<small>{{ t('gm_kayit_adedi', dil, adet=onayli_adet) }}</small></div></section>
   <a class="ui-card executive-kpi" href="/onay-kuyrugu"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('gm_bekleyen', dil) }}</span>{% for toplam in bekleyen_toplamlar %}<strong>{{ toplam.toplam | para(toplam.para_birimi, dil) }}</strong>{% else %}<strong>—</strong>{% endfor %}<small>{{ t('gm_kayit_adedi', dil, adet=bekleyen_adet) }}</small></div></a>
-  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('db_aktif_calisan', dil) }}</span><strong>{{ aktif_calisan_sayisi }}</strong><small>{{ t('db_hesaplama_yapan', dil) }}</small></div></section>
+  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t(panel_maliyet_anahtari, dil) }}</span>{% for toplam in onayli_toplamlar %}<strong>{{ toplam.toplam | para(toplam.para_birimi, dil) }}</strong>{% else %}<strong>—</strong>{% endfor %}<small>{{ t('gm_kayit_adedi', dil, adet=onayli_adet) }}</small></div></section>
   <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('durum_reddedildi', dil) }}</span><strong>{{ reddedilen_adet }}</strong><small>{{ t('gm_donem_icinde', dil) }}</small></div></section>
-  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('durum_iptal_edildi', dil) }}</span><strong>{{ iptal_adet }}</strong><small>{{ t('gm_donem_icinde', dil) }}</small></div></section>
+  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('durum_taslak', dil) }}</span><strong>{{ taslak_adet }}</strong><small>{{ t('gm_donem_icinde', dil) }}</small></div></section>
+  <section class="ui-card executive-kpi"><div class="ui-card__body"><span class="executive-kpi__label">{{ t('db_aktif_calisan', dil) }}</span><strong>{{ aktif_calisan_sayisi }}</strong><small>{{ t('db_hesaplama_yapan', dil) }}</small></div></section>
 </div>
 
 <div class="executive-layout">

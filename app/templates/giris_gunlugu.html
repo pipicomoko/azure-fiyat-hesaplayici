@@ -1,0 +1,52 @@
+{% extends "taban.html" %}
+
+{% block baslik %}{{ t('nav_giris_gunlugu', dil) }} - {{ t('uygulama_adi', dil) }}{% endblock %}
+
+{% block icerik %}
+<section class="hero-panel mb-4">
+  <div class="hero-panel-body">
+    <div>
+      <span class="hero-eyebrow">Admin</span>
+      <h1 class="hero-title mb-2">{{ t('giris_gunlugu_baslik', dil) }}</h1>
+      <p class="hero-text mb-0">{{ t('giris_gunlugu_aciklama', dil) }}</p>
+    </div>
+  </div>
+</section>
+
+<div class="gecmis-search-toolbar mb-3">
+  <a class="btn btn-sm btn-outline-secondary" href="/admin/aktivite">{{ t('nav_aktivite', dil) }}</a>
+  <a class="btn btn-sm btn-primary" href="/admin/giris-gunlugu">{{ t('nav_giris_gunlugu', dil) }}</a>
+</div>
+
+<section class="section-card">
+  <div class="section-card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle app-table mb-0">
+        <thead>
+          <tr>
+            <th>{{ t('tarih', dil) }}</th>
+            <th>{{ t('kullanici_adi', dil) }}</th>
+            <th>IP</th>
+            <th>{{ t('sonuc', dil) }}</th>
+            <th>{{ t('hata_tipi', dil) }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for k in kayitlar %}
+          <tr>
+            <td>{{ (k.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
+            <td>{{ k.kullanici_adi }}</td>
+            <td>{{ k.ip }}</td>
+            <td>{{ t('giris_sonuc_' + k.sonuc, dil) }}</td>
+            <td>{{ k.hata_tipi or "" }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-muted p-3">{{ t('giris_gunlugu_bos', dil) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "_sayfalama.html" %}
+  </div>
+</section>
+{% endblock %}

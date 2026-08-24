@@ -13,6 +13,7 @@
       {% endif %}
 
       <form method="post" action="/giris" class="rail-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div>
           <label class="ui-label" for="kullanici_adi">{{ t('giris_kullanici_adi', dil) }}</label>
           <input type="text" class="ui-input" id="kullanici_adi" name="kullanici_adi" required autofocus>
