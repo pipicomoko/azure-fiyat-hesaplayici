@@ -338,7 +338,7 @@ def test_onay_kuyrugu_gecersiz_sayfa(client, veritabani):
 
 def _assert_departman_arama_kutusu(html: str, *, secili: str | None = None) -> None:
     assert 'name="birim"' in html
-    assert 'data-departman-combo' in html
+    assert "data-departman-combo" in html
     assert 'role="combobox"' in html
     assert 'role="listbox"' in html
     assert "Tüm departmanlar" in html

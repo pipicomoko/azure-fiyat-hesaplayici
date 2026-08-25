@@ -1153,9 +1153,7 @@ def hesaplamalara_reddeden_ata(
             continue
         kaynak_sam = hesaplama_reddeden_sam(kaynak)
         if not kaynak_sam:
-            hesaplamalara_reddeden_ata(
-                [kaynak], oturum=oturum, aktiviteler=aktiviteler
-            )
+            hesaplamalara_reddeden_ata([kaynak], oturum=oturum, aktiviteler=aktiviteler)
             kaynak_sam = hesaplama_reddeden_sam(kaynak)
         if kaynak_sam:
             _reddeden_gosterim_yaz(hesaplama, kaynak_sam)

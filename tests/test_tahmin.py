@@ -167,9 +167,7 @@ def test_tek_tahmin_excel_adi_hesaplama_adini_kullanir():
 def test_disa_aktar_butonu_formnovalidate_onay_hedefi_zorunlu_kalir(client):
     yanit = client.get("/tahmin")
     assert yanit.status_code == 200
-    disa_aktar = re.search(
-        r'<button[^>]*id="disa-aktar-butonu"[^>]*>', yanit.text
-    )
+    disa_aktar = re.search(r'<button[^>]*id="disa-aktar-butonu"[^>]*>', yanit.text)
     assert disa_aktar is not None
     etiket = disa_aktar.group(0)
     assert "formnovalidate" in etiket
@@ -195,9 +193,7 @@ def test_disa_aktar_butonu_formnovalidate_onay_hedefi_zorunlu_kalir(client):
         hesaplama_adi="",
         kalem_sonuclari=[],
     )
-    onay_secici = re.search(
-        r'<select[^>]*id="onay-hedefi-secici"[^>]*>', html
-    )
+    onay_secici = re.search(r'<select[^>]*id="onay-hedefi-secici"[^>]*>', html)
     assert onay_secici is not None
     assert "required" in onay_secici.group(0)
     ic_disa = re.search(r'<button[^>]*id="disa-aktar-butonu"[^>]*>', html)
@@ -1493,6 +1489,8 @@ def test_gecmis_excel_reddeden_metasini_yazar(client, veritabani):
 
     excel = client.get(f"/gecmis/{kayit_id}/excel")
     assert excel.status_code == 200
-    satirlar = list(load_workbook(BytesIO(excel.content)).active.iter_rows(values_only=True))
+    satirlar = list(
+        load_workbook(BytesIO(excel.content)).active.iter_rows(values_only=True)
+    )
     assert ("Reddeden", "Onur Simsek") in [(s[0], s[1]) for s in satirlar]
     assert any(s[0] == "Durum" for s in satirlar)

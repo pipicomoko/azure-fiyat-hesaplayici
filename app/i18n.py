@@ -37,7 +37,10 @@ _METINLER: dict[str, dict[Dil, str]] = {
         "tr": "Sorumlu olduğunuz organizasyonun maliyetlerini, ekip katkısını ve bekleyen onayları izleyin.",
         "en": "Track costs, team contribution, and pending approvals for your organization.",
     },
-    "bs_onayli_maliyet": {"tr": "Birim onaylı maliyeti", "en": "Department approved cost"},
+    "bs_onayli_maliyet": {
+        "tr": "Birim onaylı maliyeti",
+        "en": "Department approved cost",
+    },
     "bs_trend": {"tr": "Birim 12 Aylık Trendi", "en": "Department 12-Month Trend"},
     "bs_ekip_ozeti": {"tr": "Birim Ekip Özeti", "en": "Department Team Summary"},
     "bs_bana_bekleyen": {"tr": "Onayımı Bekleyenler", "en": "Waiting for My Approval"},

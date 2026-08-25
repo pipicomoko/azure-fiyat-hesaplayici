@@ -91,9 +91,7 @@ def test_calisma_kitabi_basliklar_ve_toplam():
     assert "$" in (disk[5].number_format or "")
     assert "$" in (disk[9].number_format or "")
     assert "$" in (disk[10].number_format or "")
-    toplam_hucreler = next(
-        row for row in sayfa.iter_rows() if row[3].value == "Total"
-    )
+    toplam_hucreler = next(row for row in sayfa.iter_rows() if row[3].value == "Total")
     assert "$" in (toplam_hucreler[5].number_format or "")
     assert "$" in (toplam_hucreler[8].number_format or "")
     assert "$" in (toplam_hucreler[10].number_format or "")

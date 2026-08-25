@@ -74,7 +74,9 @@ def _onayli_rapor_listesi(
         ]
     if birim_q:
         gorunen = [
-            h for h in gorunen if departman_filtre_eslesir(h.olusturan_departman, birim_q)
+            h
+            for h in gorunen
+            if departman_filtre_eslesir(h.olusturan_departman, birim_q)
         ]
     if baslangic:
         gorunen = [

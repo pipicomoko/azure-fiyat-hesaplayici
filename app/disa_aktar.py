@@ -172,7 +172,9 @@ def indirim_yuzdesini_oku(ham) -> float | None:
     return deger
 
 
-def indirimli_aylik_hesapla(aylik: float, indirim_yuzdesi: float | None) -> float | None:
+def indirimli_aylik_hesapla(
+    aylik: float, indirim_yuzdesi: float | None
+) -> float | None:
     """Web kayit ile ayni: aylik * (1 - indirim/100), 4 hane."""
     if indirim_yuzdesi is None:
         return None

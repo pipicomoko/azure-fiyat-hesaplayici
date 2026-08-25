@@ -344,9 +344,10 @@ def test_hesaplamayi_kopyalayabilir_mi_durum_ve_izin():
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("taslak")) is True
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("onay_bekliyor")) is True
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("taslak", red="eksik")) is True
-    assert hesaplamayi_kopyalayabilir_mi(
-        sahip, _h("taslak", reddeden="onur.simsek")
-    ) is True
+    assert (
+        hesaplamayi_kopyalayabilir_mi(sahip, _h("taslak", reddeden="onur.simsek"))
+        is True
+    )
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("onaylandi")) is False
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("iptal_edildi")) is False
     assert hesaplamayi_kopyalayabilir_mi(admin, _h("onay_bekliyor")) is False
