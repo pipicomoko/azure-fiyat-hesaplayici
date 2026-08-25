@@ -37,6 +37,7 @@ from app.disa_aktar import (
     calisma_kitabi_olustur,
     coklu_calisma_kitabi_olustur,
     hesaplama_meta_olustur,
+    indirim_yuzdesini_oku,
     satirlara_indirim_uygula,
 )
 from app.fiyat_api import FiyatApiHatasi
@@ -75,12 +76,15 @@ from app.sayfalama import sayfala
 from app.tarih_filtre import bos_tarihleri_doldur
 from app.yetkilendirme import (
     IZIN_HESAPLAMA_KULLAN,
-    departman_etiketi,
+    departman_filtre_eslesir,
+    departman_secenek_listesi,
     gecmis_erisim_kapsami,
     gecmis_goruntule_gerekli,
     gruplardan_departman_belirle,
     hesaplama_departmani,
     hesaplama_gorunen_durum,
+    hesaplama_reddeden_sam,
+    hesaplamalara_reddeden_ata,
     hesaplamaya_erisebilir_mi,
     hesaplamayi_duzenleyebilir_mi,
     hesaplamayi_kopyalayabilir_mi,
@@ -128,6 +132,7 @@ async def _kalemi_coz(
     urun = urun_al(urun_tipi)
     if urun is None:
         return None
+    indirim = indirim_yuzdesini_oku(ham.get("indirim_yuzdesi"))
 
     # Secenek cozumleme (ozellikle VM katalogu) API'ye baglidir; FiyatApiHatasi
     # burada yukselir — kalem-ekle/hesapla yakalayip kullaniciya uyari gosterir.
@@ -146,7 +151,9 @@ async def _kalemi_coz(
             None,
             t("gecersiz_yapilandirma", dil),
         )
-    yapilandirma = secenek_sonucu.yapilandirma
+    yapilandirma = dict(secenek_sonucu.yapilandirma)
+    if indirim is not None:
+        yapilandirma["indirim_yuzdesi"] = indirim
     fiyat, hata = await _fiyatla_guvenli(urun, yapilandirma, para_birimi, dil)
     return _KalemSonucu(
         kalem_id,
@@ -207,6 +214,7 @@ async def tahmin_sayfasi(
     hesaplama_adi = ""
     duzenlenen_id: int | None = None
     red_gerekce = None
+    reddeden_kullanici_adi = None
 
     ham_id = request.query_params.get("hesaplama_id")
     if ham_id:
@@ -226,6 +234,8 @@ async def tahmin_sayfasi(
             hesaplama_adi = hesaplama.ad or ""
             para_birimi = guvenli_para_birimi(hesaplama.para_birimi)
             red_gerekce = hesaplama.red_gerekce
+            hesaplamalara_reddeden_ata([hesaplama], oturum=oturum)
+            reddeden_kullanici_adi = hesaplama_reddeden_sam(hesaplama)
             for kayitli in hesaplama.kalemler or []:
                 kalem_id = uuid.uuid4().hex
                 ham = dict(kayitli.yapilandirma or {})
@@ -254,6 +264,7 @@ async def tahmin_sayfasi(
             "hesaplama_adi": hesaplama_adi,
             "duzenlenen_hesaplama_id": duzenlenen_id,
             "red_gerekce": red_gerekce,
+            "reddeden_kullanici_adi": reddeden_kullanici_adi,
         },
     )
 
@@ -485,8 +496,9 @@ async def tahmin_kaydet(
             onay_hedefi_ad if durum == DURUM_ONAY_BEKLIYOR else None
         )
         hesaplama.olusturan_manager_zinciri = zincir
-        hesaplama.red_gerekce = None
         if durum == DURUM_ONAY_BEKLIYOR:
+            hesaplama.red_gerekce = None
+            hesaplama.reddeden_kullanici_adi = None
             hesaplama.onaylayan_kullanici_adi = None
             hesaplama.onay_tarihi = None
     else:
@@ -554,10 +566,13 @@ async def tahmin_kaydet(
     oturum.commit()
 
     # HTMX: basarili kayittan sonra ilgili listeye yonlendir
-    if durum == DURUM_ONAY_BEKLIYOR:
+    gorunen = hesaplama_gorunen_durum(hesaplama)
+    if durum == DURUM_ONAY_BEKLIYOR or gorunen == "reddedildi":
         hedef = "/gecmis/gonderilenler"
         nav_anahtar = "nav_gonderilenler"
-        basari_anahtar = "onaya_gonderildi"
+        basari_anahtar = (
+            "onaya_gonderildi" if durum == DURUM_ONAY_BEKLIYOR else "kaydet_basarili"
+        )
     else:
         hedef = "/gecmis/taslaklar"
         nav_anahtar = (
@@ -711,6 +726,7 @@ def _gecmis_liste_baglami(
         .limit(GECMIS_MAKS_KAYIT)
     ).all()
     hesaplamalar = [h for h in tum if hesaplamaya_erisebilir_mi(kullanici, h)]
+    hesaplamalara_reddeden_ata(hesaplamalar, oturum=oturum)
 
     kullanici_adi_lower = (kullanici.get("kullanici_adi") or "").lower()
     personal_hesaplamalar = [
@@ -718,17 +734,12 @@ def _gecmis_liste_baglami(
         for h in hesaplamalar
         if (h.olusturan_kullanici_adi or "").lower() == kullanici_adi_lower
     ]
-    # Ustunde kimse yoksa tum kisisel kayitlar "tahmin gecmisi" listesinde
-    if ustu_olmayan_mi(kullanici):
-        taslak_hesaplamalar = list(personal_hesaplamalar)
-        gonderilen_hesaplamalar = []
-    else:
-        taslak_hesaplamalar = [
-            h for h in personal_hesaplamalar if hesaplama_gorunen_durum(h) == "taslak"
-        ]
-        gonderilen_hesaplamalar = [
-            h for h in personal_hesaplamalar if hesaplama_gorunen_durum(h) != "taslak"
-        ]
+    taslak_hesaplamalar = [
+        h for h in personal_hesaplamalar if hesaplama_gorunen_durum(h) == "taslak"
+    ]
+    gonderilen_hesaplamalar = [
+        h for h in personal_hesaplamalar if hesaplama_gorunen_durum(h) != "taslak"
+    ]
     arama_hesaplamalari = [
         h
         for h in hesaplamalar
@@ -750,11 +761,10 @@ def _gecmis_liste_baglami(
             arama_hesaplamalari = [
                 h
                 for h in arama_hesaplamalari
-                if birim_q
-                in (
-                    hesaplama_departmani(h.olusturan_gruplar, h.olusturan_departman)
-                    or ""
-                ).lower()
+                if departman_filtre_eslesir(
+                    hesaplama_departmani(h.olusturan_gruplar, h.olusturan_departman),
+                    birim_q,
+                )
             ]
         if durum_q:
             arama_hesaplamalari = [
@@ -793,17 +803,11 @@ def _gecmis_liste_baglami(
     departman_listesi: list[dict] = []
     if kapsam in ("yonetici", "direktor", "admin"):
         dep_anahtarlari: set[str] = set()
-        for h in arama_hesaplamalari if aktif_sekme != "arama" else aktif_liste:
+        for h in hesaplamalar:
             dep = hesaplama_departmani(h.olusturan_gruplar, h.olusturan_departman)
             if dep:
                 dep_anahtarlari.add(dep)
-        departman_listesi = sorted(
-            [
-                {"anahtar": dep, "etiket": departman_etiketi(dep)}
-                for dep in dep_anahtarlari
-            ],
-            key=lambda d: d["etiket"],
-        )
+        departman_listesi = departman_secenek_listesi(dep_anahtarlari)
 
     return {
         "hesaplamalar": hesaplamalar,
@@ -858,10 +862,6 @@ async def gecmis_gonderilenler(
     kullanici: dict = Depends(gecmis_goruntule_gerekli),
     sayfa: int = 1,
 ):
-    from app.yetkilendirme import ustu_olmayan_mi
-
-    if ustu_olmayan_mi(kullanici):
-        return RedirectResponse("/gecmis/taslaklar", status_code=303)
     return render(
         request,
         "gecmis.html",
@@ -923,6 +923,7 @@ async def gecmis_detay(
 
     from app.yetkilendirme import hesaplamayi_iptal_edebilir_mi
 
+    hesaplamalara_reddeden_ata([hesaplama], oturum=oturum)
     return render(
         request,
         "gecmis_detay.html",
@@ -962,6 +963,7 @@ async def gecmis_detay_excel(
     satirlar, toplam = _hesaplamadan_satirlar(hesaplama, dil)
     from app.disa_aktar import hesaplama_meta_olustur
 
+    hesaplamalara_reddeden_ata([hesaplama], oturum=oturum)
     try:
         icerik = calisma_kitabi_olustur(
             satirlar,
@@ -1016,6 +1018,9 @@ def _excel_hesaplama_anligi(hesaplama: Hesaplama) -> SimpleNamespace:
         revizyon=hesaplama.revizyon,
         onaylayan_kullanici_adi=hesaplama.onaylayan_kullanici_adi,
         onay_tarihi=hesaplama.onay_tarihi,
+        red_gerekce=getattr(hesaplama, "red_gerekce", None),
+        reddeden_kullanici_adi=hesaplama_reddeden_sam(hesaplama)
+        or getattr(hesaplama, "reddeden_kullanici_adi", None),
         kalemler=[_excel_kalem_anligi(k) for k in (hesaplama.kalemler or [])],
     )
 
@@ -1070,6 +1075,7 @@ async def gecmis_tumu_excel(
     hesaplamalar = hesaplamalar[:GECMIS_EXCEL_MAKS_KAYIT]
 
     # relationship lazy load session acikken; sonra ORM-bagimsiz anlik
+    hesaplamalara_reddeden_ata(hesaplamalar, oturum=oturum)
     for hesaplama in hesaplamalar:
         _ = list(hesaplama.kalemler or [])
     anliklar = [_excel_hesaplama_anligi(h) for h in hesaplamalar]
@@ -1169,6 +1175,7 @@ async def gecmis_kopyala(
         onaylayan_kullanici_adi=None,
         onay_tarihi=None,
         red_gerekce=None,
+        reddeden_kullanici_adi=None,
         iptal_gerekce=None,
         olusturan_manager_zinciri=zincir,
     )

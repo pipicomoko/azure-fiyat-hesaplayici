@@ -250,10 +250,269 @@ function filtreleUrunListesi(query) {
   });
 }
 
+let _departmanComboSayac = 0;
+
+function comboNormalize(deger) {
+  return String(deger || "")
+    .toLocaleLowerCase("tr-TR")
+    .trim();
+}
+
+function initializeDepartmanCombo() {
+  document.querySelectorAll("[data-departman-combo]").forEach((kok) => {
+    if (kok.dataset.comboReady === "true") {
+      return;
+    }
+    kok.dataset.comboReady = "true";
+    setupDepartmanCombo(kok);
+  });
+}
+
+function setupDepartmanCombo(kok) {
+  const native = kok.querySelector("select[name='birim']");
+  const input = kok.querySelector("[role='combobox']");
+  const list = kok.querySelector("[role='listbox']");
+  if (!native || !input || !list) {
+    return;
+  }
+
+  _departmanComboSayac += 1;
+  const uid = `departman-combo-${_departmanComboSayac}`;
+  list.id = uid + "-list";
+  input.setAttribute("aria-controls", list.id);
+  const options = Array.from(list.querySelectorAll("[role='option']"));
+  options.forEach((opt, i) => {
+    opt.id = `${uid}-opt-${i}`;
+  });
+
+  native.setAttribute("tabindex", "-1");
+  native.setAttribute("aria-hidden", "true");
+  kok.classList.add("is-ready");
+
+  let activeIndex = -1;
+
+  function gorunenSecenekler() {
+    return options.filter((opt) => !opt.hidden);
+  }
+
+  function seciliEtiket() {
+    const secili = native.options[native.selectedIndex];
+    return secili ? secili.textContent : input.dataset.emptyLabel || "";
+  }
+
+  function kapat(digerleriniDe) {
+    list.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+    kok.classList.remove("is-open");
+    if (digerleriniDe) {
+      document.querySelectorAll("[data-departman-combo].is-open").forEach((diger) => {
+        if (diger !== kok) {
+          const digerInput = diger.querySelector("[role='combobox']");
+          const digerList = diger.querySelector("[role='listbox']");
+          if (digerList) digerList.hidden = true;
+          if (digerInput) {
+            digerInput.setAttribute("aria-expanded", "false");
+            digerInput.removeAttribute("aria-activedescendant");
+          }
+          diger.classList.remove("is-open");
+        }
+      });
+    }
+  }
+
+  function aktifYap(opt) {
+    options.forEach((el) => el.classList.remove("is-active"));
+    if (!opt) {
+      activeIndex = -1;
+      input.removeAttribute("aria-activedescendant");
+      return;
+    }
+    opt.classList.add("is-active");
+    activeIndex = options.indexOf(opt);
+    input.setAttribute("aria-activedescendant", opt.id);
+    opt.scrollIntoView({ block: "nearest" });
+  }
+
+  function filtrele(sorgu, hepsiniGoster) {
+    const q = comboNormalize(sorgu);
+    options.forEach((opt) => {
+      const eslesir =
+        hepsiniGoster ||
+        !q ||
+        comboNormalize(opt.dataset.label).includes(q) ||
+        comboNormalize(opt.dataset.value).includes(q);
+      opt.hidden = !eslesir;
+    });
+  }
+
+  function ac(hepsiniGoster) {
+    document.querySelectorAll("[data-departman-combo].is-open").forEach((diger) => {
+      if (diger !== kok) {
+        const digerInput = diger.querySelector("[role='combobox']");
+        const digerList = diger.querySelector("[role='listbox']");
+        if (digerList) digerList.hidden = true;
+        if (digerInput) {
+          digerInput.setAttribute("aria-expanded", "false");
+          digerInput.removeAttribute("aria-activedescendant");
+        }
+        diger.classList.remove("is-open");
+      }
+    });
+    filtrele(hepsiniGoster ? "" : input.value, Boolean(hepsiniGoster));
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    kok.classList.add("is-open");
+    const gorunen = gorunenSecenekler();
+    const mevcut = options.find(
+      (opt) => opt.dataset.value === native.value && !opt.hidden,
+    );
+    aktifYap(mevcut || gorunen[0] || null);
+  }
+
+  function uygula(opt) {
+    if (!opt) {
+      return;
+    }
+    native.value = opt.dataset.value || "";
+    native.dispatchEvent(new Event("change", { bubbles: true }));
+    input.value = opt.dataset.label || "";
+    options.forEach((el) => {
+      el.setAttribute("aria-selected", el === opt ? "true" : "false");
+    });
+    kapat(false);
+  }
+
+  function yazilanlaEsle() {
+    const aktif = options.find((opt) => opt.classList.contains("is-active") && !opt.hidden);
+    if (!list.hidden && aktif) {
+      uygula(aktif);
+      return;
+    }
+    const q = comboNormalize(input.value);
+    if (!q || q === comboNormalize(input.dataset.emptyLabel)) {
+      const tumu = options.find((opt) => opt.dataset.value === "");
+      uygula(tumu);
+      return;
+    }
+    const adaylar = options.filter(
+      (opt) =>
+        comboNormalize(opt.dataset.label).includes(q) ||
+        comboNormalize(opt.dataset.value).includes(q),
+    );
+    const tam = adaylar.find(
+      (opt) =>
+        comboNormalize(opt.dataset.label) === q || comboNormalize(opt.dataset.value) === q,
+    );
+    if (tam) {
+      uygula(tam);
+    } else if (adaylar.length === 1) {
+      uygula(adaylar[0]);
+    } else {
+      input.value = seciliEtiket();
+      kapat(false);
+    }
+  }
+
+  input.addEventListener("click", () => {
+    if (list.hidden) {
+      ac(true);
+    }
+  });
+
+  input.addEventListener("input", () => {
+    ac(false);
+    const gorunen = gorunenSecenekler();
+    aktifYap(gorunen[0] || null);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      input.value = seciliEtiket();
+      kapat(false);
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (list.hidden) {
+        ac(true);
+        return;
+      }
+      const gorunen = gorunenSecenekler();
+      if (!gorunen.length) {
+        return;
+      }
+      const mevcut = gorunen.findIndex((opt) => opt.classList.contains("is-active"));
+      let sonraki = mevcut;
+      if (e.key === "ArrowDown") {
+        sonraki = mevcut < gorunen.length - 1 ? mevcut + 1 : 0;
+      } else {
+        sonraki = mevcut > 0 ? mevcut - 1 : gorunen.length - 1;
+      }
+      aktifYap(gorunen[sonraki]);
+      return;
+    }
+    if (e.key === "Enter") {
+      if (!list.hidden) {
+        e.preventDefault();
+        const aktif = options.find((opt) => opt.classList.contains("is-active") && !opt.hidden);
+        if (aktif) {
+          uygula(aktif);
+        } else {
+          yazilanlaEsle();
+        }
+      }
+      return;
+    }
+    if (e.key === "Tab") {
+      if (!list.hidden) {
+        yazilanlaEsle();
+      }
+    }
+  });
+
+  list.addEventListener("mousedown", (e) => {
+    const opt = e.target.closest("[role='option']");
+    if (!opt) {
+      return;
+    }
+    e.preventDefault();
+    uygula(opt);
+  });
+
+  input.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      if (!kok.contains(document.activeElement)) {
+        if (!list.hidden) {
+          yazilanlaEsle();
+        }
+      }
+    }, 0);
+  });
+
+  const form = kok.closest("form");
+  if (form) {
+    form.addEventListener("submit", yazilanlaEsle);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  document.querySelectorAll("[data-departman-combo].is-open").forEach((kok) => {
+    if (!kok.contains(e.target)) {
+      const input = kok.querySelector("[role='combobox']");
+      if (input) {
+        input.dispatchEvent(new Event("blur"));
+      }
+    }
+  });
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   initializeThemeToggle();
   initializeDetailsState();
   initializeRaporExport();
+  initializeDepartmanCombo();
   afhBosTarihFiltreleriniDoldur();
   syncSummaryTotals();
 });
@@ -262,9 +521,11 @@ document.body.addEventListener("htmx:afterSwap", () => {
   initializeThemeToggle();
   initializeDetailsState();
   initializeRaporExport();
+  initializeDepartmanCombo();
   afhBosTarihFiltreleriniDoldur();
   syncSummaryTotals();
 });
+
 
 document.body.addEventListener("htmx:afterSettle", syncSummaryTotals);
 

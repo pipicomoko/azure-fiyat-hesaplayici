@@ -29,6 +29,7 @@ from app.yetkilendirme import (
     departman_haritasini_yukle,
     genel_mudur_mu,
     hesaplama_gorunen_durum,
+    hesaplamalara_reddeden_ata,
     kullanici_izinli_mi,
     yetki_gerekli,
 )
@@ -90,6 +91,50 @@ def _ay_baslangici(tarih: date, geri: int = 0) -> date:
     return date(toplam // 12, toplam % 12 + 1, 1)
 
 
+def _aylik_trendler(kapsam: list[Hesaplama], bugun: date) -> list[dict]:
+    """12 aylik trend: grafik eski→yeni (soldan saga), tablo yeni→eski (ustten alta)."""
+    aylar = [_ay_baslangici(bugun, geri) for geri in reversed(range(12))]
+    para_birimleri = sorted(
+        {h.para_birimi or "USD" for h in kapsam if h.durum == DURUM_ONAYLANDI}
+    )
+    trendler = []
+    for para in para_birimleri:
+        degerler = []
+        for ay in aylar:
+            sonraki = _ay_baslangici(ay, -1)
+            degerler.append(
+                round(
+                    sum(
+                        float(h.toplam_aylik_maliyet or 0)
+                        for h in kapsam
+                        if h.durum == DURUM_ONAYLANDI
+                        and (h.para_birimi or "USD") == para
+                        and ay <= _kayit_tarihi(h) < sonraki
+                    ),
+                    2,
+                )
+            )
+        en_yuksek = max(degerler, default=0) or 1
+        noktalar_liste = [
+            {"x": 20 + i * 50, "y": round(170 - (deger / en_yuksek * 140), 1)}
+            for i, deger in enumerate(degerler)
+        ]
+        ay_satirlari = [
+            {"etiket": ay.strftime("%m.%Y"), "toplam": deger}
+            for ay, deger in zip(aylar, degerler)
+        ]
+        trendler.append(
+            {
+                "para_birimi": para,
+                "noktalar": " ".join(f"{n['x']},{n['y']}" for n in noktalar_liste),
+                "noktalar_liste": noktalar_liste,
+                "aylar": ay_satirlari,
+                "tablo_aylar": list(reversed(ay_satirlari)),
+            }
+        )
+    return trendler
+
+
 def _genel_mudur_baglami(
     tum: list[Hesaplama],
     aktiviteler: list[AktiviteKaydi],
@@ -99,6 +144,7 @@ def _genel_mudur_baglami(
     departman_ham: str = "",
     alt_birim_ham: str = "",
 ) -> dict:
+    hesaplamalara_reddeden_ata(tum, aktiviteler=aktiviteler)
     bugun = bugunun_tarihi()
     baslangic, bitis, tarih_hatasi = donem_araligini_coz(
         baslangic_ham, bitis_ham, bugun=bugun
@@ -194,43 +240,7 @@ def _genel_mudur_baglami(
             }
         )
 
-    aylar = [_ay_baslangici(bugun, geri) for geri in reversed(range(12))]
-    para_birimleri = sorted(
-        {h.para_birimi or "USD" for h in kapsam if h.durum == DURUM_ONAYLANDI}
-    )
-    trendler = []
-    for para in para_birimleri:
-        degerler = []
-        for ay in aylar:
-            sonraki = _ay_baslangici(ay, -1)
-            degerler.append(
-                round(
-                    sum(
-                        float(h.toplam_aylik_maliyet or 0)
-                        for h in kapsam
-                        if h.durum == DURUM_ONAYLANDI
-                        and (h.para_birimi or "USD") == para
-                        and ay <= _kayit_tarihi(h) < sonraki
-                    ),
-                    2,
-                )
-            )
-        en_yuksek = max(degerler, default=0) or 1
-        noktalar_liste = [
-            {"x": 20 + i * 50, "y": round(170 - (deger / en_yuksek * 140), 1)}
-            for i, deger in enumerate(degerler)
-        ]
-        trendler.append(
-            {
-                "para_birimi": para,
-                "noktalar": " ".join(f"{n['x']},{n['y']}" for n in noktalar_liste),
-                "noktalar_liste": noktalar_liste,
-                "aylar": [
-                    {"etiket": ay.strftime("%m.%Y"), "toplam": deger}
-                    for ay, deger in zip(aylar, degerler)
-                ],
-            }
-        )
+    trendler = _aylik_trendler(kapsam, bugun)
 
     sam = (kullanici.get("kullanici_adi") or "").lower()
     dogrudan_bekleyen = sorted(
@@ -280,6 +290,7 @@ def _departman_basi_baglami(
     baslangic_ham: str,
     bitis_ham: str,
 ) -> dict:
+    hesaplamalara_reddeden_ata(tum, aktiviteler=aktiviteler)
     bugun = bugunun_tarihi()
     baslangic, bitis, tarih_hatasi = donem_araligini_coz(
         baslangic_ham, bitis_ham, bugun=bugun
@@ -307,43 +318,7 @@ def _departman_basi_baglami(
         and baslangic <= (a.olusturulma_tarihi or datetime.min).date() <= bitis
     ]
 
-    aylar = [_ay_baslangici(bugun, geri) for geri in reversed(range(12))]
-    para_birimleri = sorted(
-        {h.para_birimi or "USD" for h in kapsam if h.durum == DURUM_ONAYLANDI}
-    )
-    trendler = []
-    for para in para_birimleri:
-        degerler = []
-        for ay in aylar:
-            sonraki = _ay_baslangici(ay, -1)
-            degerler.append(
-                round(
-                    sum(
-                        float(h.toplam_aylik_maliyet or 0)
-                        for h in kapsam
-                        if h.durum == DURUM_ONAYLANDI
-                        and (h.para_birimi or "USD") == para
-                        and ay <= _kayit_tarihi(h) < sonraki
-                    ),
-                    2,
-                )
-            )
-        en_yuksek = max(degerler, default=0) or 1
-        noktalar_liste = [
-            {"x": 20 + i * 50, "y": round(170 - (deger / en_yuksek * 140), 1)}
-            for i, deger in enumerate(degerler)
-        ]
-        trendler.append(
-            {
-                "para_birimi": para,
-                "noktalar": " ".join(f"{n['x']},{n['y']}" for n in noktalar_liste),
-                "noktalar_liste": noktalar_liste,
-                "aylar": [
-                    {"etiket": ay.strftime("%m.%Y"), "toplam": deger}
-                    for ay, deger in zip(aylar, degerler)
-                ],
-            }
-        )
+    trendler = _aylik_trendler(kapsam, bugun)
 
     kisi_kayitlari: dict[str, list[Hesaplama]] = defaultdict(list)
     kisi_adlari: dict[str, str] = {}
@@ -476,6 +451,7 @@ async def pano(
     tum = oturum.exec(
         select(Hesaplama).where(Hesaplama.olusturan_kullanici_adi == sam)
     ).all()
+    hesaplamalara_reddeden_ata(tum, oturum=oturum)
 
     gruplar: dict[str, list[Hesaplama]] = {durum: [] for durum in GORUNEN_DURUM_SIRASI}
     for h in tum:

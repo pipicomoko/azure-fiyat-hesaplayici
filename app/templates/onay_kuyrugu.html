@@ -11,7 +11,7 @@
 </section>
 
 <form method="get" action="/onay-kuyrugu" class="gecmis-search-toolbar mb-3" hx-boost="true">
-  <input type="text" name="birim" value="{{ filtre_birim }}" class="form-control form-control-sm" placeholder="{{ t('birim', dil) }}">
+  {% include "_departman_filtre.html" %}
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
     <input type="date" name="baslangic" value="{{ filtre_baslangic }}" class="form-control form-control-sm">

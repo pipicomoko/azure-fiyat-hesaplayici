@@ -13,16 +13,19 @@ from fastapi.templating import Jinja2Templates
 
 from app.guvenlik import csrf_token_al_veya_olustur
 from app.i18n import istekten_dil_al, t
+from app.disa_aktar import indirim_yuzdesini_oku, indirimli_aylik_hesapla
 from app.kayitli_tahmin import birim_etiketi, kalem_aciklamasi, kalem_bolgesi
 from app.sayfalama import sayfa_sorgusu
 from app.yetkilendirme import (
     GORUNEN_DURUM_FILTRE_SIRASI,
     departman_basi_alt_kademe_mi,
     departman_basi_mi,
+    departman_etiketi,
     gecmis_erisim_kapsami,
     genel_mudur_mu,
     hesaplama_departmani,
     hesaplama_gorunen_durum,
+    hesaplama_reddeden_sam,
     hesaplamayi_duzenleyebilir_mi,
     hesaplamayi_kopyalayabilir_mi,
     kullanici_izinli_mi,
@@ -39,7 +42,11 @@ templates.env.globals["genel_mudur_mu"] = genel_mudur_mu
 templates.env.globals["departman_basi_mi"] = departman_basi_mi
 templates.env.globals["departman_basi_alt_kademe_mi"] = departman_basi_alt_kademe_mi
 templates.env.globals["hesaplama_departmani"] = hesaplama_departmani
+templates.env.globals["departman_etiketi"] = departman_etiketi
+templates.env.filters["departman"] = departman_etiketi
 templates.env.globals["hesaplama_gorunen_durum"] = hesaplama_gorunen_durum
+templates.env.filters["reddeden"] = hesaplama_reddeden_sam
+templates.env.globals["hesaplama_reddeden_sam"] = hesaplama_reddeden_sam
 templates.env.globals["GORUNEN_DURUM_FILTRE_SIRASI"] = GORUNEN_DURUM_FILTRE_SIRASI
 templates.env.globals["hesaplamayi_duzenleyebilir_mi"] = hesaplamayi_duzenleyebilir_mi
 templates.env.globals["hesaplamayi_kopyalayabilir_mi"] = hesaplamayi_kopyalayabilir_mi
@@ -115,12 +122,39 @@ def _yillik(deger: float) -> float:
     return deger * 12
 
 
+def _liste_aylik(hesaplama) -> float:
+    """Kalemlerin indirimsiz (liste) aylik toplami."""
+    return sum(
+        float(getattr(k, "aylik_maliyet", 0) or 0)
+        for k in (getattr(hesaplama, "kalemler", None) or [])
+    )
+
+
+def _indirimli_aylik_satir_toplami(hesaplama) -> float:
+    """Indirim uygulanmis kalemlerin indirimli aylik toplami (digerleri 0)."""
+    toplam = 0.0
+    for k in getattr(hesaplama, "kalemler", None) or []:
+        ind = getattr(k, "indirimli_aylik_maliyet", None)
+        if ind is not None:
+            toplam += float(ind)
+    return toplam
+
+
+def _sablon_indirimli_aylik(liste_aylik, indirim_ham):
+    return indirimli_aylik_hesapla(
+        float(liste_aylik or 0), indirim_yuzdesini_oku(indirim_ham)
+    )
+
+
 templates.env.filters["para"] = _para_bicimlendir
 templates.env.filters["birim_fiyat"] = _birim_fiyat_bicimlendir
 templates.env.filters["birim"] = birim_etiketi
 templates.env.filters["yillik"] = _yillik
+templates.env.filters["liste_aylik"] = _liste_aylik
+templates.env.filters["indirimli_aylik_toplam"] = _indirimli_aylik_satir_toplami
 templates.env.filters["yerel_saat"] = yerel_saate_cevir
 templates.env.filters["gorunen_durum"] = hesaplama_gorunen_durum
+templates.env.globals["indirimli_aylik_hesapla"] = _sablon_indirimli_aylik
 
 
 def render(
@@ -132,6 +166,7 @@ def render(
     tam_baglam.setdefault("csrf_token", csrf_token_al_veya_olustur(request))
     # Sablon yardimcilari: reload/eski worker senaryolarinda global kaybolmasin
     tam_baglam.setdefault("hesaplama_gorunen_durum", hesaplama_gorunen_durum)
+    tam_baglam.setdefault("hesaplama_reddeden_sam", hesaplama_reddeden_sam)
     tam_baglam.setdefault("GORUNEN_DURUM_FILTRE_SIRASI", GORUNEN_DURUM_FILTRE_SIRASI)
     tam_baglam.setdefault(
         "hesaplamayi_duzenleyebilir_mi", hesaplamayi_duzenleyebilir_mi

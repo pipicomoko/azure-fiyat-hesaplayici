@@ -70,6 +70,10 @@
               <div class="estimate-foot__label">{{ t('tahmin_yillik_maliyet', dil) }}</div>
               <div class="estimate-foot__value" id="tahmin-yillik-toplam">0</div>
             </div>
+            <div id="tahmin-indirimli-yillik-wrap" hidden>
+              <div class="estimate-foot__label">{{ t('indirimli_yillik_maliyet', dil) }}</div>
+              <div class="estimate-foot__value" id="tahmin-indirimli-yillik-toplam">0</div>
+            </div>
           </div>
         </div>
       </section>
@@ -97,6 +101,10 @@
               <span class="rail-metric__label">{{ t('tahmin_yillik_maliyet', dil) }}</span>
               <strong class="rail-metric__value" id="sidebar-yillik-toplam">0</strong>
             </div>
+            <div class="rail-metric" id="sidebar-indirimli-yillik-wrap" hidden>
+              <span class="rail-metric__label">{{ t('indirimli_yillik_maliyet', dil) }}</span>
+              <strong class="rail-metric__value" id="sidebar-indirimli-yillik-toplam">0</strong>
+            </div>
           </div>
         </div>
       </div>
@@ -106,8 +114,15 @@
           {% if duzenlenen_hesaplama_id %}
           <input type="hidden" name="hesaplama_id" value="{{ duzenlenen_hesaplama_id }}">
           {% endif %}
-          {% if red_gerekce %}
-          <div class="ui-alert ui-alert--warning">{{ t('red_gerekce', dil) }}: {{ red_gerekce }}</div>
+          {% if red_gerekce or reddeden_kullanici_adi %}
+          <div class="ui-alert ui-alert--warning">
+            {% if reddeden_kullanici_adi %}
+            <div>{{ t('reddeden', dil) }}: {{ sam_gorunen_adi(reddeden_kullanici_adi) }}</div>
+            {% endif %}
+            {% if red_gerekce %}
+            <div>{{ t('red_gerekce', dil) }}: {{ red_gerekce }}</div>
+            {% endif %}
+          </div>
           {% endif %}
           <div>
             <label class="ui-label" for="hesaplama-adi">{{ t('hesaplama_adi', dil) }}</label>

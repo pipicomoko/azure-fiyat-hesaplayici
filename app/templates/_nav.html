@@ -108,7 +108,8 @@
           </div>
           {% if kullanici_izinli_mi(kullanici, 'hesaplama.kullan') and (ustu_yok or departman_basi or birim_sorumlusu) %}
           <a class="app-user-menu-item" href="/tahmin">{{ t('nav_tahmin', dil) }}</a>
-          <a class="app-user-menu-item" href="/gecmis/taslaklar">{{ t('nav_tahmin_gecmisi', dil) }}</a>
+          <a class="app-user-menu-item" href="/gecmis/taslaklar">{{ t('nav_taslaklar', dil) }}</a>
+          <a class="app-user-menu-item" href="/gecmis/gonderilenler">{{ t('nav_gonderilenler', dil) }}</a>
           {% endif %}
           <button type="button"
                   class="app-user-menu-item"

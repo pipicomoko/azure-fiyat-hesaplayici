@@ -166,7 +166,7 @@ def test_coklu_calisma_kitabi_yuzlerce_kayit_makul_surede():
 
 
 def test_indirimli_yillik_sutunu_formulu_ve_toplam():
-    """Indirimli yillik = web ile ayni: indirimli_aylik * 12. Toplam satiri dolu."""
+    """Indirimli yillik = indirimli_aylik * 12. Yillik Tahmini Maliyet liste*12."""
     from app.disa_aktar import satirlara_indirim_uygula
 
     aylik = 100.0
@@ -197,17 +197,17 @@ def test_indirimli_yillik_sutunu_formulu_ve_toplam():
     assert veri[5].value == 100.0
     assert veri[6].value == 10.0
     assert veri[7].value == 90.0
-    assert veri[8].value == 1080.0  # 90 * 12
-    assert veri[10].value == 1080.0  # Yillik Tahmini Maliyet de esas*12
+    assert veri[8].value == 1080.0  # indirimli yillik = 90 * 12
+    assert veri[10].value == 1200.0  # Yillik Tahmini Maliyet = liste 100 * 12
     assert "$" in (veri[5].number_format or "")
     assert "$" in (veri[7].number_format or "")
     assert "$" in (veri[8].number_format or "")
     assert "$" not in (veri[6].number_format or "")  # yuzde
 
     toplam = next(row for row in sayfa.iter_rows() if row[3].value == "Total")
-    assert toplam[5].value == 90.0
+    assert toplam[5].value == 90.0  # aylik toplam indirimli kalir
     assert toplam[8].value == 1080.0
-    assert toplam[10].value == 1080.0
+    assert toplam[10].value == 1200.0  # yillik toplam liste * 12
     assert "$" in (toplam[8].number_format or "")
 
 

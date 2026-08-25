@@ -55,7 +55,7 @@
             <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
             <td>{{ hesaplama.kalemler|length }}</td>
             <td class="num">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi, dil) }}</td>
-            <td class="num">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi, dil) }}</td>
+            <td class="num">{{ hesaplama | liste_aylik | yillik | para(hesaplama.para_birimi, dil) }}</td>
             <td>
               <div class="d-flex gap-1 justify-content-end">
                 <a href="/tahmin?hesaplama_id={{ hesaplama.id }}" class="btn btn-sm btn-outline-primary">{{ t('duzenle', dil) }}</a>
@@ -155,6 +155,9 @@
               data-durum="{{ gd }}">
             <td>
               <a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a>
+              {% if gd == 'reddedildi' and (hesaplama|reddeden) %}
+              <div class="small text-muted">{{ t('reddeden', dil) }}: {{ sam_gorunen_adi(hesaplama|reddeden) }}</div>
+              {% endif %}
               {% if hesaplama.red_gerekce %}
               <div class="small text-danger">{{ hesaplama.red_gerekce }}</div>
               {% endif %}
@@ -167,7 +170,7 @@
             <td>{{ (hesaplama.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y %H:%M") }}</td>
             <td>{{ hesaplama.kalemler|length }}</td>
             <td class="num">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi, dil) }}</td>
-            <td class="num">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi, dil) }}</td>
+            <td class="num">{{ hesaplama | liste_aylik | yillik | para(hesaplama.para_birimi, dil) }}</td>
             <td>
               <div class="d-flex gap-1 justify-content-end">
                 {% if hesaplamayi_duzenleyebilir_mi(kullanici, hesaplama) %}
@@ -223,12 +226,7 @@
 
 <form method="get" action="/gecmis/arama" class="gecmis-search-toolbar mb-3" hx-boost="true">
   {% if departman_listesi %}
-  <select name="birim" class="form-select form-select-sm gecmis-search-select">
-    <option value="">{{ t('gecmis_tum_departmanlar', dil) }}</option>
-    {% for dep in departman_listesi %}
-    <option value="{{ dep.anahtar }}" {% if filtre_birim == dep.anahtar %}selected{% endif %}>{{ dep.etiket }}</option>
-    {% endfor %}
-  </select>
+  {% include "_departman_filtre.html" %}
   {% endif %}
   <input type="search" name="kisi" value="{{ filtre_kisi }}" class="form-control form-control-sm gecmis-search-input"
          placeholder="{{ t('gecmis_isim_ara', dil) }}" autocomplete="off">
@@ -308,7 +306,12 @@
                      value="{{ hesaplama.id }}"
                      aria-label="{{ t('rapor_sec', dil) }}: {{ hesaplama.ad }}">
             </td>
-            <td><a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a></td>
+            <td>
+              <a href="/gecmis/{{ hesaplama.id }}" class="fw-semibold text-decoration-none">{{ hesaplama.ad }}</a>
+              {% if gd == 'reddedildi' and (hesaplama|reddeden) %}
+              <div class="small text-muted">{{ t('reddeden', dil) }}: {{ sam_gorunen_adi(hesaplama|reddeden) }}</div>
+              {% endif %}
+            </td>
             <td>
               <span class="ui-badge{% if gd == 'onaylandi' %} ui-badge--success{% elif gd == 'reddedildi' %} ui-badge--danger{% elif gd == 'onay_bekliyor' %} ui-badge--warning{% endif %}">
                 {{ t('durum_' + gd, dil) }}
@@ -319,7 +322,7 @@
             <td class="text-muted small">{{ hesaplama.olusturan_unvan or '-' }}</td>
             <td>{{ hesaplama.kalemler|length }}</td>
             <td class="num">{{ hesaplama.toplam_aylik_maliyet | para(hesaplama.para_birimi, dil) }}</td>
-            <td class="num">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi, dil) }}</td>
+            <td class="num">{{ hesaplama | liste_aylik | yillik | para(hesaplama.para_birimi, dil) }}</td>
             <td>
               <div class="d-flex gap-1 justify-content-end">
                 {% if hesaplamayi_kopyalayabilir_mi(kullanici, hesaplama) %}

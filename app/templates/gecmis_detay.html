@@ -64,8 +64,12 @@
       <li>Rev {{ hesaplama.revizyon }}</li>
       {% endif %}
     </ul>
-    {% if hesaplama.red_gerekce %}
-    <p class="detail-header__reject">{{ t('red_gerekce', dil) }}: {{ hesaplama.red_gerekce }}</p>
+    {% set reddeden = hesaplama|reddeden %}
+    {% if gorunen_durum == 'reddedildi' and (hesaplama.red_gerekce or reddeden) %}
+    <p class="detail-header__reject">
+      {% if reddeden %}{{ t('reddeden', dil) }}: {{ sam_gorunen_adi(reddeden) }}{% if hesaplama.red_gerekce %}<br>{% endif %}{% endif %}
+      {% if hesaplama.red_gerekce %}{{ t('red_gerekce', dil) }}: {{ hesaplama.red_gerekce }}{% endif %}
+    </p>
     {% endif %}
     {% if hesaplama.iptal_gerekce %}
     <p class="detail-header__reject">{{ t('iptal_gerekce', dil) }}: {{ hesaplama.iptal_gerekce }}</p>
@@ -103,7 +107,10 @@
         {% if kalem.indirim_yuzdesi is not none %}
         <div class="small">−{{ kalem.indirim_yuzdesi }}%</div>
         {% endif %}
-        <div class="text-muted small">{{ (kalem.indirimli_aylik_maliyet if kalem.indirimli_aylik_maliyet is not none else kalem.aylik_maliyet) | yillik | para(hesaplama.para_birimi) }} / {{ t('yillik_maliyet', dil) | lower }}</div>
+        <div class="text-muted small">{{ kalem.aylik_maliyet | yillik | para(hesaplama.para_birimi) }} / {{ t('yillik_maliyet', dil) | lower }}</div>
+        {% if kalem.indirimli_aylik_maliyet is not none %}
+        <div class="text-muted small">{{ kalem.indirimli_aylik_maliyet | yillik | para(hesaplama.para_birimi) }} / {{ t('indirimli_yillik_maliyet', dil) | lower }}</div>
+        {% endif %}
       </div>
     </div>
 
@@ -130,8 +137,14 @@
     </div>
     <div>
       <div class="text-muted small">{{ t('toplam_yillik', dil) }}</div>
-      <div class="h4 mb-0">{{ hesaplama.toplam_aylik_maliyet | yillik | para(hesaplama.para_birimi) }}</div>
+      <div class="h4 mb-0">{{ hesaplama | liste_aylik | yillik | para(hesaplama.para_birimi) }}</div>
     </div>
+    {% if (hesaplama | indirimli_aylik_toplam) %}
+    <div>
+      <div class="text-muted small">{{ t('indirimli_yillik_maliyet', dil) }}</div>
+      <div class="h4 mb-0">{{ hesaplama | indirimli_aylik_toplam | yillik | para(hesaplama.para_birimi) }}</div>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

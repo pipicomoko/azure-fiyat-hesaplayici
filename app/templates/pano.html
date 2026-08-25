@@ -48,7 +48,12 @@
           <tbody>
             {% for h in kart.kayitlar %}
             <tr>
-              <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
+              <td>
+                <a href="/gecmis/{{ h.id }}">{{ h.ad }}</a>
+                {% if kart.filtre == 'reddedildi' and (h|reddeden) %}
+                <small class="table-subline">{{ t('reddeden', dil) }}: {{ sam_gorunen_adi(h|reddeden) }}</small>
+                {% endif %}
+              </td>
               <td>{{ (h.olusturulma_tarihi | yerel_saat).strftime("%d.%m.%Y") }}</td>
               <td class="num">{{ h.toplam_aylik_maliyet | para(h.para_birimi, dil) }}</td>
             </tr>

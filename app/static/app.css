@@ -804,6 +804,107 @@ body.app-body {
   display: none;
 }
 
+.gecmis-search-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.gecmis-search-toolbar .gecmis-search-select {
+  width: 14rem;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.gecmis-search-toolbar .gecmis-search-input,
+.gecmis-search-toolbar .form-control[name="kisi"] {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+/* Department filter combobox (Reports, approval queue, history search) */
+.departman-combo {
+  position: relative;
+  display: block;
+  width: 14rem;
+  max-width: 100%;
+}
+
+.departman-combo-panel {
+  display: none;
+}
+
+.departman-combo.is-ready .departman-combo-panel {
+  display: block;
+}
+
+.departman-combo.is-ready .departman-combo-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.departman-combo-field {
+  position: relative;
+}
+
+.departman-combo-field::after {
+  content: "▾";
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.departman-combo.is-ready .departman-combo-field .gecmis-search-select {
+  width: 100%;
+  padding-right: 1.6rem;
+}
+
+.departman-combo-list {
+  position: absolute;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-overlay);
+}
+
+.departman-combo-list[hidden] {
+  display: none;
+}
+
+.departman-combo-list [role="option"] {
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.departman-combo-list [role="option"]:hover,
+.departman-combo-list [role="option"].is-active,
+.departman-combo-list [role="option"][aria-selected="true"] {
+  background: var(--accent-subtle);
+}
+
 /* Details / nested sections inside line items */
 .estimate-item__body details {
   margin-top: var(--space-3);

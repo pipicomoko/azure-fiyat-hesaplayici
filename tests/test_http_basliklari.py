@@ -147,3 +147,31 @@ def test_gecmis_excel_turkce_ad_500_vermez(client, veritabani):
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     assert len(yanit.content) > 100
+
+
+def test_raporlar_excel_toplu_dosya_adi_azure_tahminler(client, veritabani):
+    """Toplu rapor Excel: azure-tahminler-{YYYYMMDD-HHMM}.xlsx (gecmis-excel ile ayni)."""
+    import re
+
+    from sqlmodel import Session
+
+    from app.main import app
+    from app.yetkilendirme import aktif_kullanici
+    from tests.test_raporlar import _YONETICI, _onayli
+
+    app.dependency_overrides[aktif_kullanici] = lambda: _YONETICI
+    with Session(veritabani) as oturum:
+        _onayli(oturum, "Rapor Excel Adi")
+
+    yanit = client.get("/raporlar/excel")
+    assert yanit.status_code == 200, yanit.text[:500]
+    cd = yanit.headers.get("content-disposition", "")
+    assert "attachment" in cd
+    assert "\r" not in cd and "\n" not in cd
+    assert cd.count("filename=") == 1
+    assert cd.count("filename*=") == 1
+    assert "afh-rapor-" not in cd
+    cd.encode("latin-1")
+    utf8_adi = unquote(cd.split("filename*=UTF-8''", 1)[1])
+    assert re.fullmatch(r"azure-tahminler-\d{8}-\d{4}\.xlsx", utf8_adi)
+    assert len(yanit.content) > 100

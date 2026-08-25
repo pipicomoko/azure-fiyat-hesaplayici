@@ -9,30 +9,63 @@
 </form>
 
 <script>
+function afhKalemIndiriminiUygula(kalem) {
+  const liste = parseFloat(kalem.dataset.listeTutar || kalem.dataset.tutar || '0') || 0;
+  kalem.dataset.listeTutar = String(liste);
+  const input = kalem.querySelector('input[name$=".indirim_yuzdesi"]');
+  let tutar = liste;
+  if (input) {
+    const ham = String(input.value || '').trim();
+    if (ham !== '') {
+      const yuzde = parseFloat(ham);
+      if (Number.isFinite(yuzde) && yuzde >= 0 && yuzde <= 100) {
+        tutar = Math.round(liste * (1 - yuzde / 100) * 10000) / 10000;
+      }
+    }
+  }
+  kalem.dataset.tutar = String(tutar);
+  return { liste: liste, tutar: tutar };
+}
+
 function tahminToplamiGuncelle() {
   const kalemler = document.querySelectorAll('#tahmin-govdesi .tahmin-kalemi');
-  let toplam = 0;
+  let aylikToplam = 0;
+  let listeAylikToplam = 0;
   kalemler.forEach(function (kalem) {
-    toplam += parseFloat(kalem.dataset.tutar || '0');
+    const deger = afhKalemIndiriminiUygula(kalem);
+    aylikToplam += deger.tutar;
+    listeAylikToplam += deger.liste;
   });
   const paraBirimi = 'USD';
   const aylikMetin = typeof formatCurrency === 'function'
-    ? formatCurrency(toplam, paraBirimi)
-    : (toplam.toFixed(2) + ' ' + paraBirimi);
+    ? formatCurrency(aylikToplam, paraBirimi)
+    : (aylikToplam.toFixed(2) + ' ' + paraBirimi);
   const yillikMetin = typeof formatCurrency === 'function'
-    ? formatCurrency(toplam * 12, paraBirimi)
-    : ((toplam * 12).toFixed(2) + ' ' + paraBirimi);
+    ? formatCurrency(listeAylikToplam * 12, paraBirimi)
+    : ((listeAylikToplam * 12).toFixed(2) + ' ' + paraBirimi);
+  const indirimliYillikMetin = typeof formatCurrency === 'function'
+    ? formatCurrency(aylikToplam * 12, paraBirimi)
+    : ((aylikToplam * 12).toFixed(2) + ' ' + paraBirimi);
+  const indirimVar = aylikToplam + 1e-9 < listeAylikToplam;
 
   const toplamElemani = document.getElementById('tahmin-toplam');
   const yillikToplamElemani = document.getElementById('tahmin-yillik-toplam');
+  const indirimliYillikElemani = document.getElementById('tahmin-indirimli-yillik-toplam');
+  const indirimliYillikWrap = document.getElementById('tahmin-indirimli-yillik-wrap');
   const sidebarTotal = document.getElementById('sidebar-aylik-toplam');
   const sidebarYearly = document.getElementById('sidebar-yillik-toplam');
+  const sidebarIndirimliYillik = document.getElementById('sidebar-indirimli-yillik-toplam');
+  const sidebarIndirimliWrap = document.getElementById('sidebar-indirimli-yillik-wrap');
   const sidebarCount = document.getElementById('sidebar-kalem-sayisi');
 
   if (toplamElemani) toplamElemani.textContent = aylikMetin;
   if (yillikToplamElemani) yillikToplamElemani.textContent = yillikMetin;
+  if (indirimliYillikElemani) indirimliYillikElemani.textContent = indirimliYillikMetin;
+  if (indirimliYillikWrap) indirimliYillikWrap.hidden = !indirimVar;
   if (sidebarTotal) sidebarTotal.textContent = aylikMetin;
   if (sidebarYearly) sidebarYearly.textContent = yillikMetin;
+  if (sidebarIndirimliYillik) sidebarIndirimliYillik.textContent = indirimliYillikMetin;
+  if (sidebarIndirimliWrap) sidebarIndirimliWrap.hidden = !indirimVar;
   if (sidebarCount) sidebarCount.textContent = String(kalemler.length);
 
   if (typeof syncSummaryTotals === 'function') {
@@ -49,6 +82,14 @@ function tahminToplamiGuncelle() {
 }
 document.body.addEventListener('htmx:afterSwap', tahminToplamiGuncelle);
 document.body.addEventListener('htmx:afterSettle', tahminToplamiGuncelle);
+document.body.addEventListener('input', function (e) {
+  const el = e.target;
+  if (!el || !el.name || String(el.name).indexOf('.indirim_yuzdesi') === -1) return;
+  const kalem = el.closest('.tahmin-kalemi');
+  if (!kalem) return;
+  afhKalemIndiriminiUygula(kalem);
+  tahminToplamiGuncelle();
+});
 tahminToplamiGuncelle();
 </script>
 {% endblock %}

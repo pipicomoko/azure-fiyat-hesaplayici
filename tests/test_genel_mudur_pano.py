@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import re
+from datetime import date, datetime, timezone
 
 from sqlmodel import Session
 
@@ -10,6 +11,8 @@ from app.models import (
     AktiviteKaydi,
     Hesaplama,
 )
+from app.routers.dashboard import _ay_baslangici, _aylik_trendler
+from app.tarih_filtre import bugunun_tarihi
 from app.yetkilendirme import aktif_kullanici, giris_sonrasi_yol
 
 
@@ -247,3 +250,54 @@ def test_durum_sayaclari_audit_islem_tarihini_kullanir(client, veritabani):
 
 def test_ahmet_giris_sonrasi_yonetici_ozetine_yonlenir():
     assert giris_sonrasi_yol(AHMET) == "/"
+
+
+def _trend_donemleri(bugun: date | None = None) -> tuple[list[str], list[str]]:
+    gun = bugun or bugunun_tarihi()
+    eski_yeni = [
+        _ay_baslangici(gun, geri).strftime("%m.%Y") for geri in reversed(range(12))
+    ]
+    return eski_yeni, list(reversed(eski_yeni))
+
+
+def _html_trend_sirasi(html: str) -> tuple[list[str], list[list[str]]]:
+    bolum = re.search(r"executive-trend(.*?)</section>", html, re.S)
+    assert bolum, "trend bolumu bulunamadi"
+    parca = bolum.group(1)
+    grafik = re.findall(r"<title>(\d{2}\.\d{4}):", parca)
+    tablolar = [
+        re.findall(r"<td>(\d{2}\.\d{4})</td>", govde)
+        for govde in re.findall(r"<tbody>(.*?)</tbody>", parca, re.S)
+    ]
+    return grafik, tablolar
+
+
+def test_trend_tablo_yeni_eski_grafik_eski_yeni():
+    """Grafik soldan saga eski→yeni; veri tablosu ustten alta yeni→eski."""
+    bugun = date(2026, 8, 24)
+    kayit = _kayit("Agustos", DURUM_ONAYLANDI, 100)
+    kayit.onay_tarihi = datetime(2026, 8, 10, tzinfo=timezone.utc)
+    kayit.olusturulma_tarihi = kayit.onay_tarihi
+    trend = _aylik_trendler([kayit], bugun)[0]
+    eski_yeni, yeni_eski = _trend_donemleri(bugun)
+    assert [ay["etiket"] for ay in trend["aylar"]] == eski_yeni
+    assert [ay["etiket"] for ay in trend["tablo_aylar"]] == yeni_eski
+    assert yeni_eski[0] == "08.2026"
+    assert eski_yeni[0] == "09.2025"
+    xs = [n["x"] for n in trend["noktalar_liste"]]
+    assert xs == sorted(xs)
+    assert xs[0] < xs[-1]
+
+
+def test_gm_trend_tablosu_gunumuzden_gecmise(client, veritabani):
+    app.dependency_overrides[aktif_kullanici] = lambda: AHMET
+    with Session(veritabani) as oturum:
+        oturum.add(_kayit("Trend USD", DURUM_ONAYLANDI, 1250, "USD"))
+        oturum.commit()
+
+    yanit = client.get("/")
+    assert yanit.status_code == 200
+    eski_yeni, yeni_eski = _trend_donemleri()
+    grafik, tablolar = _html_trend_sirasi(yanit.text)
+    assert grafik == eski_yeni
+    assert tablolar == [yeni_eski]

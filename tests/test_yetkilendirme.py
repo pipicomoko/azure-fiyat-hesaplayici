@@ -35,6 +35,130 @@ def test_gorunen_durum_sirasi_bekleyen_onay_red_taslak():
     assert GORUNEN_DURUM_FILTRE_SIRASI == GORUNEN_DURUM_SIRASI + ("iptal_edildi",)
 
 
+def test_hesaplama_gorunen_durum_reddedileni_taslaktan_ayirir():
+    from types import SimpleNamespace
+
+    from app.yetkilendirme import hesaplama_gorunen_durum
+
+    taslak = SimpleNamespace(
+        durum="taslak", red_gerekce=None, reddeden_kullanici_adi=None
+    )
+    gerekceli = SimpleNamespace(
+        durum="taslak", red_gerekce="eksik", reddeden_kullanici_adi=None
+    )
+    reddedenli = SimpleNamespace(
+        durum="taslak", red_gerekce=None, reddeden_kullanici_adi="onur.simsek"
+    )
+    bekleyen = SimpleNamespace(
+        durum="onay_bekliyor", red_gerekce=None, reddeden_kullanici_adi=None
+    )
+    assert hesaplama_gorunen_durum(taslak) == "taslak"
+    assert hesaplama_gorunen_durum(gerekceli) == "reddedildi"
+    assert hesaplama_gorunen_durum(reddedenli) == "reddedildi"
+    assert hesaplama_gorunen_durum(bekleyen) == "onay_bekliyor"
+
+
+def test_kopya_kaynak_adi_copy_son_ekini_ayirir():
+    from app.yetkilendirme import kopya_kaynak_adi
+
+    assert kopya_kaynak_adi("OnurŞimşek RED COPY (2)") == "OnurŞimşek RED"
+    assert kopya_kaynak_adi("OnurŞimşek RED COPY") == "OnurŞimşek RED"
+    assert kopya_kaynak_adi("OnurŞimşek RED") is None
+    assert kopya_kaynak_adi("Foo COPY COPY") == "Foo COPY"
+
+
+def test_hesaplama_reddeden_fallback_sirasi():
+    from types import SimpleNamespace
+
+    from app.yetkilendirme import hesaplama_reddeden_sam, hesaplamalara_reddeden_ata
+
+    alan = SimpleNamespace(
+        id=1,
+        durum="taslak",
+        red_gerekce="x",
+        reddeden_kullanici_adi="ali.veli",
+        onaylayan_kullanici_adi="eski.kisi",
+        ad="A",
+        olusturan_kullanici_adi="ayse",
+    )
+    hesaplamalara_reddeden_ata([alan], aktiviteler=[])
+    assert hesaplama_reddeden_sam(alan) == "ali.veli"
+
+    aktivite_kaydi = SimpleNamespace(
+        id=2,
+        durum="taslak",
+        red_gerekce="x",
+        reddeden_kullanici_adi=None,
+        onaylayan_kullanici_adi="eski.kisi",
+        ad="B",
+        olusturan_kullanici_adi="ayse",
+    )
+    aktivite = SimpleNamespace(
+        islem="reddedildi",
+        hesaplama_id=2,
+        aktor_kullanici_adi="onur.simsek",
+        olusturulma_tarihi=None,
+    )
+    hesaplamalara_reddeden_ata([aktivite_kaydi], aktiviteler=[aktivite])
+    assert hesaplama_reddeden_sam(aktivite_kaydi) == "onur.simsek"
+
+    onaylayan = SimpleNamespace(
+        id=3,
+        durum="taslak",
+        red_gerekce="x",
+        reddeden_kullanici_adi=None,
+        onaylayan_kullanici_adi="eski.kisi",
+        ad="C",
+        olusturan_kullanici_adi="ayse",
+    )
+    hesaplamalara_reddeden_ata([onaylayan], aktiviteler=[])
+    assert hesaplama_reddeden_sam(onaylayan) == "eski.kisi"
+
+    kaynak = SimpleNamespace(
+        id=10,
+        durum="taslak",
+        red_gerekce="x",
+        reddeden_kullanici_adi="onur.simsek",
+        onaylayan_kullanici_adi=None,
+        ad="OnurŞimşek RED",
+        olusturan_kullanici_adi="test.kullanici",
+    )
+    kopya = SimpleNamespace(
+        id=11,
+        durum="taslak",
+        red_gerekce="x",
+        reddeden_kullanici_adi=None,
+        onaylayan_kullanici_adi=None,
+        ad="OnurŞimşek RED COPY (2)",
+        olusturan_kullanici_adi="test.kullanici",
+    )
+    hesaplamalara_reddeden_ata([kopya, kaynak], aktiviteler=[])
+    assert hesaplama_reddeden_sam(kopya) == "onur.simsek"
+
+
+def test_yeni_taslak_red_rozetsiz_kalir():
+    from types import SimpleNamespace
+
+    from app.yetkilendirme import (
+        hesaplama_gorunen_durum,
+        hesaplama_reddeden_sam,
+        hesaplamalara_reddeden_ata,
+    )
+
+    taslak = SimpleNamespace(
+        id=20,
+        durum="taslak",
+        red_gerekce=None,
+        reddeden_kullanici_adi=None,
+        onaylayan_kullanici_adi=None,
+        ad="OnurŞimşek RED COPY",
+        olusturan_kullanici_adi="test.kullanici",
+    )
+    hesaplamalara_reddeden_ata([taslak], aktiviteler=[])
+    assert hesaplama_gorunen_durum(taslak) == "taslak"
+    assert hesaplama_reddeden_sam(taslak) == ""
+
+
 class _SahteOznitelik:
     def __init__(self, deger):
         self.value = deger
@@ -208,18 +332,46 @@ def test_hesaplamayi_kopyalayabilir_mi_durum_ve_izin():
         "rol": "admin",
     }
 
-    def _h(durum, red=None, sahip_adi="ayse.yilmaz"):
+    def _h(durum, red=None, sahip_adi="ayse.yilmaz", reddeden=None):
         return SimpleNamespace(
             olusturan_kullanici_adi=sahip_adi,
             durum=durum,
             red_gerekce=red,
+            reddeden_kullanici_adi=reddeden,
             olusturan_manager_zinciri=["onur.simsek"],
         )
 
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("taslak")) is True
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("onay_bekliyor")) is True
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("taslak", red="eksik")) is True
+    assert hesaplamayi_kopyalayabilir_mi(
+        sahip, _h("taslak", reddeden="onur.simsek")
+    ) is True
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("onaylandi")) is False
     assert hesaplamayi_kopyalayabilir_mi(sahip, _h("iptal_edildi")) is False
     assert hesaplamayi_kopyalayabilir_mi(admin, _h("onay_bekliyor")) is False
     assert hesaplamayi_kopyalayabilir_mi(None, _h("taslak")) is False
+
+
+def test_departman_filtre_eslesir_ana_ve_alt():
+    from app.yetkilendirme import departman_filtre_eslesir
+
+    assert departman_filtre_eslesir("it", "it") is True
+    assert departman_filtre_eslesir("it-yazilim", "it") is True
+    assert departman_filtre_eslesir("finans", "it") is False
+    assert departman_filtre_eslesir("it-yazilim", "it-yazilim") is True
+    assert departman_filtre_eslesir("it", "it-yazilim") is False
+    assert departman_filtre_eslesir("it", "") is True
+
+
+def test_departman_secenek_listesi_haritadan_gelir():
+    from app.yetkilendirme import departman_secenek_listesi
+
+    liste = departman_secenek_listesi()
+    anahtarlar = {d["anahtar"] for d in liste}
+    assert "it" in anahtarlar
+    assert "finans" in anahtarlar
+    assert "it-yazilim" in anahtarlar
+    etiketler = {d["etiket"] for d in liste}
+    assert "IT" in etiketler
+    assert "Finans" in etiketler

@@ -29,6 +29,8 @@ from app.yetkilendirme import (
     IZIN_AUDIT_GOR,
     IZIN_ONAY_ISLEM,
     IZIN_RAPOR_GOR,
+    departman_filtre_eslesir,
+    departman_secenek_listesi,
     hesaplamaya_erisebilir_mi,
     hesaplamayi_iptal_edebilir_mi,
     kendi_hesaplamasini_isliyor_mu,
@@ -72,7 +74,7 @@ def _onayli_rapor_listesi(
         ]
     if birim_q:
         gorunen = [
-            h for h in gorunen if birim_q in (h.olusturan_departman or "").lower()
+            h for h in gorunen if departman_filtre_eslesir(h.olusturan_departman, birim_q)
         ]
     if baslangic:
         gorunen = [
@@ -130,7 +132,9 @@ async def onay_kuyrugu(
     baslangic, bitis = bos_tarihleri_doldur(baslangic, bitis)
     if birim_q:
         bekleyen = [
-            h for h in bekleyen if birim_q in (h.olusturan_departman or "").lower()
+            h
+            for h in bekleyen
+            if departman_filtre_eslesir(h.olusturan_departman, birim_q)
         ]
     if baslangic:
         bekleyen = [
@@ -159,6 +163,7 @@ async def onay_kuyrugu(
             "filtre_birim": birim,
             "filtre_baslangic": baslangic,
             "filtre_bitis": bitis,
+            "departman_listesi": departman_secenek_listesi(),
         },
     )
 
@@ -188,6 +193,7 @@ async def onayla(
     hesaplama.onaylayan_kullanici_adi = sam
     hesaplama.onay_tarihi = datetime.now(timezone.utc)
     hesaplama.red_gerekce = None
+    hesaplama.reddeden_kullanici_adi = None
     oturum.add(hesaplama)
     _aktivite(oturum, sam, "onaylandi", hesaplama.id, hesaplama.ad)
     oturum.commit()
@@ -218,6 +224,7 @@ async def reddet(
         )
     hesaplama.durum = DURUM_TASLAK
     hesaplama.red_gerekce = (gerekce or "").strip() or None
+    hesaplama.reddeden_kullanici_adi = sam
     hesaplama.onay_hedefi = None
     hesaplama.revizyon = int(hesaplama.revizyon or 1) + 1
     oturum.add(hesaplama)
@@ -319,6 +326,7 @@ async def raporlar(
             "filtre_baslangic": baslangic,
             "filtre_bitis": bitis,
             "sayfalama": sayfalama,
+            "departman_listesi": departman_secenek_listesi(),
         },
     )
 
@@ -350,7 +358,8 @@ async def raporlar_excel(
             status_code=400,
         )
     icerik = donemsel_rapor_kitabi_olustur(gorunen)
-    dosya_adi = f"afh-rapor-{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
+    zaman = datetime.now().strftime("%Y%m%d-%H%M")
+    dosya_adi = f"azure-tahminler-{zaman}.xlsx"
     return StreamingResponse(
         io.BytesIO(icerik),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

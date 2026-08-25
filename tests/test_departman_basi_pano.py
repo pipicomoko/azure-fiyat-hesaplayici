@@ -145,3 +145,27 @@ def test_ara_kademe_yonetici_departman_basi_panelini_gormez(client, veritabani):
     assert "Departman Yönetimi" not in yanit.text
     assert "dashboard-grid" in yanit.text or "dashboard-stat" in yanit.text
     assert "Taslak" in yanit.text or "Draft" in yanit.text
+
+
+def test_departman_basi_trend_tablosu_gunumuzden_gecmise(client, veritabani):
+    from tests.test_genel_mudur_pano import _html_trend_sirasi, _trend_donemleri
+
+    murat = _kullanici("murat.ozturk", "Murat Ozturk", "finans")
+    app.dependency_overrides[aktif_kullanici] = lambda: murat
+    with Session(veritabani) as oturum:
+        oturum.add(
+            _kayit(
+                "Finans Trend",
+                DURUM_ONAYLANDI,
+                "finans",
+                ["caner.bulut", "sibel.arslan", "murat.ozturk", "ahmet.yildirim"],
+            )
+        )
+        oturum.commit()
+
+    yanit = client.get("/")
+    assert yanit.status_code == 200
+    eski_yeni, yeni_eski = _trend_donemleri()
+    grafik, tablolar = _html_trend_sirasi(yanit.text)
+    assert grafik == eski_yeni
+    assert tablolar == [yeni_eski]

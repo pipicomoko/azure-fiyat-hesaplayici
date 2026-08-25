@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
+from urllib.parse import unquote
 
 from sqlmodel import Session
 
@@ -76,6 +78,10 @@ def test_raporlar_excel_secili_idler(client, veritabani):
     yanit = client.get(f"/raporlar/excel?ids={a_id}")
     assert yanit.status_code == 200
     assert len(yanit.content) > 100
+    cd = yanit.headers.get("content-disposition", "")
+    assert "afh-rapor-" not in cd
+    utf8_adi = unquote(cd.split("filename*=UTF-8''", 1)[1])
+    assert re.fullmatch(r"azure-tahminler-\d{8}-\d{4}\.xlsx", utf8_adi)
 
     from io import BytesIO
 
@@ -118,6 +124,9 @@ def test_gecmis_excel_secili_idler(client, veritabani):
     yanit = client.get(f"/gecmis-excel?ids={a_id}")
     assert yanit.status_code == 200
     assert len(yanit.content) > 100
+    cd = yanit.headers.get("content-disposition", "")
+    utf8_adi = unquote(cd.split("filename*=UTF-8''", 1)[1])
+    assert re.fullmatch(r"azure-tahminler-\d{8}-\d{4}\.xlsx", utf8_adi)
 
 
 def test_raporlar_sayfalama_sinirlari(client, veritabani):
@@ -325,3 +334,72 @@ def test_onay_kuyrugu_gecersiz_sayfa(client, veritabani):
     assert yanit.status_code == 200
     yanit2 = client.get("/onay-kuyrugu?birim=yok-boyle-birim")
     assert yanit2.status_code == 200
+
+
+def _assert_departman_arama_kutusu(html: str, *, secili: str | None = None) -> None:
+    assert 'name="birim"' in html
+    assert 'data-departman-combo' in html
+    assert 'role="combobox"' in html
+    assert 'role="listbox"' in html
+    assert "Tüm departmanlar" in html
+    assert ">Finans<" in html
+    assert 'data-value="finans"' in html
+    assert 'data-value="it-yazilim"' in html
+    assert 'data-label="IT Yazilim"' in html
+    if secili:
+        assert f'option value="{secili}" selected' in html
+        assert f'data-value="{secili}"' in html
+
+
+def test_raporlar_departman_acilir_liste_ve_filtre(client, veritabani):
+    app.dependency_overrides[aktif_kullanici] = lambda: _YONETICI
+    with Session(veritabani) as oturum:
+        _onayli(oturum, "Finans Rapor")
+        h = _onayli(oturum, "IT Rapor")
+        h.olusturan_departman = "it"
+        oturum.add(h)
+        oturum.commit()
+
+    yanit = client.get("/raporlar")
+    assert yanit.status_code == 200
+    _assert_departman_arama_kutusu(yanit.text)
+    assert 'placeholder="Unit"' not in yanit.text
+    assert "Departman" in yanit.text
+    assert "Finans Rapor" in yanit.text
+    assert "IT Rapor" in yanit.text
+
+    filtrelenmis = client.get("/raporlar?birim=finans")
+    assert filtrelenmis.status_code == 200
+    assert "Finans Rapor" in filtrelenmis.text
+    assert "IT Rapor" not in filtrelenmis.text
+    _assert_departman_arama_kutusu(filtrelenmis.text, secili="finans")
+
+
+def test_onay_kuyrugu_departman_acilir_liste(client, veritabani):
+    app.dependency_overrides[aktif_kullanici] = lambda: _YONETICI
+    yanit = client.get("/onay-kuyrugu")
+    assert yanit.status_code == 200
+    _assert_departman_arama_kutusu(yanit.text)
+
+
+def test_gecmis_arama_departman_arama_kutusu_ve_filtre(client, veritabani):
+    app.dependency_overrides[aktif_kullanici] = lambda: _YONETICI
+    with Session(veritabani) as oturum:
+        a = _onayli(oturum, "Finans Arama")
+        a.olusturan_manager_zinciri = ["onur.simsek"]
+        b = _onayli(oturum, "IT Arama")
+        b.olusturan_departman = "it"
+        b.olusturan_manager_zinciri = ["onur.simsek"]
+        oturum.add(a)
+        oturum.add(b)
+        oturum.commit()
+
+    yanit = client.get("/gecmis/arama")
+    assert yanit.status_code == 200
+    _assert_departman_arama_kutusu(yanit.text)
+
+    filtrelenmis = client.get("/gecmis/arama?birim=finans")
+    assert filtrelenmis.status_code == 200
+    assert "Finans Arama" in filtrelenmis.text
+    assert "IT Arama" not in filtrelenmis.text
+    _assert_departman_arama_kutusu(filtrelenmis.text, secili="finans")

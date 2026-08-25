@@ -67,6 +67,7 @@ def veritabanini_olustur() -> None:
     _ekle_sutun("hesaplamalar", "onaylayan_kullanici_adi", "VARCHAR")
     _ekle_sutun("hesaplamalar", "onay_tarihi", "TIMESTAMP")
     _ekle_sutun("hesaplamalar", "red_gerekce", "VARCHAR")
+    _ekle_sutun("hesaplamalar", "reddeden_kullanici_adi", "VARCHAR")
     _ekle_sutun("hesaplamalar", "iptal_gerekce", "VARCHAR")
     _ekle_sutun(
         "hesaplamalar",

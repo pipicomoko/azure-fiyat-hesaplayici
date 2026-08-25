@@ -1,0 +1,35 @@
+{% set _tum = t('gecmis_tum_departmanlar', dil) %}
+{% set _secili = namespace(etiket=_tum) %}
+{% for dep in departman_listesi %}
+  {% if filtre_birim == dep.anahtar %}{% set _secili.etiket = dep.etiket %}{% endif %}
+{% endfor %}
+{% if filtre_birim and _secili.etiket == _tum %}{% set _secili.etiket = filtre_birim %}{% endif %}
+<div class="departman-combo gecmis-search-select" data-departman-combo>
+  <select name="birim" class="form-select form-select-sm gecmis-search-select departman-combo-native" aria-label="{{ t('birim', dil) }}">
+    <option value="">{{ _tum }}</option>
+    {% for dep in departman_listesi %}
+    <option value="{{ dep.anahtar }}" {% if filtre_birim == dep.anahtar %}selected{% endif %}>{{ dep.etiket }}</option>
+    {% endfor %}
+  </select>
+  <div class="departman-combo-panel">
+    <div class="departman-combo-field">
+      <input type="text"
+             class="form-control form-control-sm gecmis-search-select"
+             role="combobox"
+             aria-label="{{ t('birim', dil) }}"
+             aria-expanded="false"
+             aria-autocomplete="list"
+             aria-haspopup="listbox"
+             autocomplete="off"
+             spellcheck="false"
+             value="{{ _secili.etiket }}"
+             data-empty-label="{{ _tum }}">
+    </div>
+    <ul class="departman-combo-list" role="listbox" hidden>
+      <li role="option" data-value="" data-label="{{ _tum }}" {% if not filtre_birim %}aria-selected="true"{% endif %}>{{ _tum }}</li>
+      {% for dep in departman_listesi %}
+      <li role="option" data-value="{{ dep.anahtar }}" data-label="{{ dep.etiket }}" {% if filtre_birim == dep.anahtar %}aria-selected="true"{% endif %}>{{ dep.etiket }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>

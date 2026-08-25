@@ -1,15 +1,25 @@
+{% set liste_aylik = (fiyat.aylik_toplam if fiyat else 0) %}
+{% set indirimli_aylik = indirimli_aylik_hesapla(liste_aylik, yapilandirma.indirim_yuzdesi if yapilandirma.indirim_yuzdesi is defined else none) %}
 <article class="tahmin-kalemi" id="kalem-{{ kalem_id }}"
      hx-post="/tahmin/kalem/hesapla?kalem_id={{ kalem_id }}"
      hx-trigger="change"
      hx-target="this" hx-swap="outerHTML"
-     data-tutar="{{ (fiyat.aylik_toplam if fiyat else 0) | round(4) }}"
+     data-tutar="{{ (indirimli_aylik if indirimli_aylik is not none else liste_aylik) | round(4) }}"
+     data-liste-tutar="{{ liste_aylik | round(4) }}"
      data-adet="{{ yapilandirma.adet | default(1) }}">
   <div class="estimate-item__summary">
     <div class="estimate-item__product">{{ urun.ad(dil) }}</div>
     <div class="estimate-item__config">{{ urun.ozet(yapilandirma, dil) }}</div>
     <div class="num">{{ yapilandirma.adet | default(1) }}</div>
     <div class="estimate-item__price num">
-      {% if fiyat %}{{ fiyat.aylik_toplam | para(para_birimi, dil) }}{% else %}—{% endif %}
+      {% if fiyat %}
+        {% if indirimli_aylik is not none %}
+        {{ indirimli_aylik | para(para_birimi, dil) }}
+        <div class="small text-muted text-decoration-line-through">{{ liste_aylik | para(para_birimi, dil) }}</div>
+        {% else %}
+        {{ liste_aylik | para(para_birimi, dil) }}
+        {% endif %}
+      {% else %}—{% endif %}
     </div>
     <div class="estimate-item__actions">
       <button type="button" class="ui-btn ui-btn--danger ui-btn--sm"

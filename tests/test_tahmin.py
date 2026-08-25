@@ -95,6 +95,29 @@ def test_kalem_hesapla_alan_degisince_yeniden_fiyatlar(client):
     yanit = client.post(f"/tahmin/kalem/hesapla?kalem_id={kalem_id}", data=veri)
     assert yanit.status_code == 200
     assert 'data-tutar="4.608"' in yanit.text  # 3 x $1.536
+    assert 'data-liste-tutar="4.608"' in yanit.text
+
+
+def test_kalem_hesapla_indirim_aylik_uygular_liste_tutarini_korur(client):
+    ekleme = client.post(
+        "/tahmin/kalem-ekle", data={"urun_tipi": "managed_disks", "para_birimi": "USD"}
+    )
+    kalem_id = _kalem_id_cikar(ekleme.text)
+    veri = {
+        f"{kalem_id}.urun_tipi": "managed_disks",
+        f"{kalem_id}.bolge": "eastus",
+        f"{kalem_id}.kademe": "standardhdd",
+        f"{kalem_id}.sku": "S4",
+        f"{kalem_id}.adet": "3",
+        f"{kalem_id}.islem_adet": "0",
+        f"{kalem_id}.indirim_yuzdesi": "10",
+        "para_birimi": "USD",
+    }
+    yanit = client.post(f"/tahmin/kalem/hesapla?kalem_id={kalem_id}", data=veri)
+    assert yanit.status_code == 200
+    assert 'data-liste-tutar="4.608"' in yanit.text
+    assert 'data-tutar="4.1472"' in yanit.text  # 4.608 * 0.9
+    assert "10" in yanit.text
 
 
 def test_gecersiz_urun_tipi_reddedilir(client):
@@ -168,6 +191,7 @@ def test_disa_aktar_butonu_formnovalidate_onay_hedefi_zorunlu_kalir(client):
         dil="tr",
         para_birimi="USD",
         red_gerekce=None,
+        reddeden_kullanici_adi=None,
         hesaplama_adi="",
         kalem_sonuclari=[],
     )
@@ -395,6 +419,77 @@ def test_gecmis_detay_yillik_maliyet_gosterir(client, veritabani):
     assert yanit.status_code == 200
     assert "Test Senaryosu" in yanit.text
     assert "S4" in yanit.text  # kalemin ozeti detayda gorunuyor
+
+
+def test_indirim_aylik_uygulanir_yillik_liste_fiyati_kalir(client, veritabani):
+    ekleme = client.post(
+        "/tahmin/kalem-ekle", data={"urun_tipi": "managed_disks", "para_birimi": "USD"}
+    )
+    kalem_id = _kalem_id_cikar(ekleme.text)
+    veri = {
+        f"{kalem_id}.urun_tipi": "managed_disks",
+        f"{kalem_id}.bolge": "eastus",
+        f"{kalem_id}.kademe": "standardhdd",
+        f"{kalem_id}.sku": "S4",
+        f"{kalem_id}.adet": "1",
+        f"{kalem_id}.indirim_yuzdesi": "10",
+        "para_birimi": "USD",
+        "hesaplama_adi": "Indirimli Senaryo",
+    }
+    kaydet = client.post("/tahmin/kaydet", data=veri)
+    assert kaydet.status_code == 200
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        from sqlmodel import select
+
+        kayit = oturum.exec(select(Hesaplama)).one()
+        kalem = kayit.kalemler[0]
+        aylik = float(kalem.aylik_maliyet)
+        indirimli = float(kalem.indirimli_aylik_maliyet)
+        assert kalem.indirim_yuzdesi == 10.0
+        assert indirimli == round(aylik * 0.9, 4)
+        assert round(kayit.toplam_aylik_maliyet, 4) == indirimli
+        para = kayit.para_birimi
+        kayit_id = kayit.id
+
+    from app.sablonlar import _para_bicimlendir, _yillik
+
+    liste_yillik = _para_bicimlendir(_yillik(aylik), para)
+    indirimli_yillik = _para_bicimlendir(_yillik(indirimli), para)
+    indirimli_aylik_metin = _para_bicimlendir(indirimli, para)
+
+    detay = client.get(f"/gecmis/{kayit_id}")
+    assert detay.status_code == 200
+    assert indirimli_aylik_metin in detay.text
+    assert liste_yillik in detay.text
+    assert indirimli_yillik in detay.text
+    assert "İndirimli yıllık maliyeti" in detay.text
+
+    liste = client.get("/gecmis/taslaklar")
+    assert liste.status_code == 200
+    assert liste_yillik in liste.text
+    assert indirimli_aylik_metin in liste.text
+
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    excel = client.get(f"/gecmis/{kayit_id}/excel")
+    assert excel.status_code == 200
+    sayfa = load_workbook(BytesIO(excel.content)).active
+    veri_satiri = next(
+        row for row in sayfa.iter_rows() if row[1].value == "Managed Disks"
+    )
+    excel_aylik = float(veri_satiri[5].value)
+    assert excel_aylik == round(aylik, 2)
+    assert veri_satiri[7].value == round(indirimli, 2)
+    assert veri_satiri[8].value == round(indirimli * 12, 2)
+    assert veri_satiri[10].value == round(excel_aylik * 12, 2)
+    assert veri_satiri[10].value != veri_satiri[8].value
+    toplam = next(row for row in sayfa.iter_rows() if row[3].value == "Total")
+    assert toplam[5].value == round(indirimli, 2)
+    assert toplam[8].value == round(indirimli * 12, 2)
+    assert toplam[10].value == round(excel_aylik * 12, 2)
 
 
 def test_gecmis_sadece_sahibi_gorur_admin_taslak_gormez(client, veritabani):
@@ -843,6 +938,7 @@ def test_taslak_kopyalanir(client, veritabani):
         assert kopya.durum == DURUM_TASLAK
         assert kopya.revizyon == 1
         assert kopya.red_gerekce is None
+        assert kopya.reddeden_kullanici_adi is None
         assert kopya.onay_hedefi is None
         assert kopya.onay_hedefi_ad_soyad is None
         assert kopya.onaylayan_kullanici_adi is None
@@ -907,6 +1003,7 @@ def test_reddedilmis_kopyalanir(client, veritabani):
         kayit = oturum.get(Hesaplama, kaynak_id)
         kayit.durum = DURUM_TASLAK
         kayit.red_gerekce = "Eksik aciklama"
+        kayit.reddeden_kullanici_adi = "onur.simsek"
         kayit.revizyon = 2
         oturum.add(kayit)
         oturum.commit()
@@ -919,10 +1016,12 @@ def test_reddedilmis_kopyalanir(client, veritabani):
         kaynak = oturum.get(Hesaplama, kaynak_id)
         kopya = oturum.get(Hesaplama, yeni_id)
         assert kaynak.red_gerekce == "Eksik aciklama"
+        assert kaynak.reddeden_kullanici_adi == "onur.simsek"
         assert kopya.ad == "Reddedilen Tahmin COPY"
         assert kopya.durum == DURUM_TASLAK
         assert kopya.revizyon == 1
         assert kopya.red_gerekce is None
+        assert kopya.reddeden_kullanici_adi is None
         assert kopya.olusturan_kullanici_adi == "test.kullanici"
         assert len(kopya.kalemler) == 1
 
@@ -1027,3 +1126,373 @@ def test_yonetici_baskasinin_kaydini_kendine_kopyalar(client, veritabani):
         assert kopya.onay_hedefi is None
 
     app.dependency_overrides.pop(aktif_kullanici, None)
+
+
+_CALISAN = {
+    "kullanici_adi": "test.kullanici",
+    "ad_soyad": "Test Kullanici",
+    "unvan": "Test Unvani",
+    "gruplar": ["AFH-Calisanlar"],
+    "manager": "onur.simsek",
+    "manager_zinciri": ["onur.simsek", "emre.turan", "baris.kocak"],
+    "rol": "calisan",
+}
+_YONETICI = {
+    "kullanici_adi": "onur.simsek",
+    "ad_soyad": "Onur Simsek",
+    "unvan": "Birim Sorumlusu",
+    "gruplar": ["AFH-Calisanlar", "AFH-Yoneticiler"],
+    "rol": "yonetici",
+    "manager": "emre.turan",
+    "manager_zinciri": ["emre.turan"],
+}
+
+
+def _bekleyen_hesaplama(veritabani, ad, sahip="test.kullanici", hedef="onur.simsek"):
+    from datetime import datetime, timezone
+
+    from app.models import DURUM_ONAY_BEKLIYOR
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = Hesaplama(
+            ad=ad,
+            durum=DURUM_ONAY_BEKLIYOR,
+            olusturan_kullanici_adi=sahip,
+            onay_hedefi=hedef,
+            toplam_aylik_maliyet=1.0,
+            para_birimi="USD",
+            olusturulma_tarihi=datetime.now(timezone.utc),
+        )
+        oturum.add(kayit)
+        oturum.commit()
+        oturum.refresh(kayit)
+        return kayit.id
+
+
+def test_reddedilen_taslak_listesinde_yok_gonderilenlerde_var(client, veritabani):
+    from app.main import app
+    from app.models import DURUM_TASLAK
+    from app.yetkilendirme import aktif_kullanici
+    from sqlmodel import select
+
+    kayit_id = _bekleyen_hesaplama(veritabani, "Reddedilen Liste")
+    app.dependency_overrides[aktif_kullanici] = lambda: _YONETICI
+    reddet = client.post(
+        f"/onay/{kayit_id}/reddet",
+        data={"gerekce": "Eksik aciklama"},
+        follow_redirects=False,
+    )
+    assert reddet.status_code == 303
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.exec(select(Hesaplama).where(Hesaplama.id == kayit_id)).one()
+        assert kayit.durum == DURUM_TASLAK
+        assert kayit.red_gerekce == "Eksik aciklama"
+        assert kayit.reddeden_kullanici_adi == "onur.simsek"
+
+    app.dependency_overrides[aktif_kullanici] = lambda: _CALISAN
+    taslaklar = client.get("/gecmis/taslaklar")
+    gonderilenler = client.get("/gecmis/gonderilenler")
+    detay = client.get(f"/gecmis/{kayit_id}")
+    pano = client.get("/")
+
+    assert taslaklar.status_code == 200
+    assert "Reddedilen Liste" not in taslaklar.text
+    assert gonderilenler.status_code == 200
+    assert "Reddedilen Liste" in gonderilenler.text
+    assert "Reddeden" in gonderilenler.text
+    assert "Onur Simsek" in gonderilenler.text
+    assert "Eksik aciklama" in gonderilenler.text
+    assert detay.status_code == 200
+    assert "Reddeden" in detay.text
+    assert "Onur Simsek" in detay.text
+    kutu = re.search(r'class="detail-header__reject">(.*?)</p>', detay.text, re.S)
+    assert kutu, "red kutusu yok"
+    assert "Reddeden" in kutu.group(1)
+    assert "Onur Simsek" in kutu.group(1)
+    assert "Eksik aciklama" in kutu.group(1)
+    assert pano.status_code == 200
+    assert "Reddedilen Liste" in pano.text
+    assert "Reddeden" in pano.text
+    assert "Onur Simsek" in pano.text
+
+
+def test_reddet_gerekcesiz_yine_reddedilen_listesine_girer(client, veritabani):
+    from app.main import app
+    from app.yetkilendirme import aktif_kullanici
+
+    kayit_id = _bekleyen_hesaplama(veritabani, "Gerekcesiz Red")
+    app.dependency_overrides[aktif_kullanici] = lambda: _YONETICI
+    reddet = client.post(
+        f"/onay/{kayit_id}/reddet",
+        data={"gerekce": "   "},
+        follow_redirects=False,
+    )
+    assert reddet.status_code == 303
+
+    app.dependency_overrides[aktif_kullanici] = lambda: _CALISAN
+    taslaklar = client.get("/gecmis/taslaklar")
+    gonderilenler = client.get("/gecmis/gonderilenler")
+    assert "Gerekcesiz Red" not in taslaklar.text
+    assert "Gerekcesiz Red" in gonderilenler.text
+    assert "Reddeden" in gonderilenler.text
+
+
+def test_taslak_kaydet_red_bilgisini_korur(client, veritabani):
+    from app.models import DURUM_TASLAK
+    from sqlmodel import select
+
+    _kaydet(client, "Red Sonrasi Taslak")
+    kayit_id = _hesaplama_id_al(veritabani, "Red Sonrasi Taslak")
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.get(Hesaplama, kayit_id)
+        kayit.durum = DURUM_TASLAK
+        kayit.red_gerekce = "Revize"
+        kayit.reddeden_kullanici_adi = "onur.simsek"
+        oturum.add(kayit)
+        oturum.commit()
+
+    ekleme = client.post(
+        "/tahmin/kalem-ekle", data={"urun_tipi": "managed_disks", "para_birimi": "USD"}
+    )
+    kalem_id = _kalem_id_cikar(ekleme.text)
+    veri = {
+        f"{kalem_id}.urun_tipi": "managed_disks",
+        f"{kalem_id}.bolge": "eastus",
+        f"{kalem_id}.kademe": "standardhdd",
+        f"{kalem_id}.sku": "S4",
+        f"{kalem_id}.adet": "1",
+        "para_birimi": "USD",
+        "hesaplama_adi": "Red Sonrasi Taslak",
+        "hesaplama_id": str(kayit_id),
+        "onaya_gonder": "0",
+    }
+    yanit = client.post("/tahmin/kaydet", data=veri)
+    assert yanit.status_code == 200
+    assert "/gecmis/gonderilenler" in (yanit.headers.get("HX-Redirect") or yanit.text)
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.exec(select(Hesaplama).where(Hesaplama.id == kayit_id)).one()
+        assert kayit.durum == DURUM_TASLAK
+        assert kayit.red_gerekce == "Revize"
+        assert kayit.reddeden_kullanici_adi == "onur.simsek"
+
+    taslaklar = client.get("/gecmis/taslaklar")
+    gonderilenler = client.get("/gecmis/gonderilenler")
+    assert "Red Sonrasi Taslak" not in taslaklar.text
+    assert "Red Sonrasi Taslak" in gonderilenler.text
+
+
+def test_onaya_tekrar_gonderince_red_bilgisi_silinir(client, veritabani):
+    from app.models import DURUM_ONAY_BEKLIYOR, DURUM_TASLAK
+    from sqlmodel import select
+
+    _kaydet(client, "Tekrar Gonder")
+    kayit_id = _hesaplama_id_al(veritabani, "Tekrar Gonder")
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.get(Hesaplama, kayit_id)
+        kayit.durum = DURUM_TASLAK
+        kayit.red_gerekce = "Revize"
+        kayit.reddeden_kullanici_adi = "onur.simsek"
+        oturum.add(kayit)
+        oturum.commit()
+
+    ekleme = client.post(
+        "/tahmin/kalem-ekle", data={"urun_tipi": "managed_disks", "para_birimi": "USD"}
+    )
+    kalem_id = _kalem_id_cikar(ekleme.text)
+    veri = {
+        f"{kalem_id}.urun_tipi": "managed_disks",
+        f"{kalem_id}.bolge": "eastus",
+        f"{kalem_id}.kademe": "standardhdd",
+        f"{kalem_id}.sku": "S4",
+        f"{kalem_id}.adet": "1",
+        "para_birimi": "USD",
+        "hesaplama_adi": "Tekrar Gonder",
+        "hesaplama_id": str(kayit_id),
+        "onaya_gonder": "1",
+        "onay_hedefi": "onur.simsek",
+    }
+    yanit = client.post("/tahmin/kaydet", data=veri)
+    assert yanit.status_code == 200
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.exec(select(Hesaplama).where(Hesaplama.id == kayit_id)).one()
+        assert kayit.durum == DURUM_ONAY_BEKLIYOR
+        assert kayit.red_gerekce is None
+        assert kayit.reddeden_kullanici_adi is None
+
+
+def test_reddet_csrf_eksik_reddedilir(client, veritabani):
+    from app.main import app
+    from app.models import DURUM_ONAY_BEKLIYOR
+    from app.yetkilendirme import aktif_kullanici
+    from sqlmodel import select
+
+    kayit_id = _bekleyen_hesaplama(veritabani, "CSRF Red")
+    app.dependency_overrides[aktif_kullanici] = lambda: _YONETICI
+    client.headers.pop("X-CSRF-Token", None)
+    yanit = client.post(
+        f"/onay/{kayit_id}/reddet",
+        data={"gerekce": "Hayir"},
+        follow_redirects=False,
+    )
+    assert yanit.status_code == 403
+
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.exec(select(Hesaplama).where(Hesaplama.id == kayit_id)).one()
+        assert kayit.durum == DURUM_ONAY_BEKLIYOR
+        assert kayit.reddeden_kullanici_adi is None
+
+
+def test_ustu_olmayan_reddedileni_taslaklara_koymaz(client, veritabani):
+    from app.main import app
+    from app.models import DURUM_TASLAK
+    from app.yetkilendirme import GENEL_MUDUR_SAM, aktif_kullanici
+
+    gm = {
+        "kullanici_adi": GENEL_MUDUR_SAM,
+        "ad_soyad": "Ahmet Yildirim",
+        "unvan": "Genel Mudur",
+        "gruplar": ["AFH-Calisanlar", "AFH-Direktorler"],
+        "rol": "direktor",
+        "manager": None,
+        "manager_zinciri": [],
+    }
+    app.dependency_overrides[aktif_kullanici] = lambda: gm
+    _kaydet(client, "GM Taslak")
+    taslak_id = _hesaplama_id_al(veritabani, "GM Taslak")
+    reddedilen_id = _bekleyen_hesaplama(
+        veritabani, "GM Reddedilen", sahip=GENEL_MUDUR_SAM
+    )
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.get(Hesaplama, reddedilen_id)
+        kayit.durum = DURUM_TASLAK
+        kayit.red_gerekce = "Ust ret"
+        kayit.reddeden_kullanici_adi = "onur.simsek"
+        kayit.onay_hedefi = None
+        oturum.add(kayit)
+        oturum.commit()
+
+    taslaklar = client.get("/gecmis/taslaklar")
+    gonderilenler = client.get("/gecmis/gonderilenler")
+    assert taslaklar.status_code == 200
+    assert "GM Taslak" in taslaklar.text
+    assert "GM Reddedilen" not in taslaklar.text
+    assert gonderilenler.status_code == 200
+    assert "GM Reddedilen" in gonderilenler.text
+    assert taslak_id
+    app.dependency_overrides.pop(aktif_kullanici, None)
+
+
+def test_eski_red_aktivite_aktorunu_detay_ve_listede_gosterir(client, veritabani):
+    from datetime import datetime, timezone
+
+    from app.models import AktiviteKaydi, DURUM_TASLAK
+
+    _kaydet(client, "OnurŞimşek RED COPY (2)")
+    kayit_id = _hesaplama_id_al(veritabani, "OnurŞimşek RED COPY (2)")
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.get(Hesaplama, kayit_id)
+        kayit.durum = DURUM_TASLAK
+        kayit.red_gerekce = "x"
+        kayit.reddeden_kullanici_adi = None
+        oturum.add(kayit)
+        oturum.add(
+            AktiviteKaydi(
+                aktor_kullanici_adi="onur.simsek",
+                islem="reddedildi",
+                hesaplama_id=kayit_id,
+                detay="x",
+                olusturulma_tarihi=datetime.now(timezone.utc),
+            )
+        )
+        oturum.commit()
+
+    detay = client.get(f"/gecmis/{kayit_id}")
+    gonderilenler = client.get("/gecmis/gonderilenler")
+    pano = client.get("/")
+    assert detay.status_code == 200
+    kutu = re.search(r'class="detail-header__reject">(.*?)</p>', detay.text, re.S)
+    assert kutu
+    assert "Reddeden" in kutu.group(1)
+    assert "Onur Simsek" in kutu.group(1)
+    assert "x" in kutu.group(1)
+    assert gonderilenler.status_code == 200
+    assert "Reddeden" in gonderilenler.text
+    assert "Onur Simsek" in gonderilenler.text
+    assert pano.status_code == 200
+    assert "Reddeden" in pano.text
+    assert "Onur Simsek" in pano.text
+
+
+def test_eski_red_onaylayan_aktorunu_detayda_gosterir(client, veritabani):
+    from app.models import DURUM_TASLAK
+
+    _kaydet(client, "Tarihi Red")
+    kayit_id = _hesaplama_id_al(veritabani, "Tarihi Red")
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.get(Hesaplama, kayit_id)
+        kayit.durum = DURUM_TASLAK
+        kayit.red_gerekce = "Eski gerekce"
+        kayit.reddeden_kullanici_adi = None
+        kayit.onaylayan_kullanici_adi = "onur.simsek"
+        oturum.add(kayit)
+        oturum.commit()
+
+    detay = client.get(f"/gecmis/{kayit_id}")
+    assert detay.status_code == 200
+    assert "Reddeden" in detay.text
+    assert "Onur Simsek" in detay.text
+
+
+def test_kopya_red_gerekcesi_kaynak_reddedenini_gosterir(client, veritabani):
+    from app.models import DURUM_TASLAK
+
+    _kaydet(client, "OnurŞimşek RED")
+    kaynak_id = _hesaplama_id_al(veritabani, "OnurŞimşek RED")
+    _kaydet(client, "OnurŞimşek RED COPY (2)")
+    kopya_id = _hesaplama_id_al(veritabani, "OnurŞimşek RED COPY (2)")
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kaynak = oturum.get(Hesaplama, kaynak_id)
+        kaynak.durum = DURUM_TASLAK
+        kaynak.red_gerekce = "x"
+        kaynak.reddeden_kullanici_adi = "onur.simsek"
+        kopya = oturum.get(Hesaplama, kopya_id)
+        kopya.durum = DURUM_TASLAK
+        kopya.red_gerekce = "x"
+        kopya.reddeden_kullanici_adi = None
+        oturum.add(kaynak)
+        oturum.add(kopya)
+        oturum.commit()
+
+    detay = client.get(f"/gecmis/{kopya_id}")
+    assert detay.status_code == 200
+    assert "Reddeden" in detay.text
+    assert "Onur Simsek" in detay.text
+    kutu = re.search(r'class="detail-header__reject">(.*?)</p>', detay.text, re.S)
+    assert kutu
+    assert "Onur Simsek" in kutu.group(1)
+
+
+def test_gecmis_excel_reddeden_metasini_yazar(client, veritabani):
+    from io import BytesIO
+
+    from app.models import DURUM_TASLAK
+    from openpyxl import load_workbook
+
+    _kaydet(client, "Excel Red")
+    kayit_id = _hesaplama_id_al(veritabani, "Excel Red")
+    with __import__("sqlmodel").Session(veritabani) as oturum:
+        kayit = oturum.get(Hesaplama, kayit_id)
+        kayit.durum = DURUM_TASLAK
+        kayit.red_gerekce = "Eksik"
+        kayit.reddeden_kullanici_adi = "onur.simsek"
+        oturum.add(kayit)
+        oturum.commit()
+
+    excel = client.get(f"/gecmis/{kayit_id}/excel")
+    assert excel.status_code == 200
+    satirlar = list(load_workbook(BytesIO(excel.content)).active.iter_rows(values_only=True))
+    assert ("Reddeden", "Onur Simsek") in [(s[0], s[1]) for s in satirlar]
+    assert any(s[0] == "Durum" for s in satirlar)

@@ -15,7 +15,7 @@
 
 <form method="get" action="/raporlar" class="gecmis-search-toolbar mb-3">
   <input type="text" name="kisi" value="{{ filtre_kisi }}" class="form-control form-control-sm" placeholder="{{ t('gecmis_isim_ara', dil) }}">
-  <input type="text" name="birim" value="{{ filtre_birim }}" class="form-control form-control-sm" placeholder="{{ t('birim', dil) }}">
+  {% include "_departman_filtre.html" %}
   <label class="gecmis-tarih-alani">
     <span class="gecmis-tarih-etiket">{{ t('gecmis_tarih_baslangic', dil) }}</span>
     <input type="date" name="baslangic" value="{{ filtre_baslangic }}" class="form-control form-control-sm">
@@ -83,7 +83,7 @@
             </td>
             <td><a href="/gecmis/{{ h.id }}">{{ h.ad }}</a></td>
             <td>{{ h.olusturan_ad_soyad or h.olusturan_kullanici_adi }}</td>
-            <td>{{ h.olusturan_departman or "" }}</td>
+            <td>{{ (h.olusturan_departman | departman) if h.olusturan_departman else "" }}</td>
             <td>{{ h.toplam_aylik_maliyet | para('USD') }}</td>
             <td>{{ h.onaylayan_kullanici_adi or "" }}</td>
             <td>{% if h.onay_tarihi %}{{ (h.onay_tarihi | yerel_saat).strftime("%d.%m.%Y") }}{% endif %}</td>

@@ -658,6 +658,37 @@ def departman_etiketi(anahtar: str) -> str:
     return anahtar.capitalize()
 
 
+def departman_secenek_listesi(
+    ekstra_anahtarlar: set[str] | None = None,
+) -> list[dict[str, str]]:
+    """Filtre acilir listesi: haritadaki departmanlar + kayitlardan gelen ekstra anahtarlar."""
+    harita = departman_haritasini_yukle()
+    anahtarlar = {str(k) for k in (harita.get("departmanlar") or {})}
+    varsayilan = str(harita.get("varsayilan_departman") or "diger")
+    anahtarlar.add(varsayilan)
+    for ham in ekstra_anahtarlar or ():
+        kod = (ham or "").strip()
+        if kod:
+            anahtarlar.add(kod)
+
+    def _sira(kod: str) -> tuple:
+        return (1 if "-" in kod else 0, departman_etiketi(kod).lower(), kod)
+
+    return [
+        {"anahtar": kod, "etiket": departman_etiketi(kod)}
+        for kod in sorted(anahtarlar, key=_sira)
+    ]
+
+
+def departman_filtre_eslesir(kayit_departman: str | None, secilen: str) -> bool:
+    """Secilen anahtar kayitla ayniysa veya onun alt departmaniysa True."""
+    secilen = (secilen or "").strip().lower()
+    if not secilen:
+        return True
+    kayit = (kayit_departman or "").strip().lower()
+    return kayit == secilen or kayit.startswith(secilen + "-")
+
+
 def gruplardan_departman_belirle(gruplar: list[str] | None) -> tuple[str, str]:
     """AD grup listesinden departman anahtari ve goruntuleme etiketi dondurur."""
     gruplar = gruplar or []
@@ -954,9 +985,180 @@ def hesaplama_gorunen_durum(hesaplama) -> str:
     from app.models import DURUM_TASLAK
 
     durum = getattr(hesaplama, "durum", None) or DURUM_TASLAK
-    if durum == DURUM_TASLAK and getattr(hesaplama, "red_gerekce", None):
+    if durum == DURUM_TASLAK and (
+        getattr(hesaplama, "red_gerekce", None)
+        or getattr(hesaplama, "reddeden_kullanici_adi", None)
+    ):
         return "reddedildi"
     return durum
+
+
+_KOPYA_AD_RE = re.compile(r"^(.*) COPY(?: \((\d+)\))?$")
+
+
+def kopya_kaynak_adi(ad: str | None) -> str | None:
+    """'Foo COPY' / 'Foo COPY (2)' ise kaynak adi; aksi halde None."""
+    ham = (ad or "").strip()
+    eslesme = _KOPYA_AD_RE.fullmatch(ham)
+    if not eslesme:
+        return None
+    kaynak = (eslesme.group(1) or "").strip()
+    return kaynak or None
+
+
+def hesaplama_reddeden_sam(hesaplama) -> str:
+    """Sablonda gosterilecek reddeden SAM; fallback isaretlenmisse onu kullanir."""
+    gosterim = getattr(hesaplama, "_reddeden_gosterim", None)
+    if gosterim:
+        return str(gosterim).strip()
+    return (getattr(hesaplama, "reddeden_kullanici_adi", None) or "").strip()
+
+
+def _reddeden_gosterim_yaz(hesaplama, sam: str) -> None:
+    """Kolonu degistirmeden gorunen reddedeni nesneye yazar (flush/commit yok)."""
+    deger = (sam or "").strip()
+    try:
+        object.__setattr__(hesaplama, "_reddeden_gosterim", deger)
+    except (AttributeError, TypeError, ValueError):
+        hesaplama.__dict__["_reddeden_gosterim"] = deger
+
+
+def reddedilme_aktor_haritasi(aktiviteler, hesaplama_idleri=None) -> dict[int, str]:
+    """hesaplama_id -> son reddeden SAM (aktivite kayitlarindan)."""
+    id_filtre = None
+    if hesaplama_idleri is not None:
+        id_filtre = {int(i) for i in hesaplama_idleri if i is not None}
+        if not id_filtre:
+            return {}
+    sirali = sorted(
+        (
+            a
+            for a in (aktiviteler or [])
+            if getattr(a, "islem", None) == "reddedildi"
+            and getattr(a, "hesaplama_id", None) is not None
+            and (id_filtre is None or int(a.hesaplama_id) in id_filtre)
+        ),
+        key=lambda a: str(getattr(a, "olusturulma_tarihi", None) or ""),
+        reverse=True,
+    )
+    sonuc: dict[int, str] = {}
+    for kayit in sirali:
+        hid = int(kayit.hesaplama_id)
+        if hid in sonuc:
+            continue
+        sam = (getattr(kayit, "aktor_kullanici_adi", None) or "").strip()
+        if sam:
+            sonuc[hid] = sam
+    return sonuc
+
+
+def reddedilme_aktorlerini_yukle(oturum, hesaplama_idleri) -> dict[int, str]:
+    """Verilen id'ler icin son 'reddedildi' aktivite aktorunu yukler."""
+    from sqlmodel import col, select
+
+    from app.models import AktiviteKaydi
+
+    ids = [int(i) for i in (hesaplama_idleri or []) if i is not None]
+    if not ids or oturum is None:
+        return {}
+    kayitlar = list(
+        oturum.exec(
+            select(AktiviteKaydi)
+            .where(AktiviteKaydi.islem == "reddedildi")
+            .where(col(AktiviteKaydi.hesaplama_id).in_(ids))
+        ).all()
+    )
+    return reddedilme_aktor_haritasi(kayitlar, ids)
+
+
+def _kaynak_hesaplamayi_bul(oturum, hesaplama, hesaplamalar=None):
+    """Kopya kaydinin kaynak tahminini ada + sahibe gore bulur."""
+    kaynak_ad = kopya_kaynak_adi(getattr(hesaplama, "ad", None))
+    if not kaynak_ad:
+        return None
+    sahip = (getattr(hesaplama, "olusturan_kullanici_adi", None) or "").lower()
+    hid = getattr(hesaplama, "id", None)
+    for aday in hesaplamalar or []:
+        if aday is None or aday is hesaplama:
+            continue
+        if hid is not None and getattr(aday, "id", None) == hid:
+            continue
+        if (getattr(aday, "ad", None) or "").strip() != kaynak_ad:
+            continue
+        if (getattr(aday, "olusturan_kullanici_adi", None) or "").lower() == sahip:
+            return aday
+    if oturum is None:
+        return None
+    from sqlmodel import select
+
+    from app.models import Hesaplama
+
+    for aday in oturum.exec(select(Hesaplama).where(Hesaplama.ad == kaynak_ad)).all():
+        if hid is not None and aday.id == hid:
+            continue
+        if (aday.olusturan_kullanici_adi or "").lower() == sahip:
+            return aday
+    return None
+
+
+def hesaplamalara_reddeden_ata(
+    hesaplamalar,
+    *,
+    oturum=None,
+    aktiviteler=None,
+) -> None:
+    """Reddedilmis kayitlara gosterim reddeden SAM'ini yazar.
+
+    Sira: reddeden_kullanici_adi → son reddedilme aktivitesi →
+    onaylayan_kullanici_adi (eski redler) → kopya kaynagi.
+    """
+    kayitlar = [h for h in (hesaplamalar or []) if h is not None]
+    if not kayitlar:
+        return
+    reddedilen = [h for h in kayitlar if hesaplama_gorunen_durum(h) == "reddedildi"]
+    eksik_idleri = [
+        h.id
+        for h in reddedilen
+        if getattr(h, "id", None) is not None
+        and not (getattr(h, "reddeden_kullanici_adi", None) or "").strip()
+    ]
+    if aktiviteler is not None:
+        aktorler = reddedilme_aktor_haritasi(aktiviteler, eksik_idleri)
+    elif oturum is not None and eksik_idleri:
+        aktorler = reddedilme_aktorlerini_yukle(oturum, eksik_idleri)
+    else:
+        aktorler = {}
+
+    for hesaplama in kayitlar:
+        if hesaplama_gorunen_durum(hesaplama) != "reddedildi":
+            _reddeden_gosterim_yaz(
+                hesaplama,
+                (getattr(hesaplama, "reddeden_kullanici_adi", None) or ""),
+            )
+            continue
+        sam = (getattr(hesaplama, "reddeden_kullanici_adi", None) or "").strip()
+        if not sam:
+            hid = getattr(hesaplama, "id", None)
+            if hid is not None:
+                sam = (aktorler.get(int(hid)) or "").strip()
+        if not sam:
+            sam = (getattr(hesaplama, "onaylayan_kullanici_adi", None) or "").strip()
+        _reddeden_gosterim_yaz(hesaplama, sam)
+
+    for hesaplama in reddedilen:
+        if hesaplama_reddeden_sam(hesaplama):
+            continue
+        kaynak = _kaynak_hesaplamayi_bul(oturum, hesaplama, kayitlar)
+        if kaynak is None:
+            continue
+        kaynak_sam = hesaplama_reddeden_sam(kaynak)
+        if not kaynak_sam:
+            hesaplamalara_reddeden_ata(
+                [kaynak], oturum=oturum, aktiviteler=aktiviteler
+            )
+            kaynak_sam = hesaplama_reddeden_sam(kaynak)
+        if kaynak_sam:
+            _reddeden_gosterim_yaz(hesaplama, kaynak_sam)
 
 
 def hesaplamayi_duzenleyebilir_mi(kullanici: dict | None, hesaplama) -> bool:

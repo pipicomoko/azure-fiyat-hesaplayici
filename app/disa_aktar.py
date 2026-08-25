@@ -81,10 +81,16 @@ class HesaplamaMeta:
     revizyon: int = 1
     onaylayan: str = ""
     onay_tarihi: str = ""
+    reddeden: str = ""
 
 
 def hesaplama_meta_olustur(hesaplama) -> HesaplamaMeta:
-    from app.yetkilendirme import departman_etiketi, hesaplama_departmani
+    from app.yetkilendirme import (
+        departman_etiketi,
+        hesaplama_departmani,
+        hesaplama_reddeden_sam,
+        sam_gorunen_adi,
+    )
 
     dep = hesaplama_departmani(
         getattr(hesaplama, "olusturan_gruplar", None),
@@ -92,6 +98,7 @@ def hesaplama_meta_olustur(hesaplama) -> HesaplamaMeta:
     )
     onay_t = getattr(hesaplama, "onay_tarihi", None)
     olusturma = getattr(hesaplama, "olusturulma_tarihi", None)
+    reddeden_sam = hesaplama_reddeden_sam(hesaplama)
     return HesaplamaMeta(
         senaryo_adi=str(getattr(hesaplama, "ad", "") or ""),
         olusturan=str(
@@ -105,6 +112,7 @@ def hesaplama_meta_olustur(hesaplama) -> HesaplamaMeta:
         revizyon=int(getattr(hesaplama, "revizyon", 1) or 1),
         onaylayan=str(getattr(hesaplama, "onaylayan_kullanici_adi", "") or ""),
         onay_tarihi=onay_t.strftime("%Y-%m-%d %H:%M") if onay_t else "",
+        reddeden=sam_gorunen_adi(reddeden_sam) if reddeden_sam else "",
     )
 
 
@@ -205,9 +213,10 @@ def _tahmin_sayfasini_doldur(
         row += 1
         for etiket, deger in (
             ("Olusturan Calisan", meta.olusturan),
-            ("Birim", meta.birim),
+            ("Departman", meta.birim),
             ("Olusturulma Tarihi", meta.olusturma_tarihi),
             ("Durum", f"{meta.durum} / Rev {meta.revizyon}"),
+            ("Reddeden", meta.reddeden),
             ("Onaylayan", meta.onaylayan),
             ("Onay Tarihi", meta.onay_tarihi),
         ):
@@ -247,12 +256,13 @@ def _tahmin_sayfasini_doldur(
     ws.row_dimensions[baslik_satiri].height = 15
 
     indirimli_yillik_toplam = 0.0
+    liste_aylik_toplam = 0.0
     for satir in satirlar:
         r = ws.max_row + 1
         aylik = float(satir.ara_toplam)
+        liste_aylik_toplam += aylik
         indirim = getattr(satir, "indirim_yuzdesi", None)
         indirimli = getattr(satir, "indirimli_aylik", None)
-        esas = float(indirimli) if indirimli is not None else aylik
         _hucrele(ws, r, 1, satir.servis_kategori or "")
         _hucrele(ws, r, 2, satir.urun)
         _hucrele(ws, r, 3, satir.ozel_ad or "")
@@ -268,8 +278,8 @@ def _tahmin_sayfasini_doldur(
                 align="right",
                 number_format="0.00",
             )
-            ind_aylik = float(indirimli) if indirimli is not None else esas
-            # Web: (indirimli_aylik | yillik) == indirimli_aylik * 12
+            ind_aylik = float(indirimli) if indirimli is not None else aylik
+            # Yalniz bu sutun indirimli yillik: indirimli_aylik * 12
             ind_yillik = round(ind_aylik * 12, 2)
             indirimli_yillik_toplam += ind_yillik
             _maliyet_hucresi(ws, r, _COL_INDIRIMLI_AYLIK, ind_aylik)
@@ -279,7 +289,8 @@ def _tahmin_sayfasini_doldur(
             _hucrele(ws, r, _COL_INDIRIMLI_AYLIK, _BOS_MALIYET)
             _hucrele(ws, r, _COL_INDIRIMLI_YILLIK, _BOS_MALIYET)
         _maliyet_hucresi(ws, r, _COL_ON_ODEME, satir.on_odeme)
-        _maliyet_hucresi(ws, r, _COL_YILLIK, esas * 12)
+        # Yillik Tahmini Maliyet her zaman liste aylik * 12 (indirimsiz)
+        _maliyet_hucresi(ws, r, _COL_YILLIK, aylik * 12)
         ws.row_dimensions[r].height = _satir_yuksekligi(
             satir.yapilandirma_ozeti, _ACIKLAMA_GENISLIGI
         )
@@ -312,7 +323,7 @@ def _tahmin_sayfasini_doldur(
     _maliyet_hucresi(ws, r, _COL_AYLIK, genel_toplam, bold=True)
     _maliyet_hucresi(ws, r, _COL_INDIRIMLI_YILLIK, indirimli_yillik_toplam, bold=True)
     _maliyet_hucresi(ws, r, _COL_ON_ODEME, 0, bold=True)
-    _maliyet_hucresi(ws, r, _COL_YILLIK, genel_toplam * 12, bold=True)
+    _maliyet_hucresi(ws, r, _COL_YILLIK, liste_aylik_toplam * 12, bold=True)
 
     r = ws.max_row + 2
     _hucrele(ws, r, 1, _DISCLAIMER)
@@ -426,7 +437,7 @@ def donemsel_rapor_kitabi_olustur(hesaplamalar: list[Any]) -> bytes:
     basliklar = [
         "Tarih",
         "Calisan",
-        "Birim",
+        "Departman",
         "Hizmet",
         "Kalem Sayisi",
         "Toplam Tutar",

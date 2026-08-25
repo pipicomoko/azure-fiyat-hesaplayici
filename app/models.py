@@ -37,6 +37,7 @@ class Hesaplama(SQLModel, table=True):
     onaylayan_kullanici_adi: Optional[str] = Field(default=None)
     onay_tarihi: Optional[datetime] = Field(default=None)
     red_gerekce: Optional[str] = Field(default=None)
+    reddeden_kullanici_adi: Optional[str] = Field(default=None)
     iptal_gerekce: Optional[str] = Field(default=None)
     # Manager zinciri anlik goruntusu (onaya gonderildiginde)
     olusturan_manager_zinciri: list[str] = Field(

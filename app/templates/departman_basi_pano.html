@@ -34,7 +34,7 @@
       {% for trend in trendler %}
       <div class="executive-chart"><h3>{{ trend.para_birimi }}</h3>
         <svg viewBox="0 0 590 190" role="img" aria-label="{{ t(panel_trend_anahtari, dil) }} — {{ trend.para_birimi }}"><line x1="20" y1="170" x2="570" y2="170" class="chart-axis"/><polyline points="{{ trend.noktalar }}" class="chart-line"/>{% for ay in trend.aylar %}<circle cx="{{ trend.noktalar_liste[loop.index0].x }}" cy="{{ trend.noktalar_liste[loop.index0].y }}" r="4" class="chart-dot"><title>{{ ay.etiket }}: {{ ay.toplam | para(trend.para_birimi, dil) }}</title></circle>{% endfor %}</svg>
-        <details><summary>{{ t('gm_tabloyu_goster', dil) }}</summary><div class="ui-table-wrap"><table class="ui-table"><thead><tr><th>{{ t('donem', dil) }}</th><th class="num">{{ t('toplam_aylik', dil) }}</th></tr></thead><tbody>{% for ay in trend.aylar %}<tr><td>{{ ay.etiket }}</td><td class="num">{{ ay.toplam | para(trend.para_birimi, dil) }}</td></tr>{% endfor %}</tbody></table></div></details>
+        <details><summary>{{ t('gm_tabloyu_goster', dil) }}</summary><div class="ui-table-wrap"><table class="ui-table"><thead><tr><th>{{ t('donem', dil) }}</th><th class="num">{{ t('toplam_aylik', dil) }}</th></tr></thead><tbody>{% for ay in trend.tablo_aylar %}<tr><td>{{ ay.etiket }}</td><td class="num">{{ ay.toplam | para(trend.para_birimi, dil) }}</td></tr>{% endfor %}</tbody></table></div></details>
       </div>{% else %}<p class="estimate-empty">{{ t('gm_veri_yok', dil) }}</p>{% endfor %}
     </div>
   </section>
