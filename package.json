@@ -1,0 +1,24 @@
+{
+  "name": "azure-fiyat-hesaplayici-prelaunch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pre-launch testing suite for Azure Fiyat Hesaplayici (FastAPI app)",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:unit": "jest --config jest.config.js",
+    "test:e2e": "playwright test test.spec.js",
+    "test:integration": "playwright test test.integration.js",
+    "test:pytest": "python3 -m pytest -q",
+    "lighthouse": "node scripts/run-lighthouse.js",
+    "security": "node security-check.js",
+    "pre-deploy": "bash pre-deploy.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "dotenv": "^16.4.5",
+    "jest": "^29.7.0",
+    "lighthouse": "^12.2.1",
+    "chrome-launcher": "^1.1.2",
+    "nock": "^13.5.6"
+  }
+}
