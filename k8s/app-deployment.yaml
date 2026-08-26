@@ -21,10 +21,11 @@ spec:
       labels:
         app: afh
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       initContainers:
         - name: postgres-bekle
-          image: azure-fiyat-hesaplayici:local
-          imagePullPolicy: Never
+          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:latest
           command:
             - python
             - -c
@@ -38,8 +39,7 @@ spec:
                       time.sleep(2)
               sys.exit(1)
         - name: samba-bekle
-          image: azure-fiyat-hesaplayici:local
-          imagePullPolicy: Never
+          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:latest
           command:
             - python
             - -c
@@ -54,8 +54,7 @@ spec:
               sys.exit(1)
       containers:
         - name: app
-          image: azure-fiyat-hesaplayici:local
-          imagePullPolicy: Never
+          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:latest
           ports:
             - containerPort: 8000
           resources:
