@@ -1,4 +1,6 @@
-# Ornek Application — Argo CD (Faz 5, urun stabil olduktan sonra)
+# Argo CD Application — yalnizca Argo kurulduktan sonra uygulanir:
+#   kubectl apply -f k8s/argocd-application.yaml
+# Bu dosya kume workload'larina dahil edilmez (asagidaki directory.exclude).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -7,9 +9,11 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/OWNER/azure-fiyat-hesaplayici.git
+    repoURL: https://github.com/pipicomoko/azure-fiyat-hesaplayici.git
     targetRevision: main
     path: k8s
+    directory:
+      exclude: "{argocd-application.yaml}"
   destination:
     server: https://kubernetes.default.svc
     namespace: afh

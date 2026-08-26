@@ -1,14 +1,14 @@
-# AFH uygulama imaji (GitOps iskeleti — urun stabil olduktan sonra genisletilir)
+# AFH uygulama imaji — Minikube ogrenme kurulumu
 #
-# Secret olusturma ornegi (degerleri kendiniz uretin; buraya yazmayin):
-#   kubectl create secret generic afh-secrets \
-#     --from-literal=secret-key="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
-#     --from-literal=database-url='postgresql+psycopg://...' \
-#     --from-file=ad-ca-pem=./config/ad-ca.pem
+# Secret kume icinde olusturulur, Git'e yazilmaz:
+#   kubectl -n afh create secret generic afh-secrets \
+#     --from-literal=secret-key="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')" \
+#     --from-literal=database-url='postgresql+psycopg://apc:apc@postgres:5432/apc'
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: afh-app
+  namespace: afh
   labels:
     app: afh
 spec:
@@ -21,9 +21,41 @@ spec:
       labels:
         app: afh
     spec:
+      initContainers:
+        - name: postgres-bekle
+          image: azure-fiyat-hesaplayici:local
+          imagePullPolicy: Never
+          command:
+            - python
+            - -c
+            - |
+              import socket, sys, time
+              for _ in range(60):
+                  try:
+                      socket.create_connection(("postgres", 5432), 2).close()
+                      sys.exit(0)
+                  except OSError:
+                      time.sleep(2)
+              sys.exit(1)
+        - name: samba-bekle
+          image: azure-fiyat-hesaplayici:local
+          imagePullPolicy: Never
+          command:
+            - python
+            - -c
+            - |
+              import socket, sys, time
+              for _ in range(180):
+                  try:
+                      socket.create_connection(("samba", 389), 2).close()
+                      sys.exit(0)
+                  except OSError:
+                      time.sleep(2)
+              sys.exit(1)
       containers:
         - name: app
-          image: ghcr.io/OWNER/azure-fiyat-hesaplayici:latest
+          image: azure-fiyat-hesaplayici:local
+          imagePullPolicy: Never
           ports:
             - containerPort: 8000
           resources:
@@ -35,43 +67,34 @@ spec:
               memory: 512Mi
           env:
             - name: APP_ENV
-              value: production
+              value: development
             - name: LDAP_TLS_MODU
-              value: ldaps
-            # BUG-10: CA zorunlu; CERT_NONE'a dusulmez
-            - name: LDAP_CA_SERTIFIKA_DOSYASI
-              value: /certs/ad-ca.pem
-            # LDAP baglantisi — ConfigMap veya asagidaki value'lari ortaminiza gore doldurun
+              value: kapali
             - name: LDAP_SUNUCU
               valueFrom:
                 configMapKeyRef:
                   name: afh-config
                   key: ldap-sunucu
-                  optional: true
             - name: LDAP_DOMAIN
               valueFrom:
                 configMapKeyRef:
                   name: afh-config
                   key: ldap-domain
-                  optional: true
             - name: LDAP_ARAMA_TABANI
               valueFrom:
                 configMapKeyRef:
                   name: afh-config
                   key: ldap-arama-tabani
-                  optional: true
             - name: LDAP_PORT
               valueFrom:
                 configMapKeyRef:
                   name: afh-config
                   key: ldap-port
-                  optional: true
             - name: GENEL_MUDUR_SAM
               valueFrom:
                 configMapKeyRef:
                   name: afh-config
                   key: genel-mudur-sam
-                  optional: true
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -82,46 +105,37 @@ spec:
                 secretKeyRef:
                   name: afh-secrets
                   key: database-url
-          volumeMounts:
-            - name: ldap-ca
-              mountPath: /certs
-              readOnly: true
           readinessProbe:
             httpGet:
               path: /saglik
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 20
             periodSeconds: 15
+            failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /canli
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 30
-      volumes:
-        - name: ldap-ca
-          secret:
-            secretName: afh-secrets
-            items:
-              - key: ad-ca-pem
-                path: ad-ca.pem
 ---
-# Istege bagli ConfigMap iskeleti — gercek degerleri cluster'da olusturun
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: afh-config
+  namespace: afh
 data:
-  ldap-sunucu: "dc01.sirket.local"
+  ldap-sunucu: "samba"
   ldap-domain: "sirket.local"
   ldap-arama-tabani: "DC=sirket,DC=local"
-  ldap-port: ""
-  genel-mudur-sam: ""
+  ldap-port: "389"
+  genel-mudur-sam: "ahmet.yildirim"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: afh-app
+  namespace: afh
 spec:
   selector:
     app: afh

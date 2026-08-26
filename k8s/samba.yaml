@@ -1,0 +1,113 @@
+# Compose samba servisinin K8s karsiligi.
+# Service adi "samba" — uygulama LDAP_SUNUCU=samba ile buraya baglanir.
+# (Kubernetes Service adinda nokta olamaz; dc01.sirket.local alias yok.)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: samba-data
+  namespace: afh
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: samba
+  namespace: afh
+  labels:
+    app: samba
+spec:
+  replicas: 1
+  # PVC ReadWriteOnce: RollingUpdate iki podu ayni diske bindirmeye calisir.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: samba
+  template:
+    metadata:
+      labels:
+        app: samba
+    spec:
+      hostname: dc01
+      containers:
+        - name: samba
+          image: smblds/smblds:latest
+          ports:
+            - name: ldap
+              containerPort: 389
+            - name: ldaps
+              containerPort: 636
+          env:
+            - name: TZ
+              value: Europe/Istanbul
+            - name: REALM
+              value: SIRKET.LOCAL
+            - name: DOMAIN
+              value: SIRKET
+            - name: ADMINPASS
+              value: Passw0rd!
+            # Gelistirme: uygulama LDAP_TLS_MODU=kapali ile 389'a bind eder.
+            # false iken yalnizca STARTTLS/LDAPS kabul edilir; giris basarisiz olur.
+            - name: INSECURE_LDAP
+              value: "true"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/samba
+            - name: seed
+              mountPath: /entrypoint.d
+          # entrypoint.d seed, Samba daemon'i ACMADAN once calisir (~37 kullanici).
+          # Bu surede 389 kapali; startupProbe olmazsa kubelet pod'u oldurur.
+          startupProbe:
+            tcpSocket:
+              port: 389
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 90
+          readinessProbe:
+            tcpSocket:
+              port: 389
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 389
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: samba-data
+        - name: seed
+          configMap:
+            name: samba-seed
+            defaultMode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: samba
+  namespace: afh
+spec:
+  selector:
+    app: samba
+  ports:
+    - name: ldap
+      port: 389
+      targetPort: 389
+    - name: ldaps
+      port: 636
+      targetPort: 636
