@@ -4,3 +4,4 @@ metadata:
   name: afh
   labels:
     app.kubernetes.io/name: azure-fiyat-hesaplayici
+    ogrenme: minikube
