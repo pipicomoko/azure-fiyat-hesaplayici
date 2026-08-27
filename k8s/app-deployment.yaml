@@ -25,7 +25,7 @@ spec:
         - name: ghcr-pull
       initContainers:
         - name: postgres-bekle
-          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:latest
+          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:b0b925cd34dbdb8cfb470384925b547db7234975
           command:
             - python
             - -c
@@ -39,7 +39,7 @@ spec:
                       time.sleep(2)
               sys.exit(1)
         - name: samba-bekle
-          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:latest
+          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:b0b925cd34dbdb8cfb470384925b547db7234975
           command:
             - python
             - -c
@@ -54,7 +54,7 @@ spec:
               sys.exit(1)
       containers:
         - name: app
-          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:latest
+          image: ghcr.io/pipicomoko/azure-fiyat-hesaplayici:b0b925cd34dbdb8cfb470384925b547db7234975
           ports:
             - containerPort: 8000
           resources:
